@@ -61,7 +61,7 @@ export default function AddOrderDialog({
     setSaving(true);
     setLocalError(null);
     try {
-      await api.post('/orders', payload, { headers: { 'Content-Type': 'application/json' } });
+      await api.post('/orders/', payload, { headers: { 'Content-Type': 'application/json' } });
       onOpenChange(false);
       onCreated();
     } catch (e: any) {

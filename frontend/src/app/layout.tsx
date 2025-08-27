@@ -14,6 +14,11 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Tracker Ordini',
   description: 'Applicazione per la gestione degli ordini e delle consegne',
+  icons: {
+    icon: '/icons/logo_32x32.png', // default favicon
+    shortcut: '/icons/logo_16x16.png', // older browsers
+    apple: '/icons/logo.png', // iOS home screen
+  }
 };
 
 /**

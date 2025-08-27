@@ -1,6 +1,8 @@
+import hashlib
 from typing import Optional
 from sqlalchemy import select
 from pydantic import EmailStr
+from hmac import compare_digest
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import APIRouter, Response, HTTPException, status, Depends, Form, Cookie
 
@@ -24,7 +26,8 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 async def register(
     username: EmailStr = Form(...),
     password: str = Form(...),
-    name: str = Form(...)
+    name: str = Form(...),
+    registration_password: str = Form(..., description="Secret per abilitare la registrazione")
 ) -> SuccessResponse:
     """
     User registration
@@ -33,11 +36,19 @@ async def register(
     - username (EmailStr): The email address of the user
     - password (str): The password of the user
     - name (str): The name of the user
+    - registration_password (str): The registration password to authorize the registration
 
     Returns:
     - SuccessResponse: The response containing the result of the registration
     """
 
+    # Compute SHA-256 hash of the input
+    provided_hash = hashlib.sha256(registration_password.encode()).hexdigest()
+
+    # Compare with the expected hash from environment variables
+    if not compare_digest(provided_hash, settings.registration_password_hash):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registrazione non autorizzata")
+    
     # Open a new database session
     async with db_session() as session:
         # Check if the user already exists

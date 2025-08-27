@@ -9,14 +9,15 @@ class Settings(BaseSettings):
     """
 
     # Database connection settings
-    db_user: str = "root"
-    db_password: str = "changeme"
-    db_host: str = "127.0.0.1"
-    db_port: int = 3306
-    db_name: str = "orders_db"
+    db_user: str
+    db_password: str
+    db_host: str
+    db_port: int
+    db_name: str
 
     # Security settings
-    secret_key: str = "CHANGE_ME"
+    secret_key: str
+    registration_password_hash: str
     jwt_algorithm: str = "HS256"
     access_token_exp_minutes: int = 15
     refresh_token_exp_days: int = 7
@@ -26,13 +27,10 @@ class Settings(BaseSettings):
     refresh_cookie_path: str = "/auth/refresh"
     refresh_cookie_max_age: int = refresh_token_exp_days * 24 * 60 * 60
     refresh_cookie_samesite: str = "lax"
-    refresh_cookie_secure: bool = False # TODO: set to True in production
+    refresh_cookie_secure: bool = False  #TODO: Set to True in production via HTTPS
 
     # CORS settings
-    cors_origins: list[str] = Field(
-        default_factory = lambda: ["http://localhost:3000", "http://127.0.0.1:3000"],
-        alias = "CORS_ORIGINS"
-    )
+    cors_origins: list[str] = Field(alias="CORS_ORIGINS")
 
     # Load environment variables from .env file
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
@@ -58,4 +56,4 @@ class Settings(BaseSettings):
         )
 
 # Initialize settings
-settings = Settings()
+settings = Settings() # type: ignore

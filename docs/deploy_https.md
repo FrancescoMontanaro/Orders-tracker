@@ -58,7 +58,7 @@ sudo ufw enable
 # DB
 DB_USER="<<nome-utente-db>>"
 DB_PASSWORD="<<password-db>>"
-DB_HOST="db"
+DB_HOST="orders_tracker_db"
 DB_PORT="3306"
 DB_NAME="orders_tracker"
 

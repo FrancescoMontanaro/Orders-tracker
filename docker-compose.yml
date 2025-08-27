@@ -1,7 +1,7 @@
 services:
   db:
     image: mysql:8.0
-    container_name: orders_db
+    container_name: orders_tracker_db
     command: --default-authentication-plugin=mysql_native_password --innodb_flush_log_at_trx_commit=1 --innodb_flush_method=O_DIRECT
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-orders}
@@ -24,7 +24,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: orders_backend
+    container_name: orders_tracker_backend
     env_file:
       - ./backend/.env.production
     depends_on:
@@ -44,7 +44,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: orders_frontend
+    container_name: orders_tracker_frontend
     env_file:
       - ./frontend/.env.production
     depends_on:
@@ -57,7 +57,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: orders_nginx
+    container_name: orders_tracker_nginx
     depends_on:
       - frontend
       - backend

@@ -24,9 +24,10 @@ class Settings(BaseSettings):
     
     # Cookies helper
     refresh_cookie_name: str = "refresh_token"
-    refresh_cookie_path: str = "/auth/refresh"
+    refresh_cookie_path: str = "/" # TODO: replace with /api/auth/refresh
     refresh_cookie_max_age: int = refresh_token_exp_days * 24 * 60 * 60
     refresh_cookie_samesite: str = "lax"
+    refresh_cookie_domain: str | None = None # TODO: Set the domain
     refresh_cookie_secure: bool = False  #TODO: Set to True in production via HTTPS
 
     # CORS settings

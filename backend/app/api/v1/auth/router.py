@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy import select
 from pydantic import EmailStr
 from hmac import compare_digest
+from datetime import datetime, timedelta, timezone
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import APIRouter, Response, HTTPException, status, Depends, Form, Cookie
 
@@ -101,6 +102,9 @@ async def login(response: Response, form: OAuth2PasswordRequestForm = Depends())
     access_token = create_access_token(sub=user.email)
     refresh_token = create_refresh_token(sub=user.email)
 
+    # Set the expiration time for the refresh token
+    expires = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_exp_days)
+
     # set cookie httpOnly with the refresh token
     response.set_cookie(
         key = settings.refresh_cookie_name,
@@ -109,7 +113,9 @@ async def login(response: Response, form: OAuth2PasswordRequestForm = Depends())
         samesite = settings.refresh_cookie_samesite, # type: ignore
         secure = settings.refresh_cookie_secure,
         path = settings.refresh_cookie_path,
-        max_age = settings.refresh_cookie_max_age
+        max_age = settings.refresh_cookie_max_age,
+        expires = expires,
+        domain = settings.refresh_cookie_domain
     )
 
     # Set the response body with the access token

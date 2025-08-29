@@ -390,7 +390,9 @@ export default function CalendarCard() {
                           )}
 
                           <div className="pointer-events-none absolute inset-x-2 bottom-2 hidden justify-end group-hover:flex">
-                            
+                            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                              Vedi / Aggiungi ordini
+                            </span>
                           </div>
                         </button>
                       );

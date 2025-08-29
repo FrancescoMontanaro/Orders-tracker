@@ -98,8 +98,14 @@ export default function CalendarCard() {
     setLoading(true);
     setError(null);
     try {
-      const startISO = toISO(firstDayOfMonth(month));
-      const endISO = toISO(lastDayOfMonth(month));
+      const firstMonthDay = firstDayOfMonth(month);
+      const gridStart = startOfCalendarGrid(firstMonthDay);
+      const gridEnd = new Date(gridStart);
+      gridEnd.setDate(gridStart.getDate() + 41); // 6 settimane = 42 giorni - 1
+
+      const startISO = toISO(gridStart);
+      const endISO = toISO(gridEnd);
+
       const res = await api.post<SuccessResponse<DailySummaryDay[]>>('/widgets/daily-summary', {
         start_date: startISO,
         end_date: endISO,

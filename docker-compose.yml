@@ -20,6 +20,29 @@ services:
     networks: [app-net]
     restart: unless-stopped
 
+  db_backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    container_name: orders_tracker_db_backup
+    environment:
+      TZ: Europe/Rome
+      MYSQL_HOST: db
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-orders}
+      MYSQL_USER: ${MYSQL_USER:-orders}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-orders}
+      RESTIC_REPOSITORY: /restic-repo
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-change_this_password}
+      RESTIC_CACHE_DIR: /restic-cache
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./restic/restic_repo:/restic-repo
+      - ./restic/restic_cache:/restic-cache
+    networks: [app-net]
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend

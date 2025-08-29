@@ -31,14 +31,16 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-orders}
       MYSQL_USER: ${MYSQL_USER:-orders}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-orders}
-      RESTIC_REPOSITORY: /restic-repo
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}
       RESTIC_PASSWORD: ${RESTIC_PASSWORD:-change_this_password}
       RESTIC_CACHE_DIR: /restic-cache
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_REGION}
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - ./restic/restic_repo:/restic-repo
       - ./restic/restic_cache:/restic-cache
     networks: [app-net]
     restart: unless-stopped

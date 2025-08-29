@@ -16,7 +16,18 @@ import type { OrderItem } from '../types/dailySummary';
 import { euro } from '../utils/currency';
 import { fmtDate } from '../utils/date';
 
-// Modal dialog to create a new order; does not send unit prices (server computes totals)
+// --- util: parse robusto per numeri locali (es. "1,5" -> 1.5) ---
+function parseLocaleNumber(v: unknown): number | null {
+  if (v === '' || v == null) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string') {
+    const s = v.replace(/\s/g, '').replace(',', '.');
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 export default function AddOrderDialog({
   open, onOpenChange, onCreated, defaultDate,
 }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: () => void; defaultDate?: string; }) {
@@ -32,7 +43,6 @@ export default function AddOrderDialog({
 
   React.useEffect(() => {
     if (open) {
-      // Reset form when dialog opens; keep deliveryDate pre-filled and not editable
       setDeliveryDate(defaultDate || '');
       setCustomer(null);
       setAppliedDiscount('');
@@ -42,21 +52,53 @@ export default function AddOrderDialog({
     }
   }, [open, defaultDate]);
 
-  const totals = usePreviewTotals(items, appliedDiscount);
+  // --- NORMALIZZO gli item per l'anteprima totali (virgole incluse) ---
+  const normalizedItemsForPreview = React.useMemo(() => {
+    return items.map((it: any) => {
+      const qty = parseLocaleNumber(it.quantity);
+      return {
+        ...it,
+        quantity: qty ?? it.quantity, // se invalido, mantengo il raw per non "sparire" la cifra mentre digiti
+      };
+    });
+  }, [items]);
+
+  // usa i normalizzati per i totali (così su mobile i totali non risultano 0/null)
+  const totals = usePreviewTotals(normalizedItemsForPreview as any, appliedDiscount);
 
   async function create() {
-    // Client-side validation keeps the UX responsive
+    if (saving) return; // evita doppi tap
+    // Validazioni base
     if (!deliveryDate) return setLocalError('La data di consegna è obbligatoria.');
     if (!customer?.id) return setLocalError('Il cliente è obbligatorio.');
     if (!items.length) return setLocalError('Aggiungi almeno un prodotto.');
 
+    // Normalizzo quantità per il payload
+    const itemsPayload = items.map((raw: any) => {
+      const qty = parseLocaleNumber(raw.quantity);
+      return {
+        product_id: Number(raw.product_id),
+        quantity: qty,
+      };
+    });
+
+    if (itemsPayload.some((it) => it.quantity == null || !Number.isFinite(it.quantity!) || (it.quantity as number) <= 0)) {
+      return setLocalError('Quantità non valida in uno o più prodotti. Usa numeri (es. 1,5).');
+    }
+
+    // Normalizzo sconto
+    const normalizedDiscount = parseLocaleNumber(appliedDiscount as any);
+    if (appliedDiscount !== '' && normalizedDiscount == null) {
+      return setLocalError('Sconto non valido. Usa numeri (es. 12,5).');
+    }
+
     const payload: any = {
       customer_id: Number(customer.id),
       delivery_date: deliveryDate,
-      items: items.map((it) => ({ product_id: Number(it.product_id), quantity: Number(it.quantity) })),
+      items: itemsPayload as Array<{ product_id: number; quantity: number }>,
       status,
     };
-    if (appliedDiscount !== '' && appliedDiscount != null) payload.applied_discount = Number(appliedDiscount);
+    if (normalizedDiscount != null) payload.applied_discount = normalizedDiscount;
 
     setSaving(true);
     setLocalError(null);
@@ -74,26 +116,18 @@ export default function AddOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/*
-        Fixed widths per breakpoint (stable):
-        - Mobile: clamp to viewport minus margins.
-        - Desktop: explicit width at each breakpoint prevents growth when content changes.
-        - Horizontal overflow disabled on small screens.
-      */}
       <DialogContent
         className="
-          w-[calc(100vw-2rem)]            /* full width minus margin on mobile */
-          sm:w-[36rem] md:w-[44rem]       /* ~576px, ~704px */
-          lg:w-[56rem] xl:w-[64rem]       /* ~896px, ~1024px */
-          2xl:w-[72rem]                   /* ~1152px on very large screens */
+          w-[calc(100vw-2rem)]
+          sm:w-[36rem] md:w-[44rem]
+          lg:w-[56rem] xl:w-[64rem]
+          2xl:w-[72rem]
           max-h-[85vh] overflow-y-auto overflow-x-hidden
         "
       >
         <DialogHeader><DialogTitle>Nuovo ordine</DialogTitle></DialogHeader>
 
-        {/* Main form grid; min-w-0/max-w-full keep children from pushing width */}
         <div className="grid gap-4 min-w-0 max-w-full">
-          {/* Readonly delivery date (pre-filled, not editable) */}
           <div className="grid gap-1 min-w-0">
             <Label>Data consegna</Label>
             <Badge>{fmtDate(deliveryDate)}</Badge>
@@ -114,10 +148,16 @@ export default function AddOrderDialog({
             <Label>Sconto applicato (%)</Label>
             <input
               type="number"
-              step="0.01"
+              inputMode="decimal"
+              pattern="[0-9]*[.,]?[0-9]*"
               placeholder="0"
               value={appliedDiscount === '' ? '' : String(appliedDiscount)}
-              onChange={(e) => setAppliedDiscount(e.target.value === '' ? '' : Number(e.target.value))}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') return setAppliedDiscount('');
+                const n = parseLocaleNumber(raw);
+                setAppliedDiscount(n == null ? '' : n);
+              }}
               className="min-w-0 w-full max-w-full h-9 rounded-md border bg-background px-3 py-1 text-sm"
             />
           </div>
@@ -135,21 +175,22 @@ export default function AddOrderDialog({
             </Select>
           </div>
 
-          {/* Items editor: mobile-friendly cards; desktop uses horizontal grid inside */}
           <div className="grid gap-2 mt-2 rounded-lg border p-3 text-sm">
             <Label>Prodotti</Label>
-            <hr></hr>
+            <hr />
+            {/* ItemsEditor può continuare a gestire stringhe; normalizziamo noi */}
             <ItemsEditor items={items} onChange={setItems} />
           </div>
 
-          {/* Totals preview */}
           <div className="mt-2 rounded-lg border p-3 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Subtotale</span>
               <span className="tabular-nums">{euro(totals.subtotal)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Sconto{appliedDiscount ? ` (${appliedDiscount}%)` : ''}</span>
+              <span className="text-muted-foreground">
+                Sconto{appliedDiscount ? ` (${appliedDiscount}%)` : ''}
+              </span>
               <span className="tabular-nums">−{euro(totals.discountAmount)}</span>
             </div>
             <div className="mt-1 border-t pt-2 flex items-center justify-between font-medium">
@@ -157,14 +198,15 @@ export default function AddOrderDialog({
               <span className="tabular-nums">{euro(totals.total)}</span>
             </div>
             {totals.hasMissingPrices && (
-              <p className="mt-2 text-xs text-muted-foreground">Alcuni prezzi unitari non sono disponibili: il totale è parziale.</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Alcuni prezzi unitari non sono disponibili: il totale è parziale.
+              </p>
             )}
           </div>
 
           {localError && <p className="text-sm text-red-600 whitespace-pre-wrap">{localError}</p>}
         </div>
 
-        {/* Footer: side-by-side, not full-width, right-aligned */}
         <DialogFooter className="mt-2 flex flex-row flex-wrap items-center justify-end gap-2">
           <DialogClose asChild>
             <Button variant="outline">Annulla</Button>

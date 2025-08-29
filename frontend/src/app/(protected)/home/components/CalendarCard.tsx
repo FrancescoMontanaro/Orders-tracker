@@ -7,42 +7,53 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+
 import AddOrderDialog from './AddOrderDialog';
+import DayOrdersDialog, { type DayOrdersGrouped } from './DayOrdersDialog';
+
 import type { DailySummaryDay, SuccessResponse } from '../types/dailySummary';
 import {
-  addMonths, firstDayOfMonth, itMonthLabel, lastDayOfMonth, startOfCalendarGrid,
-  toISO, isToday,
+  addMonths,
+  firstDayOfMonth,
+  itMonthLabel,
+  lastDayOfMonth,
+  startOfCalendarGrid,
+  toISO,
+  isToday,
 } from '../utils/date';
 
-// Group a day view by customer (delivered state and list of items per customer)
-function isDelivered(status?: string) { return String(status).toLowerCase() === 'delivered'; }
+/** Keep the original delivered check */
+function isDelivered(status?: string) {
+  return String(status).toLowerCase() === 'delivered';
+}
 
-type Grouped = Array<{
-  customer_id: number;
-  customer_name: string;
-  delivered: boolean;
-  items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
-}>;
-
-function groupByCustomer(day?: DailySummaryDay): Grouped {
+/** Group a day view by customer (delivered state and list of items per customer) */
+function groupByCustomer(
+  day?: DailySummaryDay
+): DayOrdersGrouped {
   if (!day) return [];
-  const map = new Map<number, {
-    customer_id: number;
-    customer_name: string;
-    items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
-    deliveredCount: number;
-    totalCount: number;
-  }>();
+  const map = new Map<
+    number,
+    {
+      customer_id: number;
+      customer_name: string;
+      items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
+      deliveredCount: number;
+      totalCount: number;
+    }
+  >();
 
-  for (const p of (day.products || [])) {
-    for (const c of (p.customers || [])) {
-      const entry = map.get(c.customer_id) || {
-        customer_id: c.customer_id,
-        customer_name: c.customer_name,
-        items: [],
-        deliveredCount: 0,
-        totalCount: 0,
-      };
+  for (const p of day.products || []) {
+    for (const c of p.customers || []) {
+      const entry =
+        map.get(c.customer_id) ||
+        {
+          customer_id: c.customer_id,
+          customer_name: c.customer_name,
+          items: [],
+          deliveredCount: 0,
+          totalCount: 0,
+        };
       entry.items.push({
         product_id: p.product_id,
         product_name: p.product_name,
@@ -73,6 +84,9 @@ export default function CalendarCard() {
   const [addOpen, setAddOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<string | undefined>(undefined);
 
+  // NEW: day-orders list dialog state
+  const [listOpen, setListOpen] = React.useState(false);
+
   // Scroll containers: desktop grid (horizontally scrollable) and mobile list
   const desktopRef = React.useRef<HTMLDivElement>(null);
   const mobileRef = React.useRef<HTMLDivElement>(null);
@@ -92,10 +106,16 @@ export default function CalendarCard() {
       });
       const arr = (res.data as any)?.data ?? res.data;
       const map: Record<string, DailySummaryDay> = {};
-      (arr as DailySummaryDay[]).forEach((day) => { if (day?.date) map[day.date] = day; });
+      (arr as DailySummaryDay[]).forEach((day) => {
+        if (day?.date) map[day.date] = day;
+      });
       setDays(map);
     } catch (e: any) {
-      const detail = e?.response?.data?.detail ?? e?.response?.data?.message ?? e?.message ?? 'Errore sconosciuto';
+      const detail =
+        e?.response?.data?.detail ??
+        e?.response?.data?.message ??
+        e?.message ??
+        'Errore sconosciuto';
       setError(`Impossibile caricare il calendario: ${String(detail)}`);
       setDays({});
     } finally {
@@ -103,7 +123,9 @@ export default function CalendarCard() {
     }
   }, [month]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   // Build 6-week grid (42 cells)
   const gridCells = React.useMemo(() => {
@@ -120,14 +142,19 @@ export default function CalendarCard() {
 
   const weekDays = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
+  /** CHANGED: Click opens the day-orders list first (not the Add dialog) */
   function onDayClick(date: Date) {
     const iso = toISO(date);
     setSelectedDate(iso);
-    setAddOpen(true);
+    setListOpen(true);
   }
 
-  function gotoPrev() { setMonth((m) => addMonths(m, -1)); }
-  function gotoNext() { setMonth((m) => addMonths(m, +1)); }
+  function gotoPrev() {
+    setMonth((m) => addMonths(m, -1));
+  }
+  function gotoNext() {
+    setMonth((m) => addMonths(m, +1));
+  }
   function gotoToday() {
     // Move to current month and re-enable auto scroll when data is ready
     setMonth(firstDayOfMonth(new Date()));
@@ -153,7 +180,7 @@ export default function CalendarCard() {
 
       // --- Horizontal centering for desktop grid (root is horizontally scrollable) ---
       if (root.scrollWidth > root.clientWidth) {
-        const targetLeft = el.offsetLeft - (root.clientWidth / 2) + (el.clientWidth / 2);
+        const targetLeft = el.offsetLeft - root.clientWidth / 2 + el.clientWidth / 2;
         const clampedLeft = Math.max(0, Math.min(targetLeft, root.scrollWidth - root.clientWidth));
         root.scrollTo({ left: clampedLeft, behavior: 'smooth' });
         scrolled = true;
@@ -166,13 +193,13 @@ export default function CalendarCard() {
       if (hasVerticalScroll) {
         // Scroll the container itself (if it actually scrolls vertically)
         const elTopInParent = el.offsetTop - root.offsetTop;
-        const targetTop = elTopInParent - (root.clientHeight / 2) + (el.clientHeight / 2);
+        const targetTop = elTopInParent - root.clientHeight / 2 + el.clientHeight / 2;
         const clampedTop = Math.max(0, Math.min(targetTop, root.scrollHeight - root.clientHeight));
         root.scrollTo({ top: clampedTop, behavior: 'smooth' });
         scrolled = true;
       } else {
         // Container doesn't scroll vertically (mobile list → page scroll)
-        const top = window.scrollY + elRect.top - (window.innerHeight / 2) + (elRect.height / 2);
+        const top = window.scrollY + elRect.top - window.innerHeight / 2 + elRect.height / 2;
         window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
         scrolled = true;
       }
@@ -196,7 +223,9 @@ export default function CalendarCard() {
     };
 
     tick();
-    return () => { if (timer) window.clearTimeout(timer); };
+    return () => {
+      if (timer) window.clearTimeout(timer);
+    };
   }, [loading, days, month, attemptScrollToToday]);
 
   // Also observe container size changes (tab activation) and try once more if not yet scrolled
@@ -223,11 +252,19 @@ export default function CalendarCard() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Calendario ordini</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={gotoToday}>Oggi</Button>
-              <Button variant="outline" onClick={gotoPrev} aria-label="Mese precedente">‹</Button>
+              <Button variant="outline" onClick={gotoToday}>
+                Oggi
+              </Button>
+              <Button variant="outline" onClick={gotoPrev} aria-label="Mese precedente">
+                ‹
+              </Button>
               {/* Month label: allow shrinking on small screens */}
-              <div className="min-w-[10ch] text-center font-medium sm:min-w-[12ch]">{itMonthLabel(month)}</div>
-              <Button variant="outline" onClick={gotoNext} aria-label="Mese successivo">›</Button>
+              <div className="min-w-[10ch] text-center font-medium sm:min-w-[12ch]">
+                {itMonthLabel(month)}
+              </div>
+              <Button variant="outline" onClick={gotoNext} aria-label="Mese successivo">
+                ›
+              </Button>
             </div>
           </div>
 
@@ -261,12 +298,14 @@ export default function CalendarCard() {
                 <div className="min-w-[56rem] md:min-w-0">
                   <div className="grid grid-cols-7 text-xs text-muted-foreground">
                     {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map((wd) => (
-                      <div key={wd} className="px-2 py-1 text-center">{wd}</div>
+                      <div key={wd} className="px-2 py-1 text-center">
+                        {wd}
+                      </div>
                     ))}
                   </div>
 
                   <div className="grid grid-cols-7 gap-2">
-                    {gridCells.map((d, idx) => {
+                    {gridCells.map((d) => {
                       const inCurrentMonth = d.getMonth() === month.getMonth();
                       const iso = toISO(d);
                       const grouped = groupByCustomer(days[iso]);
@@ -304,12 +343,18 @@ export default function CalendarCard() {
                             {(deliveredCount > 0 || pendingCount > 0) && (
                               <div className="flex items-center gap-1">
                                 {deliveredCount > 0 && (
-                                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
+                                  <Badge
+                                    variant="outline"
+                                    className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                                  >
                                     {deliveredCount}
                                   </Badge>
                                 )}
                                 {pendingCount > 0 && (
-                                  <Badge variant="outline" className="border-amber-500/40 text-amber-600 dark:text-amber-400">
+                                  <Badge
+                                    variant="outline"
+                                    className="border-amber-500/40 text-amber-600 dark:text-amber-400"
+                                  >
                                     {pendingCount}
                                   </Badge>
                                 )}
@@ -331,7 +376,8 @@ export default function CalendarCard() {
                                   <span className="text-muted-foreground">
                                     {g.items.map((it, i) => (
                                       <span key={i}>
-                                        {it.product_name} × {it.quantity}{it.unit ? ` ${it.unit}` : ''}
+                                        {it.product_name} × {it.quantity}
+                                        {it.unit ? ` ${it.unit}` : ''}
                                         {i < g.items.length - 1 ? ', ' : ''}
                                       </span>
                                     ))}
@@ -344,9 +390,7 @@ export default function CalendarCard() {
                           )}
 
                           <div className="pointer-events-none absolute inset-x-2 bottom-2 hidden justify-end group-hover:flex">
-                            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                              + Nuovo ordine
-                            </span>
+                            
                           </div>
                         </button>
                       );
@@ -389,18 +433,25 @@ export default function CalendarCard() {
                           aria-label={today ? 'Oggi' : undefined}
                           title={iso}
                         >
-                          {d.getDate()} {weekDays[d.getDay() === 0 ? 6 : d.getDay() - 1]}
+                          {d.getDate()}{' '}
+                          {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'][d.getDay() === 0 ? 6 : d.getDay() - 1]}
                         </div>
 
                         {(deliveredCount > 0 || pendingCount > 0) && (
                           <div className="flex items-center gap-1 shrink-0">
                             {deliveredCount > 0 && (
-                              <Badge variant="outline" className="whitespace-nowrap border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
+                              <Badge
+                                variant="outline"
+                                className="whitespace-nowrap border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                              >
                                 {deliveredCount}
                               </Badge>
                             )}
                             {pendingCount > 0 && (
-                              <Badge variant="outline" className="whitespace-nowrap border-amber-500/40 text-amber-600 dark:text-amber-400">
+                              <Badge
+                                variant="outline"
+                                className="whitespace-nowrap border-amber-500/40 text-amber-600 dark:text-amber-400"
+                              >
                                 {pendingCount}
                               </Badge>
                             )}
@@ -423,7 +474,8 @@ export default function CalendarCard() {
                               <span className="text-muted-foreground">
                                 {g.items.map((it, i) => (
                                   <span key={i}>
-                                    {it.product_name} × {it.quantity}{it.unit ? ` ${it.unit}` : ''}
+                                    {it.product_name} × {it.quantity}
+                                    {it.unit ? ` ${it.unit}` : ''}
                                     {i < g.items.length - 1 ? ', ' : ''}
                                   </span>
                                 ))}
@@ -443,10 +495,24 @@ export default function CalendarCard() {
         </CardContent>
       </Card>
 
+      {/* Day orders list dialog: opens first; from there user can add a new order */}
+      <DayOrdersDialog
+        open={listOpen}
+        onOpenChange={setListOpen}
+        dateISO={selectedDate}
+        customerGroups={selectedDate ? groupByCustomer(days[selectedDate]) : []}
+        onNewOrder={() => {
+          setAddOpen(true);
+        }}
+      />
+
+      {/* Existing Add dialog (unchanged). defaultDate keeps the chosen day */}
       <AddOrderDialog
         open={addOpen}
         onOpenChange={(o) => setAddOpen(o)}
-        onCreated={() => { load(); }}
+        onCreated={() => {
+          load();
+        }}
         defaultDate={selectedDate}
       />
     </>

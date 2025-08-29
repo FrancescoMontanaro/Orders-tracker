@@ -57,7 +57,7 @@ async def list_expenses(params: ListingQueryParams) -> Pagination[Expense]:
                     continue
 
                 # Apply the filter
-                stmt = stmt.where(col > dvalue)
+                stmt = stmt.where(col >= dvalue)
 
             # Delivery date before
             elif field == "timestamp_before":

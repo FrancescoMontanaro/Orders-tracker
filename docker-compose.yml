@@ -126,7 +126,7 @@ services:
 
   nginx: # Development reverse proxy with nginx (only HTTP)
     image: nginx:alpine
-    container_name: orders_tracker_nginx
+    container_name: orders_tracker_nginx_dev
     profiles: ["dev"]
     depends_on:
       - frontend
@@ -141,7 +141,7 @@ services:
 
   nginx_prod: # Production reverse proxy with nginx (HTTPS + envsubst of the domain)
     image: nginx:alpine
-    container_name: orders_tracker_nginx_prod
+    container_name: orders_tracker_nginx
     profiles: ["prod"]
     depends_on:
       - frontend

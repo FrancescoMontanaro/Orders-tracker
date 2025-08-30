@@ -1,6 +1,6 @@
-# Backup automatico in locale del database MySQL con Docker Compose + Restic
+# Backup automatico del database MySQL con Docker Compose + Restic
 
-Questa guida mostra come effettuare **backup automatici giornalieri** di un database MySQL usando un servizio dedicato (`db_backup`) che sfrutta **Restic** per la gestione incrementale e la retention.
+Questa guida mostra come effettuare **backup automatici** di un database MySQL usando un servizio dedicato (`db_backup`) che sfrutta **Restic** per snapshot incrementali e retention policy.
 
 ---
 
@@ -12,19 +12,19 @@ Avvia lo stack (incluso il servizio di backup):
 docker compose up -d
 ```
 
-Per testare subito il funzionamento del backup manualmente:
+Esegui subito un backup manuale di test:
 
 ```bash
 docker compose exec db_backup /usr/local/bin/backup.sh
 ```
 
-Verifica i log del servizio:
+Verifica i log:
 
 ```bash
 docker compose logs -f db_backup
 ```
 
-Controlla le snapshot disponibili nel repository restic:
+Controlla le snapshot disponibili nel repository Restic:
 
 ```bash
 docker compose run --rm db_backup restic snapshots
@@ -42,21 +42,22 @@ docker compose run --rm db_backup restic snapshots
 docker compose stop backend frontend nginx
 ```
 
-### 2. Elenca i file disponibili dentro l’ultimo snapshot
+### 2. Elenca i file nell’ultimo snapshot
 
 ```bash
 docker compose run --rm db_backup restic ls latest "/mysql/"
 ```
 
-Troverai voci tipo:
+Troverai voci del tipo:
 
 ```
-mysql/orders_2025-08-29_03-00-00.sql.gz
+mysql/<db_name>_YYYY-MM-DD_HH-MM-SS.sql.gz
 ```
 
-Imposta il percoso del dump come variabile:
-```bach
-dump="mysql/orders_2025-08-29_03-00-00.sql.gz"
+Imposta il percorso del dump in una variabile:
+
+```bash
+dump="mysql/<db_name>_YYYY-MM-DD_HH-MM-SS.sql.gz"
 ```
 
 ### 3. Ripristina il file desiderato in una cartella locale
@@ -66,10 +67,10 @@ docker compose run --rm -v "$PWD/restore_out:/restore" db_backup \
   restic restore latest --include "${dump}" --target /restore
 ```
 
-Il dump sarà disponibile in:
+Il file sarà disponibile in:
 
 ```
-./restore_out/mysql/orders_2025-08-29_03-00-00.sql.gz
+./restore_out/${dump}
 ```
 
 ### 4. Carica il dump nel database MySQL
@@ -104,7 +105,7 @@ docker compose run --rm db_backup restic check
 
 ### Pulizia con retention policy
 
-(già eseguita automaticamente nello script `backup.sh`, ma puoi forzare manualmente)
+(già eseguita nello script `backup.sh`, ma può essere forzata manualmente)
 
 ```bash
 docker compose run --rm db_backup restic forget --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
@@ -112,100 +113,88 @@ docker compose run --rm db_backup restic forget --prune --keep-daily 7 --keep-we
 
 ---
 
-# Salvataggio su storage bucket (S3 / S3‑compatibile)
+# Salvataggio su storage bucket (S3 o compatibili)
 
 ## Aggiorna `docker-compose.yml`
 
-### Opzione A — **AWS S3**
-
-Aggiungi (o modifica) le env del servizio `db_backup`:
+Il servizio `db_backup` deve avere:
 
 ```yaml
 services:
   db_backup:
     environment:
-      # Restic
-      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY} # Es.: s3:https://s3.eu-central-1.amazonaws.com/orders-tracker-db-backups-test
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}   # es. s3:https://<endpoint>/<bucket>
       RESTIC_PASSWORD: ${RESTIC_PASSWORD}
       RESTIC_CACHE_DIR: /restic-cache
 
-      # Credenziali S3
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_DEFAULT_REGION: ${AWS_REGION} # Es.: eu-central-1
-
+      AWS_DEFAULT_REGION: ${AWS_REGION}
     volumes:
-      - ./restic_cache:/restic-cache
+      - ./restic/restic_cache:/restic-cache
 ```
 
-## 2) Inizializza il repository remoto (una volta sola)
-
-> Se hai già inizializzato un repo locale, questo è **un altro** repository: va inizializzato a parte.
+## 1) Inizializza il repository remoto (una volta sola)
 
 ```bash
 docker compose run --rm db_backup restic init
 ```
 
-Verifica che sia raggiungibile e vuoto:
+Verifica:
 
 ```bash
 docker compose run --rm db_backup restic snapshots
 ```
 
----
-
-## 3) Esegui un backup di prova
+## 2) Esegui un backup di prova
 
 ```bash
 docker compose exec db_backup /usr/local/bin/backup.sh
 ```
 
-Controlla che la snapshot sia nel bucket remoto:
+Controlla le snapshot nel bucket remoto:
 
 ```bash
 docker compose run --rm db_backup restic snapshots
 ```
 
----
+## 3) Restore da bucket
 
-## 4) Restore da bucket
-
-Il flusso non cambia, solo che le snapshot vengono lette dal repository remoto.
-
-**Elenca i file nell’ultima snapshot:**
+Elenca i file:
 
 ```bash
 docker compose run --rm db_backup restic ls latest /mysql/
 ```
 
-**Ripristina un dump in una cartella locale e poi importalo nel DB:**
+Ripristina un dump:
 
 ```bash
-# restore del file dallo snapshot remoto
 docker compose run --rm -v "$PWD/restore_out:/restore" db_backup \
-  sh -lc 'restic restore latest --include "/mysql/orders_tracker_YYYY-MM-DD_HH-MM-SS.sql.gz" --target /restore'
+  sh -lc 'restic restore latest --include "/mysql/<db_name>_YYYY-MM-DD_HH-MM-SS.sql.gz" --target /restore'
+```
 
-# import nel DB (dentro il container MySQL)
-gunzip -c restore_out/mysql/orders_tracker_YYYY-MM-DD_HH-MM-SS.sql.gz | \
+Importa nel DB:
+
+```bash
+gunzip -c restore_out/mysql/<db_name>_YYYY-MM-DD_HH-MM-SS.sql.gz | \
   docker compose exec -T db sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
 ```
 
-In alternativa puoi fare lo **stream diretto** senza file temporanei usando:
+### Stream diretto (senza file temporanei)
+
 ```bash
 docker compose run --rm db_backup \
-  sh -lc 'restic dump latest "/mysql/orders_tracker_YYYY-MM-DD_HH-MM-SS.sql.gz"' \
+  sh -lc 'restic dump latest "/mysql/<db_name>_YYYY-MM-DD_HH-MM-SS.sql.gz"' \
   | gunzip \
   | docker compose exec -T db sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
 ```
 
 ---
 
-## 5) Note operative
+## Note operative
 
-* Restic cifra **client‑side**: i dati sul bucket sono sempre criptati con `RESTIC_PASSWORD`.
-* La **retention** resta gestita dallo script (`restic forget --prune`). Puoi adattare i keep *daily/weekly/monthly*.
-* Mantieni `RESTIC_CACHE_DIR` montato per performance migliori e meno banda.
-* Se usi credenziali temporanee (STS/assume‑role), esporta anche `AWS_SESSION_TOKEN` nel servizio `db_backup`.
-* Assicurati che il tuo VPS possa uscire su Internet verso l’endpoint del bucket (firewall/egress).
-
----
+* Restic cifra **client‑side** con `RESTIC_PASSWORD`.
+* La retention (`forget --prune`) è già inclusa nello script, ma può essere lanciata manualmente.
+* Mantieni `RESTIC_CACHE_DIR` montato per prestazioni migliori.
+* Se usi credenziali temporanee (STS/assume‑role), esporta anche `AWS_SESSION_TOKEN`.
+* Il VPS deve poter uscire verso l’endpoint S3 (controlla firewall/egress).

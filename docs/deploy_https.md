@@ -1,22 +1,22 @@
-# Deploy su VPS con dominio e HTTPS (Next.js + FastAPI + MySQL + Nginx)
+# Deploy su VPS con **dominio** e **HTTPS** (Next.js + FastAPI + MySQL + Nginx)
 
-> **Obiettivo**: pubblicare l’applicazione su un VPS usando Docker Compose, con reverse proxy Nginx e certificati TLS Let’s Encrypt. Configurazione adattata al `docker-compose.yml` fornito, mantenendo i bind mount e gli healthcheck esistenti.
+> **Obiettivo**: pubblicare l’applicazione su un VPS usando Docker Compose con reverse proxy Nginx e certificati TLS Let’s Encrypt. Guida **senza hard‑coding**: tutto è parametrizzato dal file `.env` **unico** nella root del progetto e dai **profili** di Compose (`dev` / `prod`).
 
 ---
 
 ## 1) Prerequisiti
 
-* VPS con Docker e Docker Compose installati.
-* Dominio registrato, con record **A** (e **AAAA** opzionale) puntato all’IP del VPS.
-* Porte 80 e 443 aperte nel firewall del VPS.
+* VPS con Docker e Docker Compose installati
+* Dominio con record **A** (e/o **AAAA**) puntato all’IP del VPS
+* Porte **80** e **443** aperte sul VPS (firewall)
 
-Esempio (Ubuntu):
+Esempio rapido (Ubuntu):
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER
-# logout/login della sessione per applicare il gruppo
+# logout/login della sessione
 
 sudo apt install -y docker-compose-plugin ufw
 sudo ufw allow OpenSSH
@@ -27,88 +27,85 @@ sudo ufw enable
 
 ---
 
-## 2) Struttura cartelle consigliata
+## 2) Struttura cartelle
 
 ```
 .
 ├── backend/
 │   ├── app/
 │   ├── Dockerfile
-│   ├── requirements.txt
-│   └── .env.production
+│   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   ├── Dockerfile
-│   └── .env.production
+│   └── Dockerfile
 ├── nginx/
-│   └── default.conf
-└── docker-compose.yml
+│   ├── prod.conf.tpl    # template Nginx con ${DOMAIN}
+│   └── dev.conf         # (opzionale) HTTP-only per profilo dev
+├── docker-compose.yml
+├── .env                 # unico file di configurazione (root)
+└── database/            # dati MySQL persistenti (bind mount)
 ```
 
 ---
 
-## 3) Variabili d’ambiente
+## 3) Root `.env` (unico)
 
-### 3.1 Backend (`backend/.env.production`)
+> Imposta qui **tutte** le variabili. Per l’ambiente produzione imposta `COMPOSE_PROFILES=prod`.
 
-```env
-# DB
-DB_USER="<<nome-utente-db>>"
-DB_PASSWORD="<<password-db>>"
-DB_HOST="orders_tracker_db"
-DB_PORT="3306"
-DB_NAME="orders_tracker"
+```dotenv
+# Application name (frontend)
+NEXT_PUBLIC_COMPANY_NAME=
 
-# Security
-SECRET_KEY=<<valore-esadecimale-casuale-lungo>>
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXP_MINUTES=1440
+# Application domain (per HTTPS)
+DOMAIN=
+LETSENCRYPT_EMAIL=
+
+# Compose profile (dev = HTTP, prod = HTTPS + Certbot)
+COMPOSE_PROFILES=prod
+
+# Database
+MYSQL_DATABASE=
+MYSQL_PORT=3306
+MYSQL_USER=
+MYSQL_PASSWORD=
+MYSQL_ROOT_PASSWORD=
+
+# Database backup (Restic)
+RESTIC_PASSWORD=
+RESTIC_REPOSITORY=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=
+
+# Backend security
+SECRET_KEY=
+REGISTRATION_PASSWORD_HASH=
+JWT_ALGORITHM="HS256"
+ACCESS_TOKEN_EXP_MINUTES=15
 REFRESH_TOKEN_EXP_DAYS=7
 
-# CORS consentiti (dominio pubblico)
-BACKEND_CORS_ORIGINS=["https://app.esempio.com", "http://localhost"]
-
-# Registrazione protetta (hash SHA-256 della registration password)
-REGISTRATION_PASSWORD_HASH=<<sha256-hex>>
+# Cookie/CORS
+REFRESH_COOKIE_SECURE=true
 ```
 
-> La rotta di healthcheck del backend è `/health` (già prevista nell’healthcheck del compose).
-
-### 3.2 Frontend (`frontend/.env.production`)
-
-```env
-NEXT_PUBLIC_COMPANY_NAME="<<nome-company>>"
-NEXT_PUBLIC_API_BASE_URL=/api
-```
-
-> Next.js legge automaticamente `.env.production` in fase di build.
-
-### 3.3 Database (`database/.env.production`)
-
-```env
-DB_USER="<<nome-utente-db>>"
-DB_PASSWORD="<<password-db>>"
-DB_HOST="db"
-DB_PORT="3306"
-DB_NAME="orders_tracker"
-```
+> Nota: il backend riceverà `CORS_ORIGINS` dal Compose come JSON che include `https://${DOMAIN}`.
 
 ---
 
-## 4) Nginx reverse proxy + HTTPS
+## 4) Nginx reverse proxy **HTTPS** (template)
 
-### 4.1 `nginx/default.conf`
+Usa un **template** con `${DOMAIN}` e `envsubst` in avvio (gestito dal servizio `nginx_prod`). Include anche il **backup gate** (sentinel) per fail‑closed quando i backup non sono aggiornati.
 
-Sostituire **`app.esempio.com`** con il dominio reale.
+**`nginx/prod.conf.tpl`**
 
 ```nginx
-# HTTP: challenge ACME + redirect a HTTPS
+# HTTP: ACME challenge + redirect to HTTPS
 server {
   listen 80;
-  server_name app.esempio.com;
+  server_name ${DOMAIN};
 
   location /.well-known/acme-challenge/ {
-    root /var/www/certbot;  # montato nel servizio nginx
+    root /var/www/certbot;
   }
 
   location / {
@@ -116,21 +113,42 @@ server {
   }
 }
 
-# HTTPS con reverse proxy a frontend e backend
+# HTTPS reverse proxy with backup gate and TLS
 server {
   listen 443 ssl http2;
-  server_name app.esempio.com;
+  server_name ${DOMAIN};
 
-  # Certificati (verranno creati da certbot)
-  ssl_certificate /etc/letsencrypt/live/app.esempio.com/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/app.esempio.com/privkey.pem;
-
+  ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
   ssl_protocols TLSv1.2 TLSv1.3;
   ssl_prefer_server_ciphers on;
 
-  # Proxy al frontend Next.js
-  location / {
-    proxy_pass http://orders_tracker_frontend:3000;
+  # --- Backup gate: subrequest to the sentinel ---
+  location = /__backup_gate__ {
+    internal;
+    proxy_pass http://sentinel:8080/ok;
+    proxy_http_version 1.1;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header X-Original-URI $request_uri;
+    proxy_connect_timeout 1s;
+    proxy_read_timeout 2s;
+  }
+
+  # Courtesy page when the gate denies access
+  location = /__unavailable__ {
+    return 503 "Service unavailable: backup status not OK.\n";
+    add_header Retry-After 3600;
+    default_type text/plain;
+  }
+
+  proxy_intercept_errors on;
+  error_page 401 403 500 502 503 504 =503 /__unavailable__;
+
+  # (Optional) Bypass the gate for backend health checks
+  location = /api/health {
+    rewrite ^/api/?(.*)$ /$1 break;
+    proxy_pass http://backend:8000;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -138,15 +156,33 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
   }
 
-  # Proxy al backend FastAPI su /api (riscrive il prefisso)
-  location /api/ {
-    rewrite ^/api/?(.*)$ /$1 break;
-    proxy_pass http://orders_tracker_backend:8000;
+  # Frontend (protected by the gate)
+  location / {
+    auth_request /__backup_gate__;
+    proxy_pass http://frontend:3000;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+  }
+
+  # Backend API under /api (protected by the gate, prefix rewritten)
+  location /api/ {
+    auth_request /__backup_gate__;
+    rewrite ^/api/?(.*)$ /$1 break;
+    proxy_pass http://backend:8000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
   }
 
   client_max_body_size 20m;
@@ -155,138 +191,106 @@ server {
 
 ---
 
-## 5) `docker-compose.yml` (adattato)
+## 5) Docker Compose (profilo **prod**)
 
-Versione aggiornata che mantiene i servizi esistenti, aggiunge l’esposizione della porta 443, e predispone i volumi per i certificati Let’s Encrypt tramite webroot.
+Il tuo `docker-compose.yml` usa profili. In produzione attiva `nginx_prod` e `certbot` con `COMPOSE_PROFILES=prod` nel `.env` root. Le variabili sono interpolate dal `.env` unico.
+
+> I servizi `nginx_prod` e `certbot` montano i volumi per i certificati e renderizzano `prod.conf.tpl` con `${DOMAIN}`.
+
+Snippet riepilogativo (coerente con la tua configurazione):
 
 ```yaml
 services:
-  db:
-    image: mysql:8.0
-    container_name: orders_tracker_db
-    command: --default-authentication-plugin=mysql_native_password --innodb_flush_log_at_trx_commit=1 --innodb_flush_method=O_DIRECT
-    environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-orders}
-      MYSQL_USER: ${MYSQL_USER:-orders}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-orders}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
-    volumes:
-      - ./database:/var/lib/mysql
-    ports:
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    networks: [app-net]
-    restart: unless-stopped
-
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: orders_tracker_backend
-    env_file:
-      - ./backend/.env.production
-    depends_on:
-      db:
-        condition: service_healthy
-    expose:
-      - "8000"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 12
-    networks: [app-net]
-    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_PORT: ${MYSQL_PORT:-3306}
+      DB_NAME: ${MYSQL_DATABASE}
+      SECRET_KEY: ${SECRET_KEY}
+      REGISTRATION_PASSWORD_HASH: ${REGISTRATION_PASSWORD_HASH}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      ACCESS_TOKEN_EXP_MINUTES: ${ACCESS_TOKEN_EXP_MINUTES}
+      REFRESH_TOKEN_EXP_DAYS: ${REFRESH_TOKEN_EXP_DAYS}
+      CORS_ORIGINS: '["https://${DOMAIN}", "http://localhost:3000"]'
+      REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE}
+      REFRESH_COOKIE_DOMAIN: ${DOMAIN}
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: orders_tracker_frontend
-    env_file:
-      - ./frontend/.env.production
-    depends_on:
-      backend:
-        condition: service_healthy
-    expose:
-      - "3000"
-    networks: [app-net]
-    restart: unless-stopped
+      args:
+        NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME}
+        NEXT_PUBLIC_API_BASE_URL: /api
+        NEXT_PUBLIC_SITE_URL: https://${DOMAIN}
 
-  nginx:
+  nginx_prod:
     image: nginx:alpine
-    container_name: orders_tracker_nginx
-    depends_on:
-      - frontend
-      - backend
+    profiles: ["prod"]
+    environment:
+      DOMAIN: ${DOMAIN}
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/prod.conf.tpl:/etc/nginx/templates/default.conf.tpl:ro
       - ./nginx/certbot/conf:/etc/letsencrypt
       - ./nginx/certbot/www:/var/www/certbot
-    networks: [app-net]
-    restart: unless-stopped
+    command: >
+      /bin/sh -c "apk add --no-cache gettext >/dev/null &&
+                  envsubst '$$DOMAIN' < /etc/nginx/templates/default.conf.tpl > /etc/nginx/conf.d/default.conf &&
+                  nginx -g 'daemon off;'"
 
   certbot:
     image: certbot/certbot
-    container_name: orders_tracker_certbot
-    depends_on:
-      - nginx
+    profiles: ["prod"]
+    depends_on: [nginx_prod]
+    environment:
+      DOMAIN: ${DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
     volumes:
       - ./nginx/certbot/conf:/etc/letsencrypt
       - ./nginx/certbot/www:/var/www/certbot
     entrypoint: sh
     command: -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done"
-
-networks:
-  app-net:
-    driver: bridge
 ```
 
-> Il servizio `certbot` effettua un tentativo di rinnovo ogni 12 ore. La prima emissione del certificato va eseguita manualmente (vedi sezione successiva).
+> Assicurati che `nginx_prod`, `frontend`, `backend`, `sentinel` siano sulla stessa rete (`app-net`) e che `nginx_prod` abbia `depends_on` anche da `sentinel` (per il gate).
 
 ---
 
 ## 6) Build delle immagini
 
-Eseguire la build da zero (in particolare il frontend necessita delle variabili in build):
+> Il frontend richiede le `NEXT_PUBLIC_*` **in build**.
 
 ```bash
 docker compose build --no-cache
 ```
 
-> Il file `frontend/.env.production` deve essere presente nel contesto di build e **non** ignorato dal `.dockerignore`.
-
 ---
 
-## 7) Emissione iniziale dei certificati
+## 7) Emissione iniziale dei certificati (una sola volta)
 
-1. Avviare **solo Nginx** (necessario per la challenge HTTP su porta 80):
+1. Avvia **solo Nginx prod** (serve per la challenge HTTP su :80):
 
 ```bash
-docker compose up -d nginx
+docker compose up -d nginx_prod
 ```
 
-2. Eseguire Certbot in modalità **webroot** per emettere i certificati per il dominio (sostituire `app.esempio.com` e l’email):
+2. Emetti i certificati con Certbot in modalità **webroot** (usa `${DOMAIN}` dal `.env`):
 
 ```bash
 docker compose run --rm certbot certbot certonly \
   --webroot -w /var/www/certbot \
-  -d app.esempio.com \
-  --email admin@app.esempio.com \
+  -d "${DOMAIN}" \
+  --email "${LETSENCRYPT_EMAIL}" \
   --agree-tos --no-eff-email
 ```
 
-3. Riavviare Nginx (ora i certificati sono disponibili):
+3. Ricarica Nginx (ora i certificati esistono):
 
 ```bash
-docker compose restart nginx
+docker compose restart nginx_prod
 ```
 
 ---
@@ -299,36 +303,35 @@ docker compose up -d
 
 Verifiche:
 
-* Frontend: `https://app.esempio.com/`
-* Backend (health): `https://app.esempio.com/api/health`
+* Frontend → `https://${DOMAIN}/`
+* Backend health → `https://${DOMAIN}/api/health`
 
 ---
 
 ## 9) Rinnovo automatico e test
 
-Il container `certbot` tenta il rinnovo periodico; per un test manuale senza emettere nuovi certificati:
+Il container `certbot` verifica il rinnovo ogni 12h. Testa senza generare nuove cert chain:
 
 ```bash
 docker compose run --rm certbot certbot renew --dry-run
 ```
 
-In caso di rinnovo riuscito, Nginx può essere ricaricato:
+Dopo un rinnovo riuscito puoi ricaricare Nginx (opzionale):
 
 ```bash
-docker compose exec -T nginx nginx -s reload
+docker compose exec -T nginx_prod nginx -s reload
 ```
-
-Suggerimento: inserire un cron di sistema che esegua il `renew` e poi `nginx -s reload` (alternativo al loop nel container).
 
 ---
 
 ## 10) Note operative
 
-* I dati MySQL sono persistenti in `./database`. Un riavvio o ricreazione dei container non li elimina.
-* Le variabili `MYSQL_*` vengono lette **solo al primo avvio** del volume MySQL. Se cambiano, ricreare l’utente/permessi nel DB o droppare il volume.
-* Per il backend, assicurarsi che il dialetto in `DATABASE_URL` corrisponda al driver installato in `requirements.txt` (es. `aiomysql`).
-* Per il frontend, tutte le variabili usate dal **client** devono essere definite in build (`NEXT_PUBLIC_*`) e presenti in `.env.production`.
-* La rotta di healthcheck del backend è `/health` ed è già usata nel compose.
+* I dati MySQL persistono in `./database`
+* Le variabili `MYSQL_*` sono lette da MySQL **solo al primo avvio** del volume
+* Il backend deve esporre `/health` (già usato nell’healthcheck)
+* In produzione `REFRESH_COOKIE_SECURE=true` (cookie inviati solo su HTTPS)
+* `CORS_ORIGINS` include `https://${DOMAIN}`; puoi aggiungere altri origin direttamente nel `.env`
+* Il **backup gate** dipende dall’heartbeat scritto da `db_backup` in `/status/last_ok` (verifica che lo script aggiorni l’heartbeat a fine backup)
 
 ---
 
@@ -336,9 +339,8 @@ Suggerimento: inserire un cron di sistema che esegua il `renew` e poi `nginx -s 
 
 ```bash
 git pull
-# facoltativo: aggiornare requirements / package.json
+# (opzionale) aggiorna requirements / package.json
 
-# rebuild (cache pulita consigliata se cambiano env di build del frontend)
 docker compose build --no-cache
 
 docker compose up -d
@@ -348,7 +350,7 @@ docker compose up -d
 
 ## 12) Troubleshooting essenziale
 
-* **HTTP 404 su \*\*\*\*\*\*\*\*`/.well-known/acme-challenge/…`**: verificare i volumi `nginx/certbot/www` e la prima sezione server su porta 80.
-* **Certificati non trovati**: assicurarsi che `nginx/certbot/conf` contenga `live/app.esempio.com/…` e che la `server_name` corrisponda.
-* **CORS o cookie**: impostare `BACKEND_CORS_ORIGINS` con il dominio HTTPS e, se usati cookie, `Secure` e `SameSite` corretti.
-* **Connessione DB rifiutata**: controllare `DATABASE_URL` (host `db`, non `127.0.0.1`) e che l’utente esista con privilegi sul DB.
+* **404 su `/.well-known/acme-challenge/...`** → verifica i volumi `nginx/certbot/www` e la sezione server su porta 80
+* **Certificati non trovati** → verifica che esista `nginx/certbot/conf/live/${DOMAIN}/...` e che `server_name` combaci
+* **CORS/cookie** → `CORS_ORIGINS` deve includere l’origin pubblico HTTPS; cookie con `Secure` e `SameSite` appropriati
+* **502/504** → controlla reachability da Nginx verso `frontend:3000` e `backend:8000` (stessa network), e la sentinella `sentinel:8080`

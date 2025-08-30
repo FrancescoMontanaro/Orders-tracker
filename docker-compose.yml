@@ -4,10 +4,10 @@ services:
     container_name: orders_tracker_db
     command: --default-authentication-plugin=mysql_native_password --innodb_flush_log_at_trx_commit=1 --innodb_flush_method=O_DIRECT
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-orders}
-      MYSQL_USER: ${MYSQL_USER:-orders}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-orders}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes:
       - ./database:/var/lib/mysql
     ports:
@@ -28,11 +28,11 @@ services:
     environment:
       TZ: Europe/Rome
       MYSQL_HOST: db
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-orders}
-      MYSQL_USER: ${MYSQL_USER:-orders}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-orders}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}
-      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-change_this_password}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD}
       RESTIC_CACHE_DIR: /restic-cache
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
@@ -73,8 +73,27 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: orders_tracker_backend
-    env_file:
-      - ./backend/.env.production
+    environment:
+        # DB
+        DB_HOST: db
+        DB_USER: ${MYSQL_USER}
+        DB_PASSWORD: ${MYSQL_PASSWORD}
+        DB_PORT: ${MYSQL_PORT:-3306}
+        DB_NAME: ${MYSQL_DATABASE}
+
+        # Security
+        SECRET_KEY: ${SECRET_KEY}
+        REGISTRATION_PASSWORD_HASH: ${REGISTRATION_PASSWORD_HASH}
+        JWT_ALGORITHM: ${JWT_ALGORITHM}
+        ACCESS_TOKEN_EXP_MINUTES: ${ACCESS_TOKEN_EXP_MINUTES}
+        REFRESH_TOKEN_EXP_DAYS: ${REFRESH_TOKEN_EXP_DAYS}
+
+        # CORS
+        CORS_ORIGINS: '["https://${DOMAIN}", "http://localhost:3000"]'
+
+        # Cookie
+        REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE}
+        REFRESH_COOKIE_DOMAIN: ${DOMAIN}
     depends_on:
       db:
         condition: service_healthy
@@ -92,9 +111,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME}
+        NEXT_PUBLIC_API_BASE_URL: /api
+        NEXT_PUBLIC_SITE_URL: https://${DOMAIN}
     container_name: orders_tracker_frontend
-    env_file:
-      - ./frontend/.env.production
     depends_on:
       backend:
         condition: service_healthy
@@ -103,18 +124,59 @@ services:
     networks: [app-net]
     restart: unless-stopped
 
-  nginx: # reverse proxy
+  nginx: # Development reverse proxy with nginx (only HTTP)
     image: nginx:alpine
     container_name: orders_tracker_nginx
+    profiles: ["dev"]
     depends_on:
       - frontend
       - backend
+      - sentinel
     ports:
       - "80:80"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
     networks: [app-net]
     restart: unless-stopped
+
+  nginx_prod: # Production reverse proxy with nginx (HTTPS + envsubst of the domain)
+    image: nginx:alpine
+    container_name: orders_tracker_nginx
+    profiles: ["prod"]
+    depends_on:
+      - frontend
+      - backend
+      - sentinel
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/prod.conf.tpl:/etc/nginx/templates/default.conf.tpl:ro
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    command: >
+      /bin/sh -c "apk add --no-cache gettext >/dev/null &&
+                  envsubst '$$DOMAIN' < /etc/nginx/templates/default.conf.tpl > /etc/nginx/conf.d/default.conf &&
+                  nginx -g 'daemon off;'"
+    networks: [app-net]
+    restart: unless-stopped
+
+  certbot: # Certbot service for generating and rotating ssl certificate
+    image: certbot/certbot
+    container_name: orders_tracker_certbot
+    profiles: ["prod"]
+    depends_on:
+      - nginx_prod
+    environment:
+      DOMAIN: ${DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    volumes:
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    entrypoint: sh
+    command: -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done"
 
 volumes:
   status: {}

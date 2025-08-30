@@ -1,4 +1,4 @@
-.env*
+.env
 database
 .DS_Store
 .vscode/

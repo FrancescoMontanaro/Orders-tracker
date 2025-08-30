@@ -24,11 +24,11 @@ class Settings(BaseSettings):
     
     # Cookies helper
     refresh_cookie_name: str = "refresh_token"
-    refresh_cookie_path: str = "/" # TODO: replace with /api/auth/refresh
+    refresh_cookie_path: str = "/api/auth/refresh"
     refresh_cookie_max_age: int = refresh_token_exp_days * 24 * 60 * 60
     refresh_cookie_samesite: str = "lax"
-    refresh_cookie_domain: str | None = None # TODO: Set the domain
-    refresh_cookie_secure: bool = False  #TODO: Set to True in production via HTTPS
+    refresh_cookie_domain: str | None = None
+    refresh_cookie_secure: bool = False
 
     # CORS settings
     cors_origins: list[str] = Field(alias="CORS_ORIGINS")

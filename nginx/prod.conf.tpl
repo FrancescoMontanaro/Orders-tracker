@@ -4,7 +4,6 @@ server {
   server_name ${DOMAIN};
 
   location /.well-known/acme-challenge/ { root /var/www/certbot; }
-
   location / { return 301 https://$host$request_uri; }
 }
 
@@ -19,7 +18,7 @@ server {
   ssl_protocols TLSv1.2 TLSv1.3;
   ssl_prefer_server_ciphers on;
 
-  # --- Backup gate ---
+  # --- Backup gate: subrequest to the sentinel ---
   location = /__backup_gate__ {
     internal;
     proxy_pass http://sentinel:8080/ok;

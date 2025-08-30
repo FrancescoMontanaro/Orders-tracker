@@ -157,7 +157,7 @@ services:
     networks: [app-net]
     restart: unless-stopped
 
-  certbot: # Certbot service to generate and rotate ssl certificates
+  certbot_renew: # Certbot service to generate and rotate ssl certificates
     image: certbot/certbot:latest
     container_name: orders_tracker_certbot
     profiles: ["prod"]

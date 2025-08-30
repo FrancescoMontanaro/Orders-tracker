@@ -1,4 +1,3 @@
-# HTTP: ACME + redirect to HTTPS
 server {
   listen 80;
   server_name ${DOMAIN};
@@ -7,7 +6,6 @@ server {
   location / { return 301 https://$host$request_uri; }
 }
 
-# HTTPS reverse proxy with backup gate
 server {
   listen 443 ssl;
   http2 on;
@@ -18,7 +16,6 @@ server {
   ssl_protocols TLSv1.2 TLSv1.3;
   ssl_prefer_server_ciphers on;
 
-  # --- Backup gate: subrequest to the sentinel ---
   location = /__backup_gate__ {
     internal;
     proxy_pass http://sentinel:8080/ok;
@@ -39,7 +36,6 @@ server {
   proxy_intercept_errors on;
   error_page 401 403 500 502 503 504 =503 /__unavailable__;
 
-  # Health bypass (optional)
   location = /api/health {
     rewrite ^/api/?(.*)$ /$1 break;
     proxy_pass http://backend:8000;
@@ -50,7 +46,6 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
   }
 
-  # Frontend (gated)
   location / {
     auth_request /__backup_gate__;
     proxy_pass http://frontend:3000;
@@ -64,7 +59,6 @@ server {
     proxy_send_timeout 60s;
   }
 
-  # Backend (gated)
   location /api/ {
     auth_request /__backup_gate__;
     rewrite ^/api/?(.*)$ /$1 break;

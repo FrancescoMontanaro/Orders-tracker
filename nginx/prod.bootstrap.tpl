@@ -2,10 +2,8 @@ server {
   listen 80 default_server;
   server_name ${DOMAIN};
 
-  # ACME webroot
   location /.well-known/acme-challenge/ { root /var/www/certbot; }
 
-  # Backend (no gate in bootstrap)
   location /api/ {
     rewrite ^/api/?(.*)$ /$1 break;
     proxy_pass http://backend:8000;
@@ -16,7 +14,6 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
   }
 
-  # Frontend
   location / {
     proxy_pass http://frontend:3000;
     proxy_http_version 1.1;

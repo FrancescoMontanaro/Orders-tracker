@@ -280,7 +280,7 @@ docker compose up -d nginx_prod
 2. Emetti i certificati con Certbot in modalità **webroot** (usa `${DOMAIN}` dal `.env`):
 
 ```bash
-docker compose run --rm certbot certbot certonly \
+docker compose run --rm --entrypoint certbot certbot certonly \
   --webroot -w /var/www/certbot \
   -d "${DOMAIN}" \
   --email "${LETSENCRYPT_EMAIL}" \

@@ -1,32 +1,25 @@
-# HTTP: ACME challenge + redirect to HTTPS
+# HTTP: ACME + redirect to HTTPS
 server {
   listen 80;
   server_name ${DOMAIN};
 
-  # ACME HTTP-01 challenge (Let's Encrypt)
-  location /.well-known/acme-challenge/ {
-    root /var/www/certbot;
-  }
+  location /.well-known/acme-challenge/ { root /var/www/certbot; }
 
-  # Redirect all other HTTP traffic to HTTPS
-  location / {
-    return 301 https://$host$request_uri;
-  }
+  location / { return 301 https://$host$request_uri; }
 }
 
-# HTTPS reverse proxy with backup gate and TLS
+# HTTPS reverse proxy with backup gate
 server {
-  listen 443 ssl http2;
+  listen 443 ssl;
+  http2 on;
   server_name ${DOMAIN};
 
-  # TLS certificates issued by Let's Encrypt
   ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
-
   ssl_protocols TLSv1.2 TLSv1.3;
   ssl_prefer_server_ciphers on;
 
-  # --- Backup gate: subrequest to the sentinel ---
+  # --- Backup gate ---
   location = /__backup_gate__ {
     internal;
     proxy_pass http://sentinel:8080/ok;
@@ -38,18 +31,16 @@ server {
     proxy_read_timeout 2s;
   }
 
-  # Courtesy page returned when the gate denies access (or subrequest errors).
   location = /__unavailable__ {
     return 503 "Service unavailable: backup status not OK.\n";
     add_header Retry-After 3600;
     default_type text/plain;
   }
 
-  # Map subrequest/backend errors to 503 for the client.
   proxy_intercept_errors on;
   error_page 401 403 500 502 503 504 =503 /__unavailable__;
 
-  # (Optional) Bypass the gate for backend health checks.
+  # Health bypass (optional)
   location = /api/health {
     rewrite ^/api/?(.*)$ /$1 break;
     proxy_pass http://backend:8000;
@@ -60,7 +51,7 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
   }
 
-  # Frontend (protected by the gate).
+  # Frontend (gated)
   location / {
     auth_request /__backup_gate__;
     proxy_pass http://frontend:3000;
@@ -74,7 +65,7 @@ server {
     proxy_send_timeout 60s;
   }
 
-  # Backend API under /api (protected by the gate, prefix rewritten).
+  # Backend (gated)
   location /api/ {
     auth_request /__backup_gate__;
     rewrite ^/api/?(.*)$ /$1 break;
@@ -89,6 +80,5 @@ server {
     proxy_send_timeout 60s;
   }
 
-  # Allow larger client bodies (uploads, JSON).
   client_max_body_size 20m;
 }

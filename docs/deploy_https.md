@@ -42,11 +42,8 @@ sudo ufw enable
 │   └── .env.production
 ├── nginx/
 │   └── default.conf
-├── docker-compose.yml
-└── database/              # bind mount MySQL (già previsto nel compose)
+└── docker-compose.yml
 ```
-
-> `database/` contiene i dati persistenti di MySQL (bind mount: `./database:/var/lib/mysql`).
 
 ---
 

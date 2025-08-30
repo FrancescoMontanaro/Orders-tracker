@@ -1,5 +1,5 @@
 services:
-  db:
+  db: # MySql database
     image: mysql:8.0
     container_name: orders_tracker_db
     command: --default-authentication-plugin=mysql_native_password --innodb_flush_log_at_trx_commit=1 --innodb_flush_method=O_DIRECT
@@ -20,7 +20,7 @@ services:
     networks: [app-net]
     restart: unless-stopped
 
-  db_backup:
+  db_backup: # Service to perform periodic automatic backup of the database on the storage bucket
     build:
       context: ./backup
       dockerfile: Dockerfile
@@ -42,10 +42,33 @@ services:
         condition: service_healthy
     volumes:
       - ./restic/restic_cache:/restic-cache
+      - status:/status 
     networks: [app-net]
     restart: unless-stopped
 
-  backend:
+  sentinel: # Gateway service to automaically check at each request if the periodic automatic backup mechanism is working (If not, the app won't be reachable)
+    build:
+      context: ./sentinel
+      dockerfile: Dockerfile
+    container_name: orders_tracker_backup_sentinel
+    environment:
+      TZ: Europe/Rome
+      SENTINEL_THRESHOLD_SECONDS: "93600" # 26h (2 backups/day with tolerance)
+      SENTINEL_BOOT_GRACE_SECONDS: "86400"  # 24 hours of grace on first start
+      SENTINEL_HEARTBEAT_PATH: "/status/last_ok"
+    volumes:
+      - status:/status:ro
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks: [app-net]
+    restart: unless-stopped
+
+  backend: # Backend of the application
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -65,7 +88,7 @@ services:
     networks: [app-net]
     restart: unless-stopped
 
-  frontend:
+  frontend: # Frontend of the application
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -80,7 +103,7 @@ services:
     networks: [app-net]
     restart: unless-stopped
 
-  nginx:
+  nginx: # reverse proxy
     image: nginx:alpine
     container_name: orders_tracker_nginx
     depends_on:
@@ -92,6 +115,9 @@ services:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks: [app-net]
     restart: unless-stopped
+
+volumes:
+  status: {}
 
 networks:
   app-net:

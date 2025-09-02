@@ -177,6 +177,7 @@ services:
       - ./certbot/entrypoint.sh:/docker-entrypoint-custom.sh:ro
       - ./certbot/www:/var/www/certbot
       - letsencrypt:/etc/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock
     entrypoint: ["/bin/sh", "/docker-entrypoint-custom.sh"]
     networks: [app-net]
     restart: unless-stopped

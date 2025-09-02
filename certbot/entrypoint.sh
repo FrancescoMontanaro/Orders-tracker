@@ -27,13 +27,18 @@ PY
 
 echo "[certbot] Issuing/validating certificate for ${DOMAIN} and www.${DOMAIN}..."
 
-# During testing, if rate-limit has been reached, add --staging to these two lines and try again later.
+# Emissione iniziale (idempotente: se già esiste, ignoriamo l'errore)
+# Initial issuance (idempotent: if it already exists, ignore the error)
 certbot certonly --webroot -w "$WEBROOT" \
   --email "$LETSENCRYPT_EMAIL" --agree-tos --non-interactive \
   -d "$DOMAIN" -d "www.$DOMAIN" || true
 
 echo "[certbot] Entering renew loop..."
+
+# Periodic renewal: if it really renews, it runs the deploy-hook that reloads nginx
 while :; do
-  certbot renew --webroot -w "$WEBROOT" --quiet || true
+  certbot renew --webroot -w "$WEBROOT" --quiet \
+    --deploy-hook "docker kill -s HUP orders_tracker_nginx_prod || true" \
+    || true
   sleep 12h
 done

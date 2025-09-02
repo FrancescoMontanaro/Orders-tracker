@@ -1,23 +1,21 @@
 # Deploy su VPS con **dominio** e **HTTPS** (Next.js + FastAPI + MySQL + Nginx)
 
-> **Obiettivo**: pubblicare l’applicazione su un VPS usando Docker Compose con reverse proxy Nginx e certificati TLS Let’s Encrypt. Guida **senza hard‑coding**: tutto è parametrizzato dal file `.env` **unico** nella root del progetto e dai **profili** di Compose (`dev` / `prod`).
+> **Obiettivo:** pubblicare l’app su un VPS tramite Docker Compose, con reverse proxy Nginx e certificati TLS Let’s Encrypt. Tutto è parametrizzato dal file **`.env` unico** in root e dai profili Compose.
 
 ---
 
 ## 1) Prerequisiti
 
-* VPS con Docker e Docker Compose installati
-* Dominio con record **A** (e/o **AAAA**) puntato all’IP del VPS
-* Porte **80** e **443** aperte sul VPS (firewall)
+* VPS con **Docker** e **Docker Compose** installati.
+* Dominio con record **A/AAAA** puntato all’IP del VPS.
+* Porte **80** e **443** aperte sul firewall.
 
-Esempio rapido (Ubuntu):
+Setup rapido (Ubuntu):
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-# logout/login della sessione
-
+sudo usermod -aG docker $USER  # logout/login dopo
 sudo apt install -y docker-compose-plugin ufw
 sudo ufw allow OpenSSH
 sudo ufw allow 80
@@ -27,7 +25,7 @@ sudo ufw enable
 
 ---
 
-## 2) Struttura cartelle
+## 2) Struttura cartelle del progetto
 
 ```
 .
@@ -38,49 +36,58 @@ sudo ufw enable
 ├── frontend/
 │   ├── src/
 │   └── Dockerfile
+├── backup/
+│   └── Dockerfile
+├── sentinel/
+│   └── Dockerfile
 ├── nginx/
-│   ├── prod.conf.tpl    # template Nginx con ${DOMAIN}
-│   └── dev.conf         # (opzionale) HTTP-only per profilo dev
+│   ├── entrypoint.sh                     # decide HTTP-only o SSL e avvia Nginx
+│   ├── prod.http-bootstrap.template      # server :80 (ACME + redirect)
+│   └── prod.ssl.template                 # full HTTPS + backup gate
+├── certbot/
+│   ├── entrypoint.sh                     # attende :80, emette e rinnova con hook
+│   └── www/                              # webroot ACME
+├── database/                             # dati MySQL (bind mount)
+├── restic/                               # cache backup (opzionale)
 ├── docker-compose.yml
-├── .env                 # unico file di configurazione (root)
-└── database/            # dati MySQL persistenti (bind mount)
+└── .env                                  # unico file di configurazione
 ```
 
 ---
 
-## 3) Root `.env` (unico)
+## 3) File `.env` (unico, in root)
 
-> Imposta qui **tutte** le variabili. Per l’ambiente produzione imposta `COMPOSE_PROFILES=prod`.
+> Imposta **tutte** le variabili qui. In produzione usa `COMPOSE_PROFILES=prod`.
 
 ```dotenv
-# Application name (frontend)
-NEXT_PUBLIC_COMPANY_NAME=
+# Dominio pubblico e email per Let’s Encrypt
+DOMAIN=esempio.tld
+LETSENCRYPT_EMAIL=admin@esempio.tld
 
-# Application domain (per HTTPS)
-DOMAIN=
-LETSENCRYPT_EMAIL=
-
-# Compose profile (dev = HTTP, prod = HTTPS + Certbot)
+# Profili docker compose: dev (HTTP), prod (HTTPS + certbot)
 COMPOSE_PROFILES=prod
 
-# Database
-MYSQL_DATABASE=
-MYSQL_PORT=3306
-MYSQL_USER=
-MYSQL_PASSWORD=
-MYSQL_ROOT_PASSWORD=
+# Frontend
+NEXT_PUBLIC_COMPANY_NAME=La Tua Azienda
 
-# Database backup (Restic)
-RESTIC_PASSWORD=
-RESTIC_REPOSITORY=
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_REGION=
+# Database MySQL
+MYSQL_DATABASE=orders
+MYSQL_PORT=3306
+MYSQL_USER=orders_user
+MYSQL_PASSWORD=strongpass
+MYSQL_ROOT_PASSWORD=strongroot
+
+# Backup (Restic)
+RESTIC_PASSWORD=supersecret
+RESTIC_REPOSITORY=s3:s3.amazonaws.com/il-tuo-bucket
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=eu-west-1
 
 # Backend security
-SECRET_KEY=
-REGISTRATION_PASSWORD_HASH=
-JWT_ALGORITHM="HS256"
+SECRET_KEY=super-secret-key
+REGISTRATION_PASSWORD_HASH=...
+JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXP_MINUTES=15
 REFRESH_TOKEN_EXP_DAYS=7
 
@@ -88,42 +95,72 @@ REFRESH_TOKEN_EXP_DAYS=7
 REFRESH_COOKIE_SECURE=true
 ```
 
-> Nota: il backend riceverà `CORS_ORIGINS` dal Compose come JSON che include `https://${DOMAIN}`.
+> Il backend riceve `CORS_ORIGINS` dal Compose come JSON che include `https://${DOMAIN}`.
 
 ---
 
-## 4) Nginx reverse proxy **HTTPS** (template)
+## 4) Template Nginx
 
-Usa un **template** con `${DOMAIN}` e `envsubst` in avvio (gestito dal servizio `nginx_prod`). Include anche il **backup gate** (sentinel) per fail‑closed quando i backup non sono aggiornati.
-
-**`nginx/prod.conf.tpl`**
+### `nginx/prod.http-bootstrap.template` (HTTP‑only per ACME)
 
 ```nginx
-# HTTP: ACME challenge + redirect to HTTPS
 server {
   listen 80;
-  server_name ${DOMAIN};
+  server_name $DOMAIN www.$DOMAIN;
 
-  location /.well-known/acme-challenge/ {
+  # ACME challenge (no redirect)
+  location ^~ /.well-known/acme-challenge/ {
     root /var/www/certbot;
+    default_type "text/plain";
+    try_files $uri =404;
   }
 
+  # Redirect tutto il resto a HTTPS
   location / {
     return 301 https://$host$request_uri;
   }
 }
+```
 
-# HTTPS reverse proxy with backup gate and TLS
+### `nginx/prod.ssl.template` (HTTPS completo + backup gate)
+
+```nginx
+# Mantieni :80 per ACME + redirect
 server {
-  listen 443 ssl http2;
-  server_name ${DOMAIN};
+  listen 80;
+  server_name $DOMAIN www.$DOMAIN;
 
-  ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+    default_type "text/plain";
+    try_files $uri =404;
+  }
+  location / { return 301 https://$host$request_uri; }
+}
+
+# :443 — full app
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name $DOMAIN www.$DOMAIN;
+
+  ssl_certificate     /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
   ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_ciphers HIGH:!aNULL:!MD5;
   ssl_prefer_server_ciphers on;
 
-  # --- Backup gate: subrequest to the sentinel ---
+  # (opzionale) HSTS una volta validato HTTPS
+  # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+  # ACME anche su HTTPS (sicuro)
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+    default_type "text/plain";
+    try_files $uri =404;
+  }
+
+  # -------- Backup gate --------
   location = /__backup_gate__ {
     internal;
     proxy_pass http://sentinel:8080/ok;
@@ -135,7 +172,6 @@ server {
     proxy_read_timeout 2s;
   }
 
-  # Courtesy page when the gate denies access
   location = /__unavailable__ {
     return 503 "Service unavailable: backup status not OK.\n";
     add_header Retry-After 3600;
@@ -145,7 +181,7 @@ server {
   proxy_intercept_errors on;
   error_page 401 403 500 502 503 504 =503 /__unavailable__;
 
-  # (Optional) Bypass the gate for backend health checks
+  # Health backend (senza gate)
   location = /api/health {
     rewrite ^/api/?(.*)$ /$1 break;
     proxy_pass http://backend:8000;
@@ -153,10 +189,13 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
   }
 
-  # Frontend (protected by the gate)
+  # Frontend (con gate)
   location / {
     auth_request /__backup_gate__;
     proxy_pass http://frontend:3000;
@@ -164,13 +203,13 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto https;
     proxy_connect_timeout 5s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
   }
 
-  # Backend API under /api (protected by the gate, prefix rewritten)
+  # API (con gate) sotto /api (rewrite prefisso)
   location /api/ {
     auth_request /__backup_gate__;
     rewrite ^/api/?(.*)$ /$1 break;
@@ -179,7 +218,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto https;
     proxy_connect_timeout 5s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
@@ -191,151 +230,177 @@ server {
 
 ---
 
-## 5) Docker Compose (profilo **prod**)
+## 5) Entrypoint script
 
-Il tuo `docker-compose.yml` usa profili. In produzione attiva `nginx_prod` e `certbot` con `COMPOSE_PROFILES=prod` nel `.env` root. Le variabili sono interpolate dal `.env` unico.
+### `nginx/entrypoint.sh`
 
-> I servizi `nginx_prod` e `certbot` montano i volumi per i certificati e renderizzano `prod.conf.tpl` con `${DOMAIN}`.
+```sh
+#!/bin/sh
+set -eu
+: "${DOMAIN:?DOMAIN not set}"
 
-Snippet riepilogativo (coerente con la tua configurazione):
+CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
+
+if [ -f "$CERT_DIR/fullchain.pem" ] && [ -f "$CERT_DIR/privkey.pem" ]; then
+  # Certificati presenti → config SSL completa
+  envsubst '$DOMAIN' < /etc/nginx/templates/ssl.conf.template > /etc/nginx/conf.d/default.conf
+else
+  # Nessun certificato → bootstrap HTTP per ACME
+  envsubst '$DOMAIN' < /etc/nginx/templates/http.conf.template > /etc/nginx/conf.d/default.conf
+fi
+
+exec nginx -g 'daemon off;'
+```
+
+### `certbot/entrypoint.sh`
+
+```sh
+#!/bin/sh
+set -eu
+: "${DOMAIN:?DOMAIN not set}"
+: "${LETSENCRYPT_EMAIL:?LETSENCRYPT_EMAIL not set}"
+
+WEBROOT="/var/www/certbot"
+NGINX_HOST="orders_tracker_nginx_prod"
+NGINX_PORT=80
+
+echo "[certbot] Waiting for nginx at ${NGINX_HOST}:${NGINX_PORT}..."
+python3 - <<'PY'
+import socket, time, os, sys
+host = os.environ.get("NGINX_HOST", "orders_tracker_nginx_prod")
+port = int(os.environ.get("NGINX_PORT","80"))
+for _ in range(120):
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            print("[certbot] nginx is up")
+            sys.exit(0)
+    except Exception:
+        time.sleep(1)
+print("[certbot] nginx did not become ready in time", file=sys.stderr)
+sys.exit(1)
+PY
+
+echo "[certbot] Issuing/validating certificate for ${DOMAIN} and www.${DOMAIN}..."
+certbot certonly --webroot -w "$WEBROOT" \
+  --email "$LETSENCRYPT_EMAIL" --agree-tos --non-interactive \
+  -d "$DOMAIN" -d "www.$DOMAIN" || true
+
+# Rinnovo con deploy-hook che ricarica Nginx (richiede docker.sock montato)
+echo "[certbot] Entering renew loop..."
+while :; do
+  certbot renew --webroot -w "$WEBROOT" --quiet \
+    --deploy-hook "docker kill -s HUP orders_tracker_nginx_prod || true" \
+    || true
+  sleep 12h
+done
+```
+
+> **Nota:** in fase di test, se becchi i rate‑limit di Let’s Encrypt, aggiungi `--staging` a `certonly` e `renew`, poi rimuovilo per i certificati reali.
+
+Rendi eseguibili gli script:
+
+```bash
+chmod +x nginx/entrypoint.sh certbot/entrypoint.sh
+```
+
+---
+
+## 6) Estratto `docker-compose.yml` (servizi Nginx + Certbot)
+
+> Coerente con la tua ultima versione. **Stesso volume named `letsencrypt`** su entrambi; `docker.sock` montato su Certbot per il deploy‑hook.
 
 ```yaml
-services:
-  backend:
-    environment:
-      DB_HOST: db
-      DB_USER: ${MYSQL_USER}
-      DB_PASSWORD: ${MYSQL_PASSWORD}
-      DB_PORT: ${MYSQL_PORT:-3306}
-      DB_NAME: ${MYSQL_DATABASE}
-      SECRET_KEY: ${SECRET_KEY}
-      REGISTRATION_PASSWORD_HASH: ${REGISTRATION_PASSWORD_HASH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM}
-      ACCESS_TOKEN_EXP_MINUTES: ${ACCESS_TOKEN_EXP_MINUTES}
-      REFRESH_TOKEN_EXP_DAYS: ${REFRESH_TOKEN_EXP_DAYS}
-      CORS_ORIGINS: '["https://${DOMAIN}", "http://localhost:3000"]'
-      REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE}
-      REFRESH_COOKIE_DOMAIN: ${DOMAIN}
-
-  frontend:
-    build:
-      args:
-        NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME}
-        NEXT_PUBLIC_API_BASE_URL: /api
-        NEXT_PUBLIC_SITE_URL: https://${DOMAIN}
-
   nginx_prod:
     image: nginx:alpine
+    container_name: orders_tracker_nginx_prod
     profiles: ["prod"]
     environment:
       DOMAIN: ${DOMAIN}
+    depends_on:
+      - frontend
+      - backend
+      - sentinel
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/prod.conf.tpl:/etc/nginx/templates/default.conf.tpl:ro
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
-    command: >
-      /bin/sh -c "apk add --no-cache gettext >/dev/null &&
-                  envsubst '$$DOMAIN' < /etc/nginx/templates/default.conf.tpl > /etc/nginx/conf.d/default.conf &&
-                  nginx -g 'daemon off;'"
+      - ./nginx/entrypoint.sh:/docker-entrypoint-custom.sh:ro
+      - ./nginx/prod.http-bootstrap.template:/etc/nginx/templates/http.conf.template:ro
+      - ./nginx/prod.ssl.template:/etc/nginx/templates/ssl.conf.template:ro
+      - letsencrypt:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: ["/bin/sh", "/docker-entrypoint-custom.sh"]
+    networks: [app-net]
+    restart: unless-stopped
 
-  certbot:
-    image: certbot/certbot
+  certbot_renew:
+    image: certbot/certbot:latest
+    container_name: orders_tracker_certbot
     profiles: ["prod"]
-    depends_on: [nginx_prod]
+    depends_on:
+      - nginx_prod
     environment:
       DOMAIN: ${DOMAIN}
       LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+      NGINX_HOST: orders_tracker_nginx_prod
+      NGINX_PORT: "80"
     volumes:
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
-    entrypoint: sh
-    command: -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done"
+      - ./certbot/entrypoint.sh:/docker-entrypoint-custom.sh:ro
+      - ./certbot/www:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: ["/bin/sh", "/docker-entrypoint-custom.sh"]
+    networks: [app-net]
+    restart: unless-stopped
 ```
 
-> Assicurati che `nginx_prod`, `frontend`, `backend`, `sentinel` siano sulla stessa rete (`app-net`) e che `nginx_prod` abbia `depends_on` anche da `sentinel` (per il gate).
+*(Gli altri servizi — db, db\_backup, sentinel, backend, frontend, nginx dev — restano come da compose del progetto.)*
 
 ---
 
-## 6) Build delle immagini
-
-> Il frontend richiede le `NEXT_PUBLIC_*` **in build**.
+## 7) Build & primo avvio
 
 ```bash
+# 1) Build immagini
 docker compose build --no-cache
+
+# 2) Avvio profilo prod (parte Nginx; se non trova i cert, usa HTTP-only)
+docker compose --profile prod up -d
+
+# 3) Verifica ACME webroot
+docker compose exec orders_tracker_certbot sh -lc \
+  'mkdir -p /var/www/certbot/.well-known/acme-challenge && \
+   echo OK > /var/www/certbot/.well-known/acme-challenge/ping'
+
+curl -I http://$DOMAIN/.well-known/acme-challenge/ping
+# Atteso: HTTP/1.1 200 OK
+
+# 4) Dopo la prima emissione, passa a SSL (reload/start)
+docker compose restart orders_tracker_nginx_prod
 ```
 
 ---
 
-## 7) Emissione iniziale dei certificati (una sola volta)
-
-1. Avvia **solo Nginx prod** (serve per la challenge HTTP su :80):
-
-```bash
-docker compose up -d nginx_prod
-```
-
-2. Emetti i certificati con Certbot in modalità **webroot** (usa `${DOMAIN}` dal `.env`):
-
-```bash
-docker compose run --rm --entrypoint certbot certbot certonly \
-  --webroot -w /var/www/certbot \
-  -d "${DOMAIN}" \
-  --email "${LETSENCRYPT_EMAIL}" \
-  --agree-tos --no-eff-email
-```
-
-3. Ricarica Nginx (ora i certificati esistono):
-
-```bash
-docker compose restart nginx_prod
-```
-
----
-
-## 8) Avvio dell’intero stack (HTTPS attivo)
-
-```bash
-docker compose up -d
-```
-
-Verifiche:
+## 8) Verifica
 
 * Frontend → `https://${DOMAIN}/`
 * Backend health → `https://${DOMAIN}/api/health`
 
 ---
 
-## 9) Rinnovo automatico e test
+## 9) Rinnovo automatico
 
-Il container `certbot` verifica il rinnovo ogni 12h. Testa senza generare nuove cert chain:
-
-```bash
-docker compose run --rm certbot certbot renew --dry-run
-```
-
-Dopo un rinnovo riuscito puoi ricaricare Nginx (opzionale):
+* `certbot_renew` tenta il rinnovo ogni 12h.
+* Se il rinnovo avviene, il **deploy‑hook** esegue `docker kill -s HUP orders_tracker_nginx_prod` → Nginx ricarica i cert senza downtime.
+* Test rinnovo (staging):
 
 ```bash
-docker compose exec -T nginx_prod nginx -s reload
+docker compose run --rm certbot_renew certbot renew --dry-run
 ```
 
 ---
 
-## 10) Note operative
-
-* I dati MySQL persistono in `./database`
-* Le variabili `MYSQL_*` sono lette da MySQL **solo al primo avvio** del volume
-* Il backend deve esporre `/health` (già usato nell’healthcheck)
-* In produzione `REFRESH_COOKIE_SECURE=true` (cookie inviati solo su HTTPS)
-* `CORS_ORIGINS` include `https://${DOMAIN}`; puoi aggiungere altri origin direttamente nel `.env`
-* Il **backup gate** dipende dall’heartbeat scritto da `db_backup` in `/status/last_ok` (verifica che lo script aggiorni l’heartbeat a fine backup)
-
----
-
-## 11) Aggiornamenti dell’applicazione
+## 10) Aggiornamenti applicazione
 
 ```bash
 git pull
@@ -348,9 +413,19 @@ docker compose up -d
 
 ---
 
-## 12) Troubleshooting essenziale
+## 11) Troubleshooting rapido
 
-* **404 su `/.well-known/acme-challenge/...`** → verifica i volumi `nginx/certbot/www` e la sezione server su porta 80
-* **Certificati non trovati** → verifica che esista `nginx/certbot/conf/live/${DOMAIN}/...` e che `server_name` combaci
-* **CORS/cookie** → `CORS_ORIGINS` deve includere l’origin pubblico HTTPS; cookie con `Secure` e `SameSite` appropriati
-* **502/504** → controlla reachability da Nginx verso `frontend:3000` e `backend:8000` (stessa network), e la sentinella `sentinel:8080`
+* **`unknown "domain" variable` in Nginx** → nel template usa **`$DOMAIN`** (maiuscolo) e rendi il file via `envsubst` (lo fa l’entrypoint). Non usare `$domain`.
+* **`envsubst: Is a directory`** → stai montando una dir al posto del file template; verifica i path `volumes`.
+* **Challenge HTTP 404/connection refused** → controlla il blocco `/.well-known/acme-challenge/` su :80 e i volumi `./certbot/www:/var/www/certbot`.
+* **Cert non visti da Nginx** → entrambi devono montare **lo stesso** volume `letsencrypt:/etc/letsencrypt`.
+* **Rate limit Let’s Encrypt** → usa `--staging` in `certonly`/`renew` per test; rimuovi dopo.
+* **Cookie/CORS** → assicurati che `CORS_ORIGINS` contenga `https://${DOMAIN}` e che `REFRESH_COOKIE_SECURE=true` in prod.
+* **502/504** → verifica reachability dai container Nginx → `frontend:3000`, `backend:8000`, `sentinel:8080` (stessa rete `app-net`).
+
+---
+
+## 12) Note di sicurezza
+
+* Montare `/var/run/docker.sock` in certbot abilita il reload automatico: comodo ma con privilegi elevati. Alternativa: rimuovi il mount e gestisci il reload da un **cron sul host** (`docker kill -s HUP orders_tracker_nginx_prod`).
+* Valuta l’abilitazione di **HSTS** dopo aver verificato che tutto il traffico sia su HTTPS.

@@ -1,26 +1,24 @@
 # Deploy su VPS **solo HTTP** e **senza dominio** (Next.js + FastAPI + MySQL + Nginx)
 
-> **Obiettivo**: pubblicazione su VPS senza certificati e senza dominio. Accesso via **IP pubblico** (es. `http://203.0.113.10/`). Configurazione basata su `docker-compose.yml`, con MySQL persistente e healthcheck.
+> **Obiettivo:** pubblicare l’app su un VPS **senza certificati** e **senza dominio**. Accesso via **IP pubblico** (es. `http://203.0.113.10/`). Configurazione con Docker Compose, MySQL persistente, healthcheck essenziali e **backup gate (sentinel)**.
 
 ---
 
 ## 1) Prerequisiti
 
-* VPS con Docker e Docker Compose installati
-* IP pubblico raggiungibile
-* Porta **80** aperta nel firewall
+* VPS con **Docker** e **Docker Compose** installati.
+* IP pubblico raggiungibile.
+* Porta **80/TCP** aperta (e facoltativamente **3306** se vuoi esporre MySQL — sconsigliato).
 
-Esempio (Ubuntu):
+Setup rapido (Ubuntu):
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-# logout/login della sessione per applicare il gruppo
-
+sudo usermod -aG docker $USER   # logout/login dopo
 sudo apt install -y docker-compose-plugin ufw
 sudo ufw allow OpenSSH
-sudo ufw allow 80
+sudo ufw allow 80/tcp
 sudo ufw enable
 ```
 
@@ -37,60 +35,68 @@ sudo ufw enable
 ├── frontend/
 │   ├── src/
 │   └── Dockerfile
+├── backup/
+│   └── Dockerfile
+├── sentinel/
+│   └── Dockerfile
 ├── nginx/
-│   └── dev.conf
+│   └── dev.conf                   # HTTP‑only + backup gate
 ├── docker-compose.yml
-├── .env                  # unico file di configurazione (root)
-└── database/             # dati MySQL persistenti (bind mount)
+├── .env                           # unico file di configurazione (root)
+└── database/                      # dati MySQL (bind mount)
 ```
+
+> Non servono file Certbot o cartelle `letsencrypt` in questo scenario.
 
 ---
 
-## 3) Root `.env` (alla radice del progetto)
+## 3) File `.env` (root)
 
-> Un **solo** file `.env` di root controlla tutti i servizi. Per deploy solo-HTTP lascia `COMPOSE_PROFILES=dev`.
+> Mantieni **un solo** `.env`. Per il deploy solo‑HTTP imposta `COMPOSE_PROFILES=dev` e **non** valorizzare certificati/dominio.
 
 ```dotenv
-# Application name
-NEXT_PUBLIC_COMPANY_NAME=
+# Profilo Compose: dev = HTTP, prod = HTTPS+Certbot
+COMPOSE_PROFILES=dev
 
-# Application domain (for HTTPS)
+# Frontend
+NEXT_PUBLIC_COMPANY_NAME=La Tua Azienda
+
+# (Opzionale) Dominio/email usati SOLO in prod
 DOMAIN=
 LETSENCRYPT_EMAIL=
 
-# Default compose profile (dev = only HTTP, prod = HTTPS+Certbot)
-COMPOSE_PROFILES=dev
-
-# Database configurations
-MYSQL_DATABASE=
+# Database MySQL
+MYSQL_DATABASE=orders
 MYSQL_PORT=3306
-MYSQL_USER=
-MYSQL_PASSWORD=
-MYSQL_ROOT_PASSWORD=
+MYSQL_USER=orders_user
+MYSQL_PASSWORD=strongpass
+MYSQL_ROOT_PASSWORD=strongroot
 
-# Database backup configurations
-RESTIC_PASSWORD=
-RESTIC_REPOSITORY=
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_REGION=
+# Backup (Restic)
+RESTIC_PASSWORD=supersecret
+RESTIC_REPOSITORY=s3:s3.amazonaws.com/il-tuo-bucket
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=eu-west-1
 
 # Backend security
-SECRET_KEY=
-REGISTRATION_PASSWORD_HASH=
-JWT_ALGORITHM="HS256"
+SECRET_KEY=super-secret-key
+REGISTRATION_PASSWORD_HASH=...
+JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXP_MINUTES=15
 REFRESH_TOKEN_EXP_DAYS=7
 
-# cookie/cors (dev -> secure=false; prod -> true)
+# Cookie/CORS in HTTP: niente Secure
 REFRESH_COOKIE_SECURE=false
 ```
 
+> In HTTP puro puoi lasciare `CORS_ORIGINS` vuoto (`[]`) o popolarlo con IP/porta da cui chiami l’API.
+
 ---
 
-## 4) Nginx reverse proxy (solo HTTP, con backup gate opzionale)
+## 4) Nginx reverse proxy (HTTP‑only, con backup gate)
 
-File `nginx/dev.conf` (HTTP-only). Integra **sentinel** come gate: se i backup sono "stale" o mancanti, l'app ritorna 503.
+**`nginx/dev.conf`**
 
 ```nginx
 server {
@@ -111,8 +117,7 @@ server {
 
   # Courtesy page when the gate denies access
   location = /__unavailable__ {
-    return 503 "Service unavailable: backup status not OK.
-";
+    return 503 "Service unavailable: backup status not OK.\n";
     add_header Retry-After 3600;
     default_type text/plain;
   }
@@ -128,7 +133,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto http;
   }
 
   # Frontend (protected by the gate)
@@ -139,7 +144,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto http;
     proxy_connect_timeout 5s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
@@ -154,7 +159,7 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto http;
     proxy_connect_timeout 5s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
@@ -164,13 +169,13 @@ server {
 }
 ```
 
+> Se vuoi esporre file statici locali su un percorso (es. `/static/`), aggiungi una `location` dedicata con `root`.
+
 ---
 
-## 5) Docker Compose (HTTP-only con profilo `dev`)
+## 5) Docker Compose (profilo `dev`)
 
-> Usa il tuo `docker-compose.yml` con **profili**. In HTTP-only mantieni `COMPOSE_PROFILES=dev` nel `.env`.
-
-Esempio coerente con profili e root `.env`:
+> Coerente col progetto attuale. Il profilo `dev` espone solo **Nginx HTTP** con `dev.conf`. Nessun servizio Certbot/letsencrypt.
 
 ```yaml
 services:
@@ -186,7 +191,7 @@ services:
     volumes:
       - ./database:/var/lib/mysql
     ports:
-      - "3306:3306"
+      - "3306:3306"       # valuta se rimuoverlo in produzione
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
       interval: 5s
@@ -258,9 +263,9 @@ services:
       JWT_ALGORITHM: ${JWT_ALGORITHM}
       ACCESS_TOKEN_EXP_MINUTES: ${ACCESS_TOKEN_EXP_MINUTES}
       REFRESH_TOKEN_EXP_DAYS: ${REFRESH_TOKEN_EXP_DAYS}
-      CORS_ORIGINS: '[]'  # opzionale in HTTP puro
+      CORS_ORIGINS: '[]'               # in HTTP-only puoi lasciare vuoto
       REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE}
-      REFRESH_COOKIE_DOMAIN: ''
+      REFRESH_COOKIE_DOMAIN: ''        # nessun dominio in HTTP-only
     depends_on:
       db:
         condition: service_healthy
@@ -280,7 +285,7 @@ services:
       args:
         NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME}
         NEXT_PUBLIC_API_BASE_URL: /api
-        NEXT_PUBLIC_SITE_URL: http://localhost  # opzionale
+        NEXT_PUBLIC_SITE_URL: http://localhost
     container_name: orders_tracker_frontend
     depends_on:
       backend:
@@ -291,7 +296,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: orders_tracker_nginx
+    container_name: orders_tracker_nginx_dev
     profiles: ["dev"]
     depends_on:
       - frontend
@@ -314,13 +319,12 @@ networks:
 
 ---
 
-## 6) Build e avvio
+## 6) Build & Avvio
 
 Assicurati che nel `.env` ci sia `COMPOSE_PROFILES=dev`.
 
 ```bash
 docker compose build --no-cache
-
 docker compose up -d
 ```
 
@@ -329,14 +333,16 @@ Verifica:
 * Frontend → `http://<IP_VPS>/`
 * Backend health → `http://<IP_VPS>/api/health`
 
+> Se vedi 503, il **backup gate** sta bloccando l’accesso: controlla che `db_backup` aggiorni lo `status/last_ok` (heartbeat) e che `SENTINEL_*` siano corretti.
+
 ---
 
 ## 7) Note operative
 
-* I dati MySQL persistono in `./database`
-* Se modifichi le variabili `MYSQL_*`, devi rigenerare il volume MySQL
-* Senza HTTPS i cookie con flag `Secure` non funzionano; usa solo `httpOnly`
-* Per passare ad HTTPS e dominio, usa la variante con Certbot e reverse proxy TLS
+* I dati MySQL persistono in `./database`.
+* Le variabili `MYSQL_*` sono lette **solo alla prima inizializzazione** del volume dati.
+* In HTTP i cookie con flag **Secure** non vengono inviati: per questo `REFRESH_COOKIE_SECURE=false`.
+* Per passare a HTTPS e dominio pubblico, usa la **guida prod** (Nginx + Certbot) e imposta `COMPOSE_PROFILES=prod`.
 
 ---
 
@@ -344,6 +350,6 @@ Verifica:
 
 ```bash
 git pull
-docker compose build
+docker compose build --no-cache
 docker compose up -d
 ```

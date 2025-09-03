@@ -24,7 +24,7 @@ async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
 
     # Compute the pagination parameters
     page = max(1, params.page)
-    size = max(1, params.size)
+    size = params.size
     offset = (page - 1) * size
 
     # Create the database session

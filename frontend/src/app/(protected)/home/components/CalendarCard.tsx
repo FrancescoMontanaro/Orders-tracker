@@ -22,15 +22,96 @@ import {
   isToday,
 } from '../utils/date';
 
-/** Keep the original delivered check */
+/* ------------------------------- Utilities -------------------------------- */
+
+// Keep original delivered check
 function isDelivered(status?: string) {
   return String(status).toLowerCase() === 'delivered';
 }
 
+// Minimal API types from /orders/list (only fields we need)
+type OrderItemRow = {
+  product_id: number;
+  product_name: string;
+  unit?: string | null;
+  quantity: number;
+  unit_price?: number | null;
+};
+type OrderRow = {
+  id: number;
+  customer_id: number;
+  customer_name: string;
+  delivery_date: string; // YYYY-MM-DD
+  status: 'created' | 'delivered';
+  items: OrderItemRow[];
+};
+
+// Extract list rows from heterogeneous shapes
+function extractOrderRows(payload: any): OrderRow[] {
+  const items = payload?.data?.items;
+  if (Array.isArray(items)) return items as OrderRow[];
+  if (Array.isArray(payload?.data)) return payload.data as OrderRow[];
+  if (Array.isArray(payload?.rows)) return payload.rows as OrderRow[];
+  if (Array.isArray(payload)) return payload as OrderRow[];
+  return [];
+}
+
+/**
+ * Build a DailySummaryDay map (keyed by date ISO) from a flat list of orders.
+ * We recreate the same shape used by the calendar (products with customers array).
+ */
+function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryDay> {
+  const byDate: Record<string, DailySummaryDay> = {};
+
+  for (const o of rows) {
+    const dateISO = o.delivery_date;
+    if (!byDate[dateISO]) {
+      byDate[dateISO] = { date: dateISO, products: [] };
+    }
+
+    // Index products by product_id inside the date bucket for faster aggregation
+    const productIndex: Map<number, number> = new Map();
+    const day = byDate[dateISO];
+
+    // Initialize map from existing products to keep push O(1)
+    day.products.forEach((p, idx) => productIndex.set(p.product_id, idx));
+
+    for (const it of o.items || []) {
+      const pid = Number(it.product_id);
+      let pIdx = productIndex.get(pid);
+
+      if (pIdx == null) {
+        day.products.push({
+          product_id: pid,
+          product_name: it.product_name,
+          product_unit: (it.unit ?? '') as string,
+          total_qty: 0,
+          customers: [],
+        } as any);
+        pIdx = day.products.length - 1;
+        productIndex.set(pid, pIdx);
+      }
+
+      const p = day.products[pIdx];
+
+      // Increase total quantity for the product in that day
+      p.total_qty = Number(p.total_qty || 0) + Number(it.quantity || 0);
+
+      // Append a customer row for this order item
+      p.customers.push({
+        customer_id: o.customer_id,
+        customer_name: o.customer_name,
+        quantity: Number(it.quantity || 0),
+        order_status: o.status,
+      });
+    }
+  }
+
+  return byDate;
+}
+
 /** Group a day view by customer (delivered state and list of items per customer) */
-function groupByCustomer(
-  day?: DailySummaryDay
-): DayOrdersGrouped {
+function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
   if (!day) return [];
   const map = new Map<
     number,
@@ -58,7 +139,7 @@ function groupByCustomer(
         product_id: p.product_id,
         product_name: p.product_name,
         quantity: Number(c.quantity || 0),
-        unit: p.product_unit,
+        unit: (p as any).product_unit,
       });
       entry.totalCount += 1;
       if (isDelivered(c.order_status)) entry.deliveredCount += 1;
@@ -76,6 +157,8 @@ function groupByCustomer(
     .sort((a, b) => Number(a.delivered) - Number(b.delivered)); // pending first
 }
 
+/* -------------------------------- Component -------------------------------- */
+
 export default function CalendarCard() {
   const [month, setMonth] = React.useState<Date>(firstDayOfMonth(new Date()));
   const [loading, setLoading] = React.useState(false);
@@ -84,37 +167,55 @@ export default function CalendarCard() {
   const [addOpen, setAddOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<string | undefined>(undefined);
 
-  // NEW: day-orders list dialog state
+  // Day-orders list dialog state
   const [listOpen, setListOpen] = React.useState(false);
 
-  // Scroll containers: desktop grid (horizontally scrollable) and mobile list
+  // Scroll containers
   const desktopRef = React.useRef<HTMLDivElement>(null);
   const mobileRef = React.useRef<HTMLDivElement>(null);
 
-  // Guard: prevents repeating auto-scroll unless explicitly requested
+  // Prevent repeat auto-scroll
   const didScrollRef = React.useRef(false);
 
   const load = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      // Full 6-week grid interval
       const firstMonthDay = firstDayOfMonth(month);
       const gridStart = startOfCalendarGrid(firstMonthDay);
       const gridEnd = new Date(gridStart);
-      gridEnd.setDate(gridStart.getDate() + 41); // 6 settimane = 42 giorni - 1
+      gridEnd.setDate(gridStart.getDate() + 41); // 6 weeks (42 cells) - 1
 
       const startISO = toISO(gridStart);
       const endISO = toISO(gridEnd);
 
-      const res = await api.post<SuccessResponse<DailySummaryDay[]>>('/widgets/daily-summary', {
-        start_date: startISO,
-        end_date: endISO,
-      });
-      const arr = (res.data as any)?.data ?? res.data;
-      const map: Record<string, DailySummaryDay> = {};
-      (arr as DailySummaryDay[]).forEach((day) => {
-        if (day?.date) map[day.date] = day;
-      });
+      // Fetch all orders in the grid window via /orders/list
+      const res = await api.post(
+        '/orders/list',
+        { filters: {}, sort: [] },
+        {
+          params: {
+            page: 1,
+            size: -1, // no pagination
+            delivery_date_after: startISO,
+            delivery_date_before: endISO,
+          },
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+
+      const list = extractOrderRows(res.data).map((o) => ({
+        ...o,
+        status: (o.status as any) === 'delivered' ? 'delivered' : 'created',
+        items: (o.items || []).map((it) => ({
+          ...it,
+          quantity: Number(it.quantity || 0),
+        })),
+      })) as OrderRow[];
+
+      // Rebuild DailySummaryDay map per date
+      const map = buildDailyMapFromOrders(list);
       setDays(map);
     } catch (e: any) {
       const detail =
@@ -148,7 +249,7 @@ export default function CalendarCard() {
 
   const weekDays = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
-  /** CHANGED: Click opens the day-orders list first (not the Add dialog) */
+  // Click opens day-orders list
   function onDayClick(date: Date) {
     const iso = toISO(date);
     setSelectedDate(iso);
@@ -162,29 +263,24 @@ export default function CalendarCard() {
     setMonth((m) => addMonths(m, +1));
   }
   function gotoToday() {
-    // Move to current month and re-enable auto scroll when data is ready
     setMonth(firstDayOfMonth(new Date()));
     didScrollRef.current = false;
-
-    // reset containers scroll before the new month renders
     desktopRef.current?.scrollTo({ left: 0, top: 0, behavior: 'auto' });
     mobileRef.current?.scrollTo({ left: 0, top: 0, behavior: 'auto' });
   }
 
-  // Helper: try scrolling to today's element inside visible containers
+  // Try to scroll current containers to today
   const attemptScrollToToday = React.useCallback(() => {
     let scrolled = false;
     const containers = [desktopRef.current, mobileRef.current].filter(Boolean) as HTMLElement[];
 
     for (const root of containers) {
-      // skip hidden (e.g., inactive tab)
       const isVisible = root && root.offsetParent !== null && root.getClientRects().length > 0;
       if (!isVisible) continue;
 
       const el = root.querySelector<HTMLElement>('[data-today="true"]');
       if (!el) continue;
 
-      // --- Horizontal centering for desktop grid (root is horizontally scrollable) ---
       if (root.scrollWidth > root.clientWidth) {
         const targetLeft = el.offsetLeft - root.clientWidth / 2 + el.clientWidth / 2;
         const clampedLeft = Math.max(0, Math.min(targetLeft, root.scrollWidth - root.clientWidth));
@@ -192,19 +288,16 @@ export default function CalendarCard() {
         scrolled = true;
       }
 
-      // --- Vertical positioning ---
       const hasVerticalScroll = root.scrollHeight > root.clientHeight;
       const elRect = el.getBoundingClientRect();
 
       if (hasVerticalScroll) {
-        // Scroll the container itself (if it actually scrolls vertically)
         const elTopInParent = el.offsetTop - root.offsetTop;
         const targetTop = elTopInParent - root.clientHeight / 2 + el.clientHeight / 2;
         const clampedTop = Math.max(0, Math.min(targetTop, root.scrollHeight - root.clientHeight));
         root.scrollTo({ top: clampedTop, behavior: 'smooth' });
         scrolled = true;
       } else {
-        // Container doesn't scroll vertically (mobile list → page scroll)
         const top = window.scrollY + elRect.top - window.innerHeight / 2 + elRect.height / 2;
         window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
         scrolled = true;
@@ -215,11 +308,11 @@ export default function CalendarCard() {
     return scrolled;
   }, []);
 
-  // Auto-scroll once when data is ready (on open) – robust retry while tab becomes visible
+  // Auto-scroll once when data is ready (robust retry)
   React.useEffect(() => {
     if (loading || didScrollRef.current) return;
 
-    let attempts = 14; // ~700ms total
+    let attempts = 14;
     let timer: number | undefined;
 
     const tick = () => {
@@ -234,7 +327,7 @@ export default function CalendarCard() {
     };
   }, [loading, days, month, attemptScrollToToday]);
 
-  // Also observe container size changes (tab activation) and try once more if not yet scrolled
+  // Observe container size changes and try again if needed
   React.useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return;
 
@@ -254,7 +347,7 @@ export default function CalendarCard() {
     <>
       <Card>
         <CardHeader className="space-y-3">
-          {/* Header: keep desktop layout, make controls wrap nicely on small screens */}
+          {/* Header */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Calendario ordini</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
@@ -264,7 +357,6 @@ export default function CalendarCard() {
               <Button variant="outline" onClick={gotoPrev} aria-label="Mese precedente">
                 ‹
               </Button>
-              {/* Month label: allow shrinking on small screens */}
               <div className="min-w-[10ch] text-center font-medium sm:min-w-[12ch]">
                 {itMonthLabel(month)}
               </div>
@@ -299,7 +391,7 @@ export default function CalendarCard() {
             </div>
           ) : (
             <>
-              {/* Desktop calendar grid (unchanged) */}
+              {/* Desktop calendar grid */}
               <div ref={desktopRef} className="hidden md:block w-full overflow-x-auto">
                 <div className="min-w-[56rem] md:min-w-0">
                   <div className="grid grid-cols-7 text-xs text-muted-foreground">
@@ -329,7 +421,7 @@ export default function CalendarCard() {
                           className={cn(
                             'group relative min-h-32 rounded-lg border p-2 text-left transition-colors',
                             'hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2',
-                            'scroll-mx-8', // margin for nicer centering when scrolled horizontally
+                            'scroll-mx-8',
                             inCurrentMonth ? 'bg-card' : 'bg-muted/30 text-muted-foreground',
                             today && 'ring-1 ring-inset ring-primary/40 bg-primary/5'
                           )}
@@ -407,7 +499,7 @@ export default function CalendarCard() {
                 </div>
               </div>
 
-              {/* Mobile list view (single column, tap-friendly) */}
+              {/* Mobile list view */}
               <div ref={mobileRef} className="md:hidden space-y-2">
                 {gridCells.map((d, idx) => {
                   const inCurrentMonth = d.getMonth() === month.getMonth();
@@ -431,7 +523,6 @@ export default function CalendarCard() {
                         today && 'ring-1 ring-inset ring-primary/40 bg-primary/5'
                       )}
                     >
-                      {/* Row: date chip + counters (non-wrapping) */}
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <div
                           className={cn(
@@ -467,7 +558,6 @@ export default function CalendarCard() {
                         )}
                       </div>
 
-                      {/* Customers summary: compact, scrollable if long */}
                       {grouped.length ? (
                         <ul className="space-y-1 text-xs max-h-32 overflow-y-auto pr-1">
                           {grouped.map((g) => (
@@ -503,7 +593,7 @@ export default function CalendarCard() {
         </CardContent>
       </Card>
 
-      {/* Day orders list dialog: opens first; from there user can add a new order */}
+      {/* Day orders list dialog */}
       <DayOrdersDialog
         open={listOpen}
         onOpenChange={setListOpen}
@@ -514,7 +604,7 @@ export default function CalendarCard() {
         }}
       />
 
-      {/* Existing Add dialog (unchanged). defaultDate keeps the chosen day */}
+      {/* Add dialog */}
       <AddOrderDialog
         open={addOpen}
         onOpenChange={(o) => setAddOpen(o)}

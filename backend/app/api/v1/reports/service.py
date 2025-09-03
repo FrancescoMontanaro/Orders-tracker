@@ -189,6 +189,7 @@ async def report_cashflow(payload: CashflowRequest) -> CashflowResponse:
             .join(OrderItemORM, OrderItemORM.order_id == OrderORM.id)
             .group_by(OrderORM.id, OrderORM.delivery_date)
             .where(OrderORM.delivery_date.between(payload.start_date, payload.end_date))
+            .where(OrderORM.status == "delivered")
             .order_by(OrderORM.delivery_date.asc(), OrderORM.id.asc())
         )
 

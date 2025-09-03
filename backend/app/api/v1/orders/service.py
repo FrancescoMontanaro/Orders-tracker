@@ -77,7 +77,7 @@ async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
                     continue
 
                 # Apply the filter
-                stmt = stmt.where(col > dvalue)
+                stmt = stmt.where(col >= dvalue)
 
             # Delivery date before
             elif field == "delivery_date_before":
@@ -125,8 +125,8 @@ async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
                 # Apply sorting
                 stmt = stmt.order_by(*order_clauses)
 
-        # Apply pagination
-        stmt = stmt.offset(offset).limit(size)
+        # Apply pagination only if size is or equal than zero
+        if size >= 0: stmt = stmt.offset(offset).limit(size)
 
         # Execute the query
         res = await session.execute(stmt)

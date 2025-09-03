@@ -16,7 +16,7 @@ import type { OrderItem } from '../types/dailySummary';
 import { euro } from '../utils/currency';
 import { fmtDate } from '../utils/date';
 
-// --- util: parse robusto per numeri locali (es. "1,5" -> 1.5) ---
+// --- util: robust local number parsing (e.g., "1,5" -> 1.5) ---
 function parseLocaleNumber(v: unknown): number | null {
   if (v === '' || v == null) return null;
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
@@ -41,6 +41,7 @@ export default function AddOrderDialog({
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
 
+  // Reset form state when the dialog opens (keep defaultDate pre-filled)
   React.useEffect(() => {
     if (open) {
       setDeliveryDate(defaultDate || '');
@@ -52,41 +53,49 @@ export default function AddOrderDialog({
     }
   }, [open, defaultDate]);
 
-  // --- NORMALIZZO gli item per l'anteprima totali (virgole incluse) ---
+  // Normalize items for totals preview (accept comma as decimal separator)
   const normalizedItemsForPreview = React.useMemo(() => {
     return items.map((it: any) => {
       const qty = parseLocaleNumber(it.quantity);
+      const price = parseLocaleNumber(it.unit_price);
       return {
         ...it,
-        quantity: qty ?? it.quantity, // se invalido, mantengo il raw per non "sparire" la cifra mentre digiti
+        quantity: qty ?? it.quantity,          // keep raw while typing invalid
+        unit_price: price ?? it.unit_price,    // keep raw while typing invalid
       };
     });
   }, [items]);
 
-  // usa i normalizzati per i totali (così su mobile i totali non risultano 0/null)
+  // Use normalized values to compute totals so mobile users see correct numbers
   const totals = usePreviewTotals(normalizedItemsForPreview as any, appliedDiscount);
 
   async function create() {
-    if (saving) return; // evita doppi tap
-    // Validazioni base
+    if (saving) return; // prevent double taps
+
+    // Basic validations
     if (!deliveryDate) return setLocalError('La data di consegna è obbligatoria.');
     if (!customer?.id) return setLocalError('Il cliente è obbligatorio.');
     if (!items.length) return setLocalError('Aggiungi almeno un prodotto.');
 
-    // Normalizzo quantità per il payload
+    // Build items payload with normalized quantity and optional unit_price
     const itemsPayload = items.map((raw: any) => {
       const qty = parseLocaleNumber(raw.quantity);
+      const price = parseLocaleNumber(raw.unit_price);
+
       return {
         product_id: Number(raw.product_id),
         quantity: qty,
-      };
+        // include unit_price only when valid (avoid clobbering server defaults)
+        ...(price != null && Number.isFinite(price) && price >= 0 ? { unit_price: price } : {}),
+      } as { product_id: number; quantity: number | null; unit_price?: number };
     });
 
-    if (itemsPayload.some((it) => it.quantity == null || !Number.isFinite(it.quantity!) || (it.quantity as number) <= 0)) {
+    // Validate quantities
+    if (itemsPayload.some((it) => it.quantity == null || !Number.isFinite(it.quantity as number) || (it.quantity as number) <= 0)) {
       return setLocalError('Quantità non valida in uno o più prodotti. Usa numeri (es. 1,5).');
     }
 
-    // Normalizzo sconto
+    // Normalize discount
     const normalizedDiscount = parseLocaleNumber(appliedDiscount as any);
     if (appliedDiscount !== '' && normalizedDiscount == null) {
       return setLocalError('Sconto non valido. Usa numeri (es. 12,5).');
@@ -95,7 +104,12 @@ export default function AddOrderDialog({
     const payload: any = {
       customer_id: Number(customer.id),
       delivery_date: deliveryDate,
-      items: itemsPayload as Array<{ product_id: number; quantity: number }>,
+      // cast quantities to number after validation
+      items: itemsPayload.map(({ product_id, quantity, unit_price }) => ({
+        product_id,
+        quantity: Number(quantity),
+        ...(unit_price != null ? { unit_price: Number(unit_price) } : {}),
+      })),
       status,
     };
     if (normalizedDiscount != null) payload.applied_discount = normalizedDiscount;
@@ -127,12 +141,15 @@ export default function AddOrderDialog({
       >
         <DialogHeader><DialogTitle>Nuovo ordine</DialogTitle></DialogHeader>
 
+        {/* Main form grid; min-w-0/max-w-full keep children from pushing width */}
         <div className="grid gap-4 min-w-0 max-w-full">
+          {/* Readonly delivery date (pre-filled, not editable here) */}
           <div className="grid gap-1 min-w-0">
             <Label>Data consegna</Label>
             <Badge>{fmtDate(deliveryDate)}</Badge>
           </div>
 
+          {/* Customer selector */}
           <div className="grid gap-1 min-w-0">
             <Label>Cliente</Label>
             <SearchCombobox
@@ -144,6 +161,7 @@ export default function AddOrderDialog({
             />
           </div>
 
+          {/* Discount input (locale-friendly) */}
           <div className="grid gap-1 min-w-0">
             <Label>Sconto applicato (%)</Label>
             <input
@@ -162,6 +180,7 @@ export default function AddOrderDialog({
             />
           </div>
 
+          {/* Status selector */}
           <div className="grid gap-1 min-w-0">
             <Label>Stato</Label>
             <Select value={status} onValueChange={(v: 'created' | 'delivered') => setStatus(v)}>
@@ -175,13 +194,14 @@ export default function AddOrderDialog({
             </Select>
           </div>
 
+          {/* Items editor: mobile-friendly cards; the editor already allows unit_price editing */}
           <div className="grid gap-2 mt-2 rounded-lg border p-3 text-sm">
             <Label>Prodotti</Label>
             <hr />
-            {/* ItemsEditor può continuare a gestire stringhe; normalizziamo noi */}
             <ItemsEditor items={items} onChange={setItems} />
           </div>
 
+          {/* Totals preview */}
           <div className="mt-2 rounded-lg border p-3 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Subtotale</span>
@@ -204,9 +224,11 @@ export default function AddOrderDialog({
             )}
           </div>
 
+          {/* Non-blocking error */}
           {localError && <p className="text-sm text-red-600 whitespace-pre-wrap">{localError}</p>}
         </div>
 
+        {/* Footer actions */}
         <DialogFooter className="mt-2 flex flex-row flex-wrap items-center justify-end gap-2">
           <DialogClose asChild>
             <Button variant="outline">Annulla</Button>

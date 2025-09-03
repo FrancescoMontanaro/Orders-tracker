@@ -18,10 +18,10 @@ import { OrderItem } from '../types/order';
 
 /**
  * AddOrderDialog (responsive)
- * - Stable width per breakpoint to avoid layout jumps.
- * - Vertical scroll only; horizontal overflow is explicitly hidden.
- * - All inputs/selects use min-w-0 to prevent accidental x-overflow.
- * - Footer keeps actions aligned horizontally on mobile too.
+ * - Fixed width per breakpoint to avoid layout shifts.
+ * - Vertical scroll only; horizontal overflow is hidden.
+ * - Inputs/selects use min-w-0 to prevent accidental horizontal overflow.
+ * - Footer actions stay horizontal and wrap gracefully on small screens.
  */
 export function AddOrderDialog({
   open, onOpenChange, onCreated, onError,
@@ -39,6 +39,7 @@ export function AddOrderDialog({
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
 
+  // Reset form state when the dialog opens
   React.useEffect(() => {
     if (open) {
       setDeliveryDate('');
@@ -50,21 +51,38 @@ export function AddOrderDialog({
     }
   }, [open]);
 
+  // Totals preview (computed client-side, independent from the payload)
   const totals = usePreviewTotals(items, appliedDiscount);
 
+  // Create order and send to API
   async function create() {
-    // Client-side validations for quick UX
+    // Client-side validations for fast feedback
     if (!deliveryDate) return setLocalError('La data di consegna è obbligatoria.');
     if (!customer?.id) return setLocalError('Il cliente è obbligatorio.');
     if (!items.length) return setLocalError('Aggiungi almeno un prodotto.');
 
+    // Build items payload, including unit_price only when provided
+    const itemsPayload = items.map((it) => {
+      const base: { product_id: number; quantity: number; unit_price?: number } = {
+        product_id: Number(it.product_id),
+        quantity: Number(it.quantity),
+      };
+      if (it.unit_price != null && !Number.isNaN(Number(it.unit_price))) {
+        base.unit_price = Number(it.unit_price);
+      }
+      return base;
+    });
+
     const payload: any = {
       customer_id: Number(customer.id),
       delivery_date: deliveryDate,
-      items: items.map((it) => ({ product_id: Number(it.product_id), quantity: Number(it.quantity) })), // unit_price not sent
+      items: itemsPayload, // includes unit_price per line when provided
       status,
     };
-    if (appliedDiscount !== '' && appliedDiscount != null) payload.applied_discount = Number(appliedDiscount);
+
+    if (appliedDiscount !== '' && appliedDiscount != null) {
+      payload.applied_discount = Number(appliedDiscount);
+    }
 
     setSaving(true);
     setLocalError(null);
@@ -84,7 +102,7 @@ export function AddOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Stable sizes per breakpoint; y-scroll only; explicit x-hidden */}
+      {/* Fixed sizes per breakpoint; vertical scroll only; horizontal overflow hidden */}
       <DialogContent
         className="
           w-[calc(100vw-2rem)]
@@ -96,8 +114,9 @@ export function AddOrderDialog({
           <DialogTitle>Nuovo ordine</DialogTitle>
         </DialogHeader>
 
-        {/* Main form grid; min-w-0 / max-w-full avoid horizontal overflow */}
+        {/* Main form grid; min/max width guards avoid horizontal overflow */}
         <div className="grid gap-4 min-w-0 max-w-full">
+          {/* Delivery date */}
           <div className="grid gap-1 min-w-0">
             <Label>Data consegna</Label>
             <DatePicker
@@ -108,6 +127,7 @@ export function AddOrderDialog({
             />
           </div>
 
+          {/* Customer selector */}
           <div className="grid gap-1 min-w-0">
             <Label>Cliente</Label>
             <SearchCombobox
@@ -119,6 +139,7 @@ export function AddOrderDialog({
             />
           </div>
 
+          {/* Discount percentage */}
           <div className="grid gap-1 min-w-0">
             <Label>Sconto applicato (%)</Label>
             <Input
@@ -131,6 +152,7 @@ export function AddOrderDialog({
             />
           </div>
 
+          {/* Status selector */}
           <div className="grid gap-1 min-w-0">
             <Label>Stato</Label>
             <Select value={status} onValueChange={(v: 'created' | 'delivered') => setStatus(v)}>
@@ -144,14 +166,14 @@ export function AddOrderDialog({
             </Select>
           </div>
 
-          {/* Items editor: mobile-friendly; no <br/>, use a divider to keep structure clean */}
+          {/* Items editor: supports unit_price editing per line */}
           <div className="grid gap-2 mt-2 rounded-lg border p-3 text-sm min-w-0">
             <Label>Prodotti</Label>
             <div className="h-px bg-border" />
             <ItemsEditor items={items} onChange={setItems} />
           </div>
 
-          {/* Totals preview */}
+          {/* Totals preview (client-side estimation) */}
           <div className="mt-2 rounded-lg border p-3 text-sm min-w-0">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Subtotale</span>
@@ -172,10 +194,11 @@ export function AddOrderDialog({
             )}
           </div>
 
+          {/* Non-blocking error message */}
           {localError && <p className="text-sm text-red-600 whitespace-pre-wrap">{localError}</p>}
         </div>
 
-        {/* Footer: buttons stay horizontal on small screens; wrap gracefully if needed */}
+        {/* Footer actions */}
         <DialogFooter className="mt-2 flex flex-row flex-wrap items-center justify-end gap-2">
           <DialogClose asChild>
             <Button variant="outline">Annulla</Button>

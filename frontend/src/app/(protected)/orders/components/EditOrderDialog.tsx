@@ -27,12 +27,24 @@ import { euro } from '../utils/currency';
 import { Option } from '../types/option';
 import { Order, OrderItem } from '../types/order';
 
+/** Robust local number parser (e.g., "1,5" -> 1.5) */
+function parseLocaleNumber(v: unknown): number | null {
+  if (v === '' || v == null) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string') {
+    const s = v.replace(/\s/g, '').replace(',', '.');
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 /**
  * EditOrderDialog (responsive)
  * - Stable dialog widths; vertical scroll only, x-overflow hidden.
  * - Inputs/selects use min-w-0 to avoid accidental x-overflow.
  * - Footer keeps Delete (left) aligned horizontally with Cancel/Save (right) on mobile.
- * - Same payload/validation as original.
+ * - Sends unit_price per item when provided.
  */
 export function EditOrderDialog({
   open, onOpenChange, order, onSaved, onDeleted, onError,
@@ -107,21 +119,52 @@ export function EditOrderDialog({
     };
   }, [open, order]);
 
+  // Totals preview (client-side estimate)
   const totals = usePreviewTotals(items, appliedDiscount);
 
+  // Save changes to the API (PATCH)
   async function save() {
     if (!order) return;
+    // Basic validations
     if (!deliveryDate) return setLocalError('La data di consegna è obbligatoria.');
     if (!customer?.id) return setLocalError('Il cliente è obbligatorio.');
     if (!items.length) return setLocalError('Aggiungi almeno un prodotto.');
 
+    // Normalize item quantities and optional unit prices
+    const itemsPayload = items.map((raw: any) => {
+      const qty = parseLocaleNumber(raw.quantity);
+      const price = parseLocaleNumber(raw.unit_price);
+
+      return {
+        product_id: Number(raw.product_id),
+        quantity: qty,
+        // include unit_price only when valid (avoid overriding server defaults with null)
+        ...(price != null && Number.isFinite(price) && price >= 0 ? { unit_price: price } : {}),
+      } as { product_id: number; quantity: number | null; unit_price?: number };
+    });
+
+    // Validate quantities
+    if (itemsPayload.some((it) => it.quantity == null || !Number.isFinite(it.quantity as number) || (it.quantity as number) <= 0)) {
+      return setLocalError('Quantità non valida in uno o più prodotti. Usa numeri (es. 1,5).');
+    }
+
+    // Normalize discount
+    const normalizedDiscount = parseLocaleNumber(appliedDiscount as any);
+    if (appliedDiscount !== '' && normalizedDiscount == null) {
+      return setLocalError('Sconto non valido. Usa numeri (es. 12,5).');
+    }
+
     const payload: any = {
       delivery_date: deliveryDate,
       customer_id: Number(customer.id),
-      items: items.map((it) => ({ product_id: Number(it.product_id), quantity: Number(it.quantity) })), // unit_price not sent
+      items: itemsPayload.map(({ product_id, quantity, unit_price }) => ({
+        product_id,
+        quantity: Number(quantity),
+        ...(unit_price != null ? { unit_price: Number(unit_price) } : {}),
+      })),
       status,
     };
-    if (appliedDiscount !== '' && appliedDiscount != null) payload.applied_discount = Number(appliedDiscount);
+    if (normalizedDiscount != null) payload.applied_discount = normalizedDiscount;
 
     setSaving(true);
     setLocalError(null);
@@ -147,7 +190,7 @@ export function EditOrderDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        {/* Stable sizes per breakpoint; y-scroll only; x-hidden to prevent sideways scroll */}
+        {/* Fixed sizes per breakpoint; vertical scroll only; horizontal overflow hidden */}
         <DialogContent
           className="
             w-[calc(100vw-2rem)]
@@ -170,6 +213,7 @@ export function EditOrderDialog({
             </div>
           ) : (
             <div className="grid gap-4 min-w-0 max-w-full">
+              {/* Delivery date */}
               <div className="grid gap-1 min-w-0">
                 <Label>Data consegna</Label>
                 <DatePicker
@@ -180,6 +224,7 @@ export function EditOrderDialog({
                 />
               </div>
 
+              {/* Customer */}
               <div className="grid gap-1 min-w-0">
                 <Label>Cliente</Label>
                 <SearchCombobox
@@ -191,6 +236,7 @@ export function EditOrderDialog({
                 />
               </div>
 
+              {/* Discount */}
               <div className="grid gap-1 min-w-0">
                 <Label>Sconto applicato (%)</Label>
                 <Input
@@ -202,6 +248,7 @@ export function EditOrderDialog({
                 />
               </div>
 
+              {/* Status */}
               <div className="grid gap-1 min-w-0">
                 <Label>Stato</Label>
                 <Select value={status} onValueChange={(v: 'created' | 'delivered') => setStatus(v)}>

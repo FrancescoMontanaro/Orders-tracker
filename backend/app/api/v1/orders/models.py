@@ -47,6 +47,7 @@ class OrderItemCreate(BaseModel):
     
     product_id: int
     quantity: float = Field(gt=0)
+    unit_price: Optional[float] = Field(default=None, gt=0)
 
 
 class OrderCreate(BaseModel):

@@ -298,19 +298,21 @@ async def create_order(payload: OrderCreate) -> Order:
         total = 0.0
 
         # Aggregate quantities by product_id
-        agg: Dict[int, float] = {}
+        agg: Dict[int, Dict] = {}
         for it in payload.items:
-            agg[it.product_id] = agg.get(it.product_id, 0.0) + float(it.quantity)
+            agg[it.product_id] = agg.get(it.product_id, {"quantity": 0.0, "unit_price": None})
+            agg[it.product_id]["quantity"] += float(it.quantity)
+            agg[it.product_id]["unit_price"] = float(it.unit_price) if it.unit_price else None
 
         # Build unique rows using snapshot unit_price
-        for pid, qty in agg.items():
+        for pid, data in agg.items():
             prod = await session.get(ProductORM, pid)
             if not prod:
                 raise ValueError(f"Product {pid} not found")
-            unit_price = float(prod.unit_price)
-            total += unit_price * qty
+            unit_price = float(prod.unit_price) if data["unit_price"] is None else data["unit_price"]
+            total += unit_price * data["quantity"]
             items_orm.append(
-                OrderItemORM(product_id=pid, quantity=qty, unit_price=unit_price)
+                OrderItemORM(product_id=pid, quantity=data["quantity"], unit_price=unit_price)
             )
 
         # Create the order
@@ -436,13 +438,15 @@ async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
             new_rows: list[OrderItemORM] = []
 
             # Aggregate quantities by product_id
-            agg: Dict[int, float] = {}
+            agg: Dict[int, Dict] = {}
             for it in payload.items:
-                agg[it.product_id] = agg.get(it.product_id, 0.0) + float(it.quantity)
+                agg[it.product_id] = agg.get(it.product_id, {"quantity": 0.0, "unit_price": None})
+                agg[it.product_id]["quantity"] += float(it.quantity)
+                agg[it.product_id]["unit_price"] = float(it.unit_price) if it.unit_price else None
 
             # For each unique product_id pick existing unit_price or current product price
-            for pid, qty in agg.items():
-                unit_price = existing_items.get(pid)
+            for pid, data in agg.items():
+                unit_price = existing_items.get(pid) if data["unit_price"] is None else data["unit_price"]
                 if unit_price is None:
                     prod = await session.get(ProductORM, pid)
                     if not prod:
@@ -453,7 +457,7 @@ async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
                     OrderItemORM(
                         order_id=order_orm.id,
                         product_id=pid,
-                        quantity=float(qty),
+                        quantity=float(data["quantity"]),
                         unit_price=float(unit_price),
                     )
                 )

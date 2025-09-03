@@ -150,9 +150,6 @@ export function EditOrderDialog({
 
     // Normalize discount
     const normalizedDiscount = parseLocaleNumber(appliedDiscount as any);
-    if (appliedDiscount !== '' && normalizedDiscount == null) {
-      return setLocalError('Sconto non valido. Usa numeri (es. 12,5).');
-    }
 
     const payload: any = {
       delivery_date: deliveryDate,
@@ -164,7 +161,17 @@ export function EditOrderDialog({
       })),
       status,
     };
-    if (normalizedDiscount != null) payload.applied_discount = normalizedDiscount;
+
+    // ---------- IMPORTANT FIX ----------
+    // If the input is cleared (''), explicitly send 0 so the backend overrides the previous discount.
+    if (appliedDiscount === '') {
+      payload.applied_discount = 0;
+    } else if (normalizedDiscount != null) {
+      payload.applied_discount = normalizedDiscount;
+    } else {
+      return setLocalError('Sconto non valido. Usa numeri (es. 12,5).');
+    }
+    // ---------- /IMPORTANT FIX ----------
 
     setSaving(true);
     setLocalError(null);

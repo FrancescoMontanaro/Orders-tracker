@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api-client';
-import { useFixRadixInertLeak } from '../../expenses/hooks/useFixRadixInertLeak'; // riuso hook esistente
+import { useFixRadixInertLeak } from '../../expenses/hooks/useFixRadixInertLeak';
 import { useExpenseCategories } from '../hooks/useExpenseCategories';
 
 import {
@@ -20,6 +20,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X } from 'lucide-react';
 
@@ -27,7 +31,13 @@ import { PaginationControls } from '@/components/ui/pagination-controls';
 import { RowActionsCategory } from './RowActionsCategory';
 import { EditCategoryDialog } from './EditCategoryDialog';
 import { AddCategoryDialog } from './AddCategoryDialog';
-import { Select } from 'react-day-picker';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 type ExpenseCategory = { id: number; descr: string };
 
@@ -87,7 +97,7 @@ export default function CategoriesCard() {
     if (!o) cleanupInert();
   }, [cleanupInert]);
 
-  // Desktop columns (ID optional for clarity; sortable by descr)
+  // Desktop columns
   const columns = React.useMemo<ColumnDef<ExpenseCategory>[]>(() => [
     {
       id: 'select',
@@ -293,11 +303,10 @@ export default function CategoriesCard() {
               <span className="truncate">Seleziona tutti</span>
             </label>
 
-            {/* Sort select (mobile-only convenience) */}
+            {/* Sort select (Radix/Shadcn for consistent style) */}
             <div className="grid gap-1 min-w-0">
               <Label>Ordina per</Label>
               <Select
-                className="border rounded-md h-9 px-3 text-sm bg-background"
                 value={
                   sorting?.[0]?.id === 'descr'
                     ? sorting?.[0]?.desc ? 'descr-desc' : 'descr-asc'
@@ -305,18 +314,18 @@ export default function CategoriesCard() {
                     ? sorting?.[0]?.desc ? 'id-desc' : 'id-asc'
                     : 'descr-asc'
                 }
-                onChange={(e) => {
-                  const v = e.target.value;
+                onValueChange={(v) => {
                   if (v === 'descr-asc') setSorting([{ id: 'descr', desc: false }]);
                   else if (v === 'descr-desc') setSorting([{ id: 'descr', desc: true }]);
-                  else if (v === 'id-asc') setSorting([{ id: 'id', desc: false }]);
-                  else if (v === 'id-desc') setSorting([{ id: 'id', desc: true }]);
                 }}
               >
-                <option value="descr-asc">Descrizione (A → Z)</option>
-                <option value="descr-desc">Descrizione (Z → A)</option>
-                <option value="id-asc">ID (crescente)</option>
-                <option value="id-desc">ID (decrescente)</option>
+                <SelectTrigger className="min-w-0 w-full max-w-full">
+                  <SelectValue placeholder="Ordina per" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="descr-asc">Descrizione (A → Z)</SelectItem>
+                  <SelectItem value="descr-desc">Descrizione (Z → A)</SelectItem>
+                </SelectContent>
               </Select>
             </div>
           </div>
@@ -466,8 +475,27 @@ export default function CategoriesCard() {
       />
 
       {/* Bulk delete confirm */}
-      {/* Re-using AlertDialog from Expenses page style would be consistent; if you already have it, include here. */}
-      {/* Omesso per brevità: puoi riutilizzare lo stesso blocco AlertDialog usato nelle spese per confermare l'eliminazione multipla */}
+      <AlertDialog open={confirmBulkOpen} onOpenChange={handleConfirmBulkOpenChange}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare {selectedIds.length} categoria/e di spesa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione non può essere annullata.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                handleConfirmBulkOpenChange(false);
+                await bulkDeletePerform();
+              }}
+            >
+              Conferma
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

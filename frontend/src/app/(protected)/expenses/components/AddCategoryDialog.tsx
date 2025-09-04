@@ -72,7 +72,7 @@ export function AddCategoryDialog({
           <div className="grid gap-1 min-w-0">
             <Label>Descrizione</Label>
             <Input
-              placeholder="Es. Alimentari"
+              placeholder="Es. Generali"
               value={descr}
               onChange={(e) => setDescr(e.target.value)}
               className="min-w-0 w-full max-w-full"

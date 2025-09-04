@@ -78,5 +78,6 @@ class OrderUpdate(BaseModel):
 
     delivery_date: Optional[date] = None
     items: Optional[List[OrderItemCreate]] = None
+    customer_id: Optional[int] = None
     applied_discount: Optional[float] = Field(default=None, ge=0, le=100)
     status: Optional[str] = None

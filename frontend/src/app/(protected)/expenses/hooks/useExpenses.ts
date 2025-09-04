@@ -1,105 +1,101 @@
+'use client';
+
 import * as React from 'react';
 import { api } from '@/lib/api-client';
-import type { SortingState } from '@tanstack/react-table';
-import type { Pagination, SuccessResponse } from '@/types/api';
 import type { Expense, SortParam } from '../types/expense';
-import { allowedSortFields } from '../types/expense';
-import { useDebouncedValue } from './useDebouncedValue';
+import type { SortingState } from '@tanstack/react-table';
 
-/**
- * Centralizes data fetching (POST /expenses/list) and the UI state for:
- * paging, sorting, filters, loading/error status.
- * NOTE: No behavioral changes; this is a straight extraction from the page.
- */
+type PaginationResponse<T> = { total: number; items: T[] };
+
+// Map TanStack sorting → backend sort payload
+function mapSorting(sorting: SortingState): { field: SortParam['field']; order: 'asc' | 'desc' }[] | undefined {
+  if (!sorting?.length) return undefined;
+  return sorting.map(s => ({
+    field: s.id as SortParam['field'],
+    order: s.desc ? 'desc' : 'asc',
+  }));
+}
+
 export function useExpenses() {
-  const [rows, setRows] = React.useState<Expense[]>([]);
-  const [total, setTotal] = React.useState(0);
-
+  // Pagination / sorting
   const [page, setPage] = React.useState(1);
   const [size, setSize] = React.useState(10);
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: 'timestamp', desc: true }]);
 
-  const [sorting, setSorting] = React.useState<SortingState>([
-    { id: 'timestamp', desc: true },
-  ]);
+  // Filters
+  const [noteQuery, setNoteQuery] = React.useState('');
+  const [amountMin, setAmountMin] = React.useState('');
+  const [amountMax, setAmountMax] = React.useState('');
+  const [dateFrom, setDateFrom] = React.useState(''); // ISO yyyy-mm-dd
+  const [dateTo, setDateTo] = React.useState('');     // ISO yyyy-mm-dd
+  const [categoryId, setCategoryId] = React.useState<number | ''>(''); // '' = all categories
 
+  // Data state
+  const [rows, setRows] = React.useState<Expense[]>([]);
+  const [total, setTotal] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  // UI filters (identical to original behavior)
-  const [noteQuery, setNoteQuery] = React.useState<string>('');
-  const [amountMin, setAmountMin] = React.useState<string>('');
-  const [amountMax, setAmountMax] = React.useState<string>('');
-  const [dateFrom, setDateFrom] = React.useState<string>(''); // YYYY-MM-DD
-  const [dateTo, setDateTo] = React.useState<string>('');     // YYYY-MM-DD
-
-  const debouncedNote = useDebouncedValue(noteQuery, 350);
-  const debouncedMin = useDebouncedValue(amountMin, 350);
-  const debouncedMax = useDebouncedValue(amountMax, 350);
-  const debouncedFrom = useDebouncedValue(dateFrom, 350);
-  const debouncedTo = useDebouncedValue(dateTo, 350);
-
-  const fetchPage = React.useCallback(async () => {
+  const fetchData = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Body: logical filters (e.g., note) + sort
+      // Build filters for backend
       const filters: Record<string, any> = {};
-      if (debouncedNote.trim()) filters.note = debouncedNote.trim();
+      if (noteQuery) filters.note = noteQuery;
+      if (amountMin) filters.min_amount = Number(amountMin);
+      if (amountMax) filters.max_amount = Number(amountMax);
+      if (dateFrom)  filters.timestamp_after = dateFrom;
+      if (dateTo)    filters.timestamp_before = dateTo;
+      if (categoryId !== '') filters.category_id = categoryId;
 
-      const sort: SortParam[] = (sorting || [])
-        .map((s) => {
-          const id = s.id as SortParam['field'];
-          if (!allowedSortFields.has(id)) return null;
-          return { field: id, order: s.desc ? 'desc' : 'asc' };
-        })
-        .filter(Boolean) as SortParam[];
+      const payload = {
+        filters,
+        sort: mapSorting(sorting),
+      };
 
-      // Query string: page/size + date/amount ranges
-      const params: Record<string, any> = { page, size };
-      if (debouncedFrom) params.timestamp_after = debouncedFrom;
-      if (debouncedTo) params.timestamp_before = debouncedTo;
-
-      if (debouncedMin !== '' && !Number.isNaN(Number(debouncedMin))) {
-        params.min_amount = Number(debouncedMin);
-      }
-      if (debouncedMax !== '' && !Number.isNaN(Number(debouncedMax))) {
-        params.max_amount = Number(debouncedMax);
-      }
-
-      const res = await api.post<SuccessResponse<Pagination<Expense>>>(
+      // POST /expenses/list with page/size as query params
+      const res = await api.post<{ status: string; data: PaginationResponse<Expense> }>(
         '/expenses/list',
-        { filters, sort },
-        { params, headers: { 'Content-Type': 'application/json' } }
+        payload,
+        { params: { page, size } }
       );
 
-      const payload = res.data.data;
-      setRows(Array.isArray(payload.items) ? payload.items : []);
-      setTotal(Number(payload.total) || 0);
+      const data = res?.data?.data;
+      setRows(data?.items ?? []);
+      setTotal(data?.total ?? 0);
     } catch (e: any) {
-      const detail =
+      const msg =
         e?.response?.data?.detail ??
         e?.response?.data?.message ??
         e?.message ??
-        'Errore sconosciuto';
-      setError(`Impossibile caricare le spese: ${String(detail)}`);
+        'Errore di caricamento';
+      setError(String(msg));
       setRows([]);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [page, size, sorting, debouncedNote, debouncedMin, debouncedMax, debouncedFrom, debouncedTo]);
+  }, [page, size, sorting, noteQuery, amountMin, amountMax, dateFrom, dateTo, categoryId]);
 
-  React.useEffect(() => { fetchPage(); }, [fetchPage]);
+  React.useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Reset to page 1 whenever filters change, as originally implemented.
-  React.useEffect(() => {
-    setPage(1);
-  }, [debouncedNote, debouncedMin, debouncedMax, debouncedFrom, debouncedTo]);
+  const refetch = React.useCallback(fetchData, [fetchData]);
 
   return {
-    rows, total, page, size, sorting, loading, error,
+    // data
+    rows, total,
+    // pagination/sorting
+    page, size, sorting,
+    setPage, setSize, setSorting,
+    // filters
     noteQuery, amountMin, amountMax, dateFrom, dateTo,
-    setPage, setSize, setSorting, setNoteQuery, setAmountMin, setAmountMax, setDateFrom, setDateTo,
-    refetch: fetchPage,
+    setNoteQuery, setAmountMin, setAmountMax, setDateFrom, setDateTo,
+    // category filter
+    categoryId, setCategoryId,
+    // status
+    loading, error,
+    // actions
+    refetch,
   };
 }

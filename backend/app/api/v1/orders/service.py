@@ -359,6 +359,11 @@ async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
             order_orm.delivery_date = payload.delivery_date
         if payload.status is not None:
             order_orm.status = payload.status
+        if payload.customer_id is not None:
+            # Validate customer
+            if not await session.get(CustomerORM, payload.customer_id):
+                raise ValueError("Customer not found")
+            order_orm.customer_id = payload.customer_id
 
         # Replace items if provided
         if payload.items is not None:

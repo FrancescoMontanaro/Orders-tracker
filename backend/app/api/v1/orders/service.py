@@ -276,7 +276,7 @@ async def get_order_by_id(order_id: int) -> Optional[Order]:
         return order
 
 
-async def create_order(payload: OrderCreate) -> Order:
+async def create_order(payload: OrderCreate) -> Optional[Order]:
     """
     Create order with items, snapshot unit_price, compute total.
 
@@ -330,65 +330,8 @@ async def create_order(payload: OrderCreate) -> Order:
         await session.commit()
         await session.refresh(order_orm)
 
-        # Select the order with customer name
-        stmt = (
-            select(OrderORM, CustomerORM.name.label("customer_name"))
-            .join(CustomerORM, CustomerORM.id == OrderORM.customer_id)
-            .where(OrderORM.id == order_orm.id)
-        )
-
-        # Execute the query
-        res = await session.execute(stmt)
-
-        # Get the first result
-        res = res.first()
-
-        # Check if the order exists
-        if not res:
-            # If not, raise an error
-            raise ValueError("Order not found after creation")
-
-        # Unpack the result
-        order_orm, customer_name = res
-
-        # Map the order and customer name to the Order model
-        order = Order.model_validate({
-            **order_orm.__dict__,
-            "total_amount": 0.0,
-            "customer_name": customer_name,
-            "items": []
-        })
-
-        # Extract order items
-        items_stmt = (
-            select(
-                OrderItemORM,
-                ProductORM.name.label("product_name"),
-                ProductORM.unit.label("unit")
-            )
-            .join(ProductORM, ProductORM.id == OrderItemORM.product_id)
-            .where(OrderItemORM.order_id == order.id)
-        )
-
-        # Execute the query
-        items_res = await session.execute(items_stmt)
-
-        # Map the order items to the Order model
-        order.items = [
-            OrderItem.model_validate({
-                **item.__dict__,
-                "product_name": product_name,
-                "unit": unit
-            })
-            for item, product_name, unit in items_res.all()
-        ]
-
-        # Compute subtotal and total amount
-        subtotal = sum(it.quantity * it.unit_price for it in order.items)
-        order.total_amount = round(subtotal * (1 - (order.applied_discount or 0) / 100), 2)
-
-        # Return the complete order
-        return order
+    # Return the created order
+    return await get_order_by_id(order_orm.id)
 
 
 async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
@@ -488,53 +431,8 @@ async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
         await session.commit()
         await session.refresh(order_orm)
 
-        # Join with customer to get customer_name
-        stmt = (
-            select(OrderORM, CustomerORM.name.label("customer_name"))
-            .join(CustomerORM, CustomerORM.id == OrderORM.customer_id)
-            .where(OrderORM.id == order_orm.id)
-        )
-
-        # Execute the statement
-        row = (await session.execute(stmt)).first()
-        if not row:
-            return None
-
-        # Unpack the result and validate
-        order_joined, customer_name = row
-        order = Order.model_validate({
-            **order_joined.__dict__,
-            "total_amount": total,
-            "customer_name": customer_name,
-            "items": []
-        })
-
-        # Load the items
-        items_stmt = (
-            select(
-                OrderItemORM,
-                ProductORM.name.label("product_name"),
-                ProductORM.unit.label("unit")
-            )
-            .join(ProductORM, ProductORM.id == OrderItemORM.product_id)
-            .where(OrderItemORM.order_id == order.id)
-        )
-
-        # Execute the statement
-        items_res = await session.execute(items_stmt)
-
-        # Unpack the result and validate
-        order.items = [
-            OrderItem.model_validate({
-                **item.__dict__,
-                "product_name": product_name,
-                "unit": unit
-            })
-            for item, product_name, unit in items_res.all()
-        ]
-
-        # Validate the order
-        return order
+    # Return the updated order
+    return await get_order_by_id(order_orm.id)
 
 
 async def delete_order(order_id: int) -> bool:

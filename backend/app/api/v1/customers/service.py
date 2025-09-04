@@ -62,7 +62,7 @@ async def get_customer_by_id(customer_id: int) -> Optional[Customer]:
     return None
 
 
-async def create_customer(customer_create: CustomerCreate) -> Customer:
+async def create_customer(customer_create: CustomerCreate) -> Optional[Customer]:
     """
     Create a new customer in the database.
 
@@ -88,7 +88,7 @@ async def create_customer(customer_create: CustomerCreate) -> Customer:
         await session.refresh(customer_orm)
 
     # Validate and return the created customer
-    return Customer.model_validate(customer_orm)
+    return await get_customer_by_id(customer_orm.id)
 
 
 async def update_customer(customer_id: int, customer_update: CustomerUpdate) -> Optional[Customer]:
@@ -131,11 +131,7 @@ async def update_customer(customer_id: int, customer_update: CustomerUpdate) -> 
         # Refresh the instance to get the updated data
         await session.refresh(customer)
 
-        # Map the customer to the Customer model
-        return Customer.model_validate(customer)
-
-    # Customer not found
-    return None
+    return await get_customer_by_id(customer_id)
 
 
 async def delete_customer(customer_id: int) -> bool:

@@ -139,7 +139,8 @@ async def create_expense(expense_create: ExpenseCreate) -> SuccessResponse[Expen
     
     # If creation failed, raise an error
     if not created:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Errore nella creazione della spesa")
+        # Raise a 400 error if creation failed
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore nella creazione della spesa")
 
     # Return the response
     return SuccessResponse(data=created)
@@ -282,7 +283,7 @@ async def create_expense_category(category_create: ExpenseCategoryCreate) -> Suc
     
     # If creation failed, raise an error
     if not created:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Errore nella creazione della categoria di spesa")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore nella creazione della categoria di spesa")
 
     # Return the response
     return SuccessResponse(data=created)

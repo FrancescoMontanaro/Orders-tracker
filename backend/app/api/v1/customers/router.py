@@ -99,11 +99,20 @@ async def create_customer(customer_create: CustomerCreate) -> SuccessResponse[Cu
     try:
         # Call the service function to create the customer
         created_customer = await create_customer_service(customer_create)
+        
     except IntegrityError:
         # Handle SQLAlchemy IntegrityError for duplicate insertions
         raise HTTPException(
             status_code = status.HTTP_409_CONFLICT,
             detail = "Cliente già esistente o violazione del vincolo di unicità"
+        )
+        
+    # Check if the customer was created 
+    if not created_customer:
+        # Raise a 500 error if the customer was not created
+        raise HTTPException(
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail = "Errore durante la creazione del cliente"
         )
 
     # Return the created customer

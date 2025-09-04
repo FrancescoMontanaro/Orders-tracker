@@ -99,12 +99,18 @@ async def create_product(product_create: ProductCreate) -> SuccessResponse[Produ
     try:
         # Call the service to create the product
         created = await create_product_service(product_create)
+        
     except IntegrityError:
         # Handle SQLAlchemy IntegrityError for duplicate insertions
         raise HTTPException(
             status_code = status.HTTP_409_CONFLICT,
             detail = "Prodotto già esistente o viola il vincolo di unicità"
         )
+        
+    # Check if the product was created
+    if not created:
+        # Raise a 500 error if the product was not created
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore nella creazione del prodotto")
 
     # Return the success response
     return SuccessResponse(data=created)

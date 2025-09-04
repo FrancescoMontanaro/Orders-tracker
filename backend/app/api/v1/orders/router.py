@@ -115,6 +115,11 @@ async def create_order(payload: OrderCreate) -> SuccessResponse[Order]:
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    
+    # Check if the order was created
+    if not order:
+        # Order not created
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore nella creazione dell'ordine")
 
     # Return the success response
     return SuccessResponse(data=order)

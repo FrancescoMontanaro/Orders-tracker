@@ -28,7 +28,7 @@ async def list_products(params: ListingQueryParams) -> Pagination[Product]:
             model = ProductORM,
             pydantic_model = Product,
             allowed_fields = ALLOWED_SORTING_FIELDS,
-            params = params,
+            params = params
         )
 
 
@@ -60,7 +60,7 @@ async def get_product_by_id(product_id: int) -> Optional[Product]:
     return None
 
 
-async def create_product(product_create: ProductCreate) -> Product:
+async def create_product(product_create: ProductCreate) -> Optional[Product]:
     """
     Create a new product.
 
@@ -85,8 +85,8 @@ async def create_product(product_create: ProductCreate) -> Product:
         # Refresh the ORM object
         await session.refresh(obj)
 
-        # Validate and return the product
-        return Product.model_validate(obj)
+    # Return the created product
+    return await get_product_by_id(obj.id)
 
 
 async def update_product(product_id: int, product_update: ProductUpdate) -> Optional[Product]:
@@ -129,8 +129,8 @@ async def update_product(product_id: int, product_update: ProductUpdate) -> Opti
         # Refresh the ORM object
         await session.refresh(obj)
 
-        # Validate and return the product
-        return Product.model_validate(obj)
+    # Return the updated product
+    return await get_product_by_id(product_id)
 
 
 async def delete_product(product_id: int) -> bool:

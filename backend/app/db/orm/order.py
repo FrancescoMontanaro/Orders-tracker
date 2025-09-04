@@ -23,7 +23,7 @@ class OrderORM(BaseORM):
 
     # Columns
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="RESTRICT"), index=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey(CustomerORM.id, ondelete="RESTRICT"), index=True)
     delivery_date: Mapped[date] = mapped_column(Date, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
     applied_discount: Mapped[float] = mapped_column(Numeric(12, 2), default=0)

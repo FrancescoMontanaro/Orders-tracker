@@ -3,8 +3,8 @@ from typing import Optional, Dict, List, Any
 from fastapi import APIRouter, status, HTTPException, Query
 
 from ....core.response_models import SuccessResponse
-from .models import Expense, ExpenseCreate, ExpenseUpdate
 from ....models import Pagination, SortParam, ListingQueryParams
+from .models import Expense, ExpenseCreate, ExpenseUpdate, ExpenseCategory, ExpenseCategoryCreate, ExpenseCategoryUpdate
 
 # Services
 from .service import (
@@ -13,12 +13,21 @@ from .service import (
     create_expense as create_expense_service,
     update_expense as update_expense_service,
     delete_expense as delete_expense_service,
+    list_expense_categories as list_expense_categories_service,
+    get_expense_category_by_id as get_expense_category_by_id_service,
+    create_expense_category as create_expense_category_service,
+    update_expense_category as update_expense_category_service,
+    delete_expense_category as delete_expense_category_service,
+    category_has_expenses as category_has_expenses_service
 )
 
 
 # Create the router
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
+# ==================== #
+# ===== Expenses ===== #
+# ==================== #
 
 @router.post(
     path = "/list",
@@ -127,6 +136,10 @@ async def create_expense(expense_create: ExpenseCreate) -> SuccessResponse[Expen
 
     # Call the service
     created = await create_expense_service(expense_create)
+    
+    # If creation failed, raise an error
+    if not created:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Errore nella creazione della spesa")
 
     # Return the response
     return SuccessResponse(data=created)
@@ -179,6 +192,157 @@ async def delete_expense(expense_id: int) -> SuccessResponse[None]:
     if not deleted:
         # Raise a 404 error if not found
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spesa non trovata")
+
+    # Return the response
+    return SuccessResponse(data=None)
+
+
+# =============================== #
+# ===== Expenses categories ===== #
+# =============================== #
+
+@router.post(
+    path = "/categories/list",
+    response_model = SuccessResponse[Pagination[ExpenseCategory]],
+)
+async def list_expense_categories(
+    page: int = 1,
+    size: int = 10,
+    filters: Optional[Dict[str, Any]] = None,
+    sort: Optional[List[SortParam]] = None,
+) -> SuccessResponse[Pagination[ExpenseCategory]]:
+    """
+    List expense categories with pagination, filtering and sorting.
+
+    Params:
+    - page: The page number.
+    - size: The page size.
+    - filters: The filters to apply.
+    - sort: The sorting options.
+
+    Returns:
+    - A paginated list of expense categories.
+    """
+
+    # Create the listing query parameters
+    params = ListingQueryParams(page=page, size=size, filters=filters, sort=sort)
+
+    # Call the service
+    data = await list_expense_categories_service(params)
+
+    # Return the response
+    return SuccessResponse(data=data)
+
+
+@router.get(
+    path = "/categories/{category_id}",
+    response_model = SuccessResponse[ExpenseCategory],
+)
+async def get_expense_category_by_id(category_id: int) -> SuccessResponse[ExpenseCategory]:
+    """
+    Get an expense category by ID.
+
+    Params:
+        - category_id: The ID of the expense category.
+
+    Returns:
+        - The expense category with the given ID.
+    """
+
+    # Call the service
+    category = await get_expense_category_by_id_service(category_id)
+
+    # Check if the category was found
+    if not category:
+        # Raise a 404 error if not found
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria di spesa non trovata")
+
+    # Return the response
+    return SuccessResponse(data=category)
+
+
+@router.post(
+    path = "/categories/",
+    response_model = SuccessResponse[ExpenseCategory],
+    status_code = status.HTTP_201_CREATED,
+)
+async def create_expense_category(category_create: ExpenseCategoryCreate) -> SuccessResponse[ExpenseCategory]:
+    """
+    Create a new expense category.
+
+    Params:
+    - category_create: The expense category data to create.
+
+    Returns:
+    - The created expense category.
+    """
+
+    # Call the service
+    created = await create_expense_category_service(category_create)
+    
+    # If creation failed, raise an error
+    if not created:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Errore nella creazione della categoria di spesa")
+
+    # Return the response
+    return SuccessResponse(data=created)
+
+
+@router.patch(
+    path = "/categories/{category_id}",
+    response_model = SuccessResponse[ExpenseCategory],
+)
+async def update_expense_category(category_id: int, category_update: ExpenseCategoryUpdate) -> SuccessResponse[ExpenseCategory]:
+    """
+    Update an existing expense category.
+
+    Params:
+    - category_id: The ID of the expense category to update.
+    - category_update: The updated expense category data.
+
+    Returns:
+    - The updated expense category.
+    """
+
+    # Call the service
+    updated = await update_expense_category_service(category_id, category_update)
+
+    # Check if the category was found
+    if not updated:
+        # Raise a 404 error if not found
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria di spesa non trovata")
+
+    # Return the response
+    return SuccessResponse(data=updated)
+
+
+@router.delete(
+    path = "/categories/{category_id}",
+    response_model = SuccessResponse[None],
+)
+async def delete_expense_category(category_id: int) -> SuccessResponse[None]:
+    """
+    Delete an expense category by ID.
+
+    Params:
+    - category_id: The ID of the expense category to delete.
+    """
+
+    # Check if the category has associated expenses
+    if await category_has_expenses_service(category_id):
+        # Raise a 409 error if the category has expenses
+        raise HTTPException(
+            status_code = status.HTTP_409_CONFLICT,
+            detail = "La categoria non può essere eliminata perché ha spese associate"
+        )
+
+    # Call the service to delete the category
+    deleted = await delete_expense_category_service(category_id)
+
+    # Check if the category was found
+    if not deleted:
+        # Raise a 404 error if not found
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria di spesa non trovata")
 
     # Return the response
     return SuccessResponse(data=None)

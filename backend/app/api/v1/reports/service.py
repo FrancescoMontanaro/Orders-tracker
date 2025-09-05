@@ -1,10 +1,11 @@
 from typing import List
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 
 from ....db.session import db_session
 from ....db.orm import (
     ProductORM,
     ExpenseORM,
+    ExpenseCategoryORM,
     CustomerORM,
     OrderORM,
     OrderItemORM
@@ -13,11 +14,12 @@ from ....db.orm import (
 # Importing models from the same module
 from .models import (
     ProductSalesRequest, ProductSalesRow,
+    ExpensesCategoriesRequest, ExpenseCategoriesRow,
     CustomerSalesRequest, CustomerSalesResponse, CustomerSalesRow,
     CashflowRequest, CashflowResponse, CashEntry, CashExpense
 )
 
-
+\
 # --------------------------- #
 # ------ Product Sales ------ #
 # --------------------------- #
@@ -70,6 +72,68 @@ async def report_product_sales(payload: ProductSalesRequest) -> List[ProductSale
                 total_qty = round(float(r.total_qty or 0), 2),
                 unit = r.unit,
                 revenue = round(float(r.revenue or 0), 2)
+            )
+            for r in rows
+        ]
+
+
+# ---------------------- #
+# ------ Expenses ------ #
+# ---------------------- #
+
+async def report_expenses_categories(payload: ExpensesCategoriesRequest) -> List[ExpenseCategoriesRow]:
+    """
+    Function to generate expenses report.
+
+    Parameters:
+    - payload: ExpensesCategoriesRequest
+
+    Returns:
+    - List[ExpenseCategoriesRow]
+    """
+
+    # Querying the database
+    async with db_session() as session:
+        # Create the statement to compute expenses by category
+        stmt = (
+            select(
+                ExpenseCategoryORM.id.label("category_id"),
+                ExpenseCategoryORM.descr.label("category_descr"),
+                func.coalesce(func.sum(ExpenseORM.amount), 0).label("amount"),
+                func.count(ExpenseORM.id).label("records_count"),
+            )
+            .select_from(ExpenseCategoryORM)
+            .join(
+                ExpenseORM,
+                and_(
+                    ExpenseORM.category_id == ExpenseCategoryORM.id,
+                    ExpenseORM.timestamp >= payload.start_date,
+                    ExpenseORM.timestamp <= payload.end_date,
+                ),
+                isouter = True, 
+            )
+            .group_by(ExpenseCategoryORM.id, ExpenseCategoryORM.descr)
+            .order_by(ExpenseCategoryORM.id.asc())
+        )
+        
+        # If specific category IDs are provided, filter the results
+        if payload.category_ids:
+            # Filtering by category ID
+            stmt = stmt.where(ExpenseCategoryORM.id.in_(payload.category_ids))
+
+        # Executing the query
+        res = await session.execute(stmt)
+        
+        # Extracting all rows
+        rows = res.all()
+
+        # Create and return the list of ExpenseCategoriesRow
+        return [
+            ExpenseCategoriesRow(
+                category_id = int(r.category_id),
+                category_descr = r.category_descr,
+                amount = round(float(r.amount or 0), 2),
+                count = int(r.records_count or 0)
             )
             for r in rows
         ]

@@ -5,6 +5,7 @@ from ....core.response_models import SuccessResponse
 # Importing request and response models
 from .models import (
     ProductSalesRequest, ProductSalesRow,
+    ExpensesCategoriesRequest, ExpenseCategoriesRow,
     CustomerSalesRequest, CustomerSalesResponse,
     CashflowRequest, CashflowResponse,
 )
@@ -12,6 +13,7 @@ from .models import (
 # Importing service functions
 from .service import (
     report_product_sales as report_product_sales_service,
+    report_expenses_categories as report_expenses_categories_service,
     report_customer_sales as report_customer_sales_service,
     report_cashflow as report_cashflow_service,
 )
@@ -38,6 +40,28 @@ async def product_sales(payload: ProductSalesRequest) -> SuccessResponse[list[Pr
 
     # Calling the service function
     data = await report_product_sales_service(payload)
+
+    # Returning the response
+    return SuccessResponse(data=data)
+
+
+@router.post(
+    path = "/expenses",
+    response_model = SuccessResponse[list[ExpenseCategoriesRow]]
+)
+async def expenses(payload: ExpensesCategoriesRequest) -> SuccessResponse[list[ExpenseCategoriesRow]]:
+    """
+    Endpoint to get expenses report.
+
+    Parameters:
+    - payload: ExpensesCategoriesRequest
+
+    Returns:
+    - SuccessResponse[list[ExpenseCategoriesRow]]
+    """
+
+    # Calling the service function
+    data = await report_expenses_categories_service(payload)
 
     # Returning the response
     return SuccessResponse(data=data)

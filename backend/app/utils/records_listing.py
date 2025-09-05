@@ -33,7 +33,7 @@ async def paginate_filter_sort(
     
     # Get pagination parameters
     page = max(1, params.page)
-    size = max(1, params.size)
+    size = params.size
     offset = (page - 1) * size
 
     # Initialize query
@@ -84,7 +84,7 @@ async def paginate_filter_sort(
             stmt = stmt.order_by(*order_clauses)
 
     # Apply pagination
-    stmt = stmt.offset(offset).limit(size)
+    if size > 0: stmt = stmt.offset(offset).limit(size)
 
     # Count total (with filters)
     total = await session.scalar(count_stmt)

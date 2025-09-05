@@ -35,6 +35,26 @@ class ProductSalesRequest(DateRange):
     product_ids: Optional[list[int]] = None
 
 
+### Expenses Categories ###
+
+class ExpensesCategoriesRequest(DateRange):
+    """
+    Represents a request for expenses data within a date range.
+    """
+    
+    category_ids: Optional[list[int]] = None
+
+class ExpenseCategoriesRow(BaseModel):
+    """
+    Represents a row in the expenses report.
+    """
+    
+    category_id: int
+    category_descr: str
+    amount: float
+    count: int
+
+
 ### Customer Sales ###
 
 class CustomerSalesRow(BaseModel):

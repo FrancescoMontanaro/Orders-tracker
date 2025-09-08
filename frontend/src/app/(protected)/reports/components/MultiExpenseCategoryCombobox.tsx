@@ -10,60 +10,68 @@ import { useRemoteSearch, type Option } from '../hooks/useRemoteSearch';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 /**
- * Multi-select combobox for products (responsive)
- * - Trigger uses min-w-0 and full width to avoid x-overflow.
- * - Popover width matches trigger and becomes scrollable on small screens.
+ * Multi-select combobox for expense categories (responsive)
+ * - Same structure and UX as MultiProductCombobox.
+ * - Works with API payloads that return { id, descr } by falling back to descr when name is missing.
  */
-export function MultiProductCombobox({
+export function MultiExpenseCategoryCombobox({
   values,
   onChange,
-  placeholder = 'Tutti i prodotti…',
-  emptyText = 'Nessun prodotto',
-  clearLabel = 'Tutti i prodotti',
+  placeholder = 'Tutte le categorie…',
+  emptyText = 'Nessuna categoria',
+  clearLabel = 'Tutte le categorie',
 }: {
-  values: Option[];
+  values: Option[] | Array<Option & { descr?: string }>;
   onChange: (opts: Option[]) => void;
   placeholder?: string;
   emptyText?: string;
   clearLabel?: string;
 }) {
-  const { open, setOpen, query, setQuery, options, loading } = useRemoteSearch('/products/list');
+  const { open, setOpen, query, setQuery, options, loading } = useRemoteSearch('expenses/categories/list');
 
   // Router utilities to manipulate the URL query string
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
 
-  // Remove product_id from the URL when the selection changes
-  const clearProductIdFromUrl = React.useCallback(() => {
+  // Remove category_id from the URL when the selection changes
+  const clearCategoryIdFromUrl = React.useCallback(() => {
     try {
       const params = new URLSearchParams(sp?.toString() || '');
-      if (params.has('product_id')) {
-        params.delete('product_id');
+      if (params.has('category_id')) {
+        params.delete('category_id');
         const qs = params.toString();
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
       }
     } catch {
-      // no-op
+      // no-op on URL manipulation errors
     }
   }, [router, pathname, sp]);
 
-  const isSelected = (id: number) => values.some((v) => v.id === id);
-  const toggle = (opt: Option) => {
-    if (isSelected(opt.id)) onChange(values.filter((v) => v.id !== opt.id));
-    else onChange([...values, opt]);
-    // After any selection change, drop product_id from the query string
-    clearProductIdFromUrl();
+  // Prefer opt.name; fallback to opt.descr to support API that returns { id, descr }
+  const getLabel = (opt: any) => (opt?.name ?? opt?.descr ?? '');
+
+  const isSelected = (id: number) => values.some((v: any) => v.id === id);
+  const toggle = (opt: any) => {
+    const mapped: Option = { id: Number(opt.id), name: String(getLabel(opt)) };
+    if (isSelected(mapped.id)) onChange((values as any[]).filter((v) => v.id !== mapped.id));
+    else onChange([...(values as any[]), mapped]);
+    // After any selection change, drop category_id from the query string
+    clearCategoryIdFromUrl();
   };
 
-  const label =
-    values.length === 0 ? placeholder : values.length === 1 ? values[0].name : `${values.length} prodotti selezionati`;
+  const currentLabel =
+    values.length === 0
+      ? placeholder
+      : values.length === 1
+      ? getLabel(values[0] as any)
+      : `${values.length} categorie selezionate`;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" role="combobox" className="min-w-0 w-full justify-between">
-          <span className="truncate">{label}</span>
+          <span className="truncate">{currentLabel}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -76,8 +84,8 @@ export function MultiProductCombobox({
               onSelect={() => {
                 onChange([]);
                 setQuery('');
-                // Also clear product_id when resetting to "all"
-                clearProductIdFromUrl();
+                // Also clear category_id when resetting to "all"
+                clearCategoryIdFromUrl();
               }}
             >
               <Check className={cn('mr-2 h-4 w-4', values.length === 0 ? 'opacity-100' : 'opacity-0')} />
@@ -86,12 +94,13 @@ export function MultiProductCombobox({
             {loading ? (
               <div className="p-3 text-sm text-muted-foreground">Caricamento…</div>
             ) : options.length ? (
-              options.map((opt) => {
-                const selected = isSelected(opt.id);
+              options.map((opt: any) => {
+                const selected = isSelected(Number(opt.id));
+                const label = getLabel(opt);
                 return (
-                  <CommandItem key={opt.id} value={opt.name} onSelect={() => toggle(opt)}>
+                  <CommandItem key={opt.id} value={label} onSelect={() => toggle(opt)}>
                     <Check className={cn('mr-2 h-4 w-4', selected ? 'opacity-100' : 'opacity-0')} />
-                    {opt.name}
+                    {label}
                   </CommandItem>
                 );
               })

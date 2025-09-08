@@ -7,6 +7,7 @@ import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from '@
 import { ChevronsUpDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRemoteSearch, type Option } from '../hooks/useRemoteSearch';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 /**
  * Single-select combobox (responsive)
@@ -25,12 +26,31 @@ export function SearchCombobox({
   value: Option | null;
   onChange: (opt: Option | null) => void;
   placeholder?: string;
-  endpoint: '/customers/list' | '/products/list';
+  endpoint: '/customers/list';
   emptyText?: string;
   allowClear?: boolean;
   clearLabel?: string;
 }) {
   const { open, setOpen, query, setQuery, options, loading } = useRemoteSearch(endpoint);
+
+  // Router utilities to manipulate the URL query string
+  const router = useRouter();
+  const pathname = usePathname();
+  const sp = useSearchParams();
+
+  // Remove customer_id from the URL when the selection changes
+  const clearCustomerIdFromUrl = React.useCallback(() => {
+    try {
+      const params = new URLSearchParams(sp?.toString() || '');
+      if (params.has('customer_id')) {
+        params.delete('customer_id');
+        const qs = params.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      }
+    } catch {
+      // no-op
+    }
+  }, [router, pathname, sp]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -51,6 +71,8 @@ export function SearchCombobox({
                   onChange(null);
                   setOpen(false);
                   setQuery('');
+                  // Also clear customer_id when resetting to "all"
+                  clearCustomerIdFromUrl();
                 }}
               >
                 <Check className={cn('mr-2 h-4 w-4', !value ? 'opacity-100' : 'opacity-0')} />
@@ -68,6 +90,8 @@ export function SearchCombobox({
                     onChange(opt);
                     setOpen(false);
                     setQuery('');
+                    // After any selection change, drop customer_id from the query string
+                    clearCustomerIdFromUrl();
                   }}
                 >
                   <Check className={cn('mr-2 h-4 w-4', value?.id === opt.id ? 'opacity-100' : 'opacity-0')} />

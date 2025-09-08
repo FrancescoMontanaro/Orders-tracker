@@ -14,7 +14,7 @@ export type Option = {
   unit?: string | null;
 };
 
-type Endpoint = '/customers/list' | '/products/list';
+type Endpoint = '/customers/list' | '/products/list' | 'expenses/categories/list';
 
 /**
  * Remote search with debounce tailored to the shadcn combobox UX:
@@ -37,13 +37,13 @@ export function useRemoteSearch(endpoint: Endpoint) {
     try {
       const body: any = {
         filters: { is_active: true },
-        sort: [{ field: 'name', order: 'asc' }],
+        sort: [{ field: 'name', order: 'asc' }]
       };
       if (debounced.trim()) body.filters.name = debounced.trim();
 
       const res = await api.post<
         SuccessResponse<Pagination<{ id: number; name: string; unit_price?: number; unit?: string }>>
-      >(endpoint, body, { headers: { 'Content-Type': 'application/json' } });
+      >(endpoint + '?page=1&size=-1', body, { headers: { 'Content-Type': 'application/json' } });
 
       const payload = (res.data as any).data ?? (res.data as any);
       const list = Array.isArray(payload.items) ? payload.items : [];
@@ -52,6 +52,8 @@ export function useRemoteSearch(endpoint: Endpoint) {
         list.map((x: any) =>
           endpoint === '/products/list'
             ? { id: Number(x.id), name: String(x.name), unit_price: x.unit_price ?? null, unit: x.unit ?? null }
+            : endpoint === 'expenses/categories/list'
+            ? { id: Number(x.id), name: String(x.descr ?? x.name ?? '') }
             : { id: Number(x.id), name: String(x.name) }
         )
       );

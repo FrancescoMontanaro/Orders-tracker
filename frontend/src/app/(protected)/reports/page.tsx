@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ProductSalesCard } from './components/ProductSalesCard';
 import { CustomerSalesCard } from './components/CustomerSalesCard';
+import { CategoryExpensesCard } from './components/CategoryExpensesCard';
 
 /**
  * Reports page
@@ -15,9 +16,10 @@ export default function ReportPage() {
   const sp = useSearchParams();
   const hasProduct = !!Number(sp.get('product_id') || 0);
   const hasCustomer = !!Number(sp.get('customer_id') || 0);
-  const initialTab = hasProduct ? 'product' : hasCustomer ? 'customer' : 'product';
+  const hasCategory = !!Number(sp.get('category_id') || 0);
+  const initialTab = hasProduct ? 'product' : hasCustomer ? 'customer' : hasCategory ? 'category' : 'product';
 
-  const [tab, setTab] = React.useState<'product' | 'customer'>(initialTab as any);
+  const [tab, setTab] = React.useState<'product' | 'customer' | 'category'>(initialTab as any);
 
   return (
     <div className="space-y-6">
@@ -25,6 +27,7 @@ export default function ReportPage() {
         <TabsList>
           <TabsTrigger value="product">Per Prodotto</TabsTrigger>
           <TabsTrigger value="customer">Per Cliente</TabsTrigger>
+          <TabsTrigger value="category">Per Spesa</TabsTrigger>
         </TabsList>
 
         <TabsContent value="product" className="space-y-6">
@@ -33,6 +36,10 @@ export default function ReportPage() {
 
         <TabsContent value="customer" className="space-y-6">
           <CustomerSalesCard />
+        </TabsContent>
+
+        <TabsContent value="category" className="space-y-6">
+          <CategoryExpensesCard />
         </TabsContent>
       </Tabs>
     </div>

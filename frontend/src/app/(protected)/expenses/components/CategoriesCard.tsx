@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api-client';
+import Link from 'next/link';
 import { useFixRadixInertLeak } from '../../expenses/hooks/useFixRadixInertLeak';
 import { useExpenseCategories } from '../hooks/useExpenseCategories';
 
@@ -125,7 +126,13 @@ export default function CategoriesCard() {
       enableSorting: true,
       cell: ({ row }) => (
         <div className="max-w-[48ch] whitespace-pre-wrap break-words">
-          {row.original.descr}
+          <Link
+            href={{ pathname: '/reports', query: { category_id: row.original.id } }}
+            className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+            title="Vai al report della categoria"
+          >
+            {row.original.descr}
+          </Link>
         </div>
       ),
     },

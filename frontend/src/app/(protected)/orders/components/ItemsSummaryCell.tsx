@@ -22,7 +22,7 @@ export function ItemsSummaryCell({ items }: { items: OrderItem[] }) {
         className="inline-flex max-w-full items-center gap-1 rounded-md border bg-muted/40 px-2 py-1 text-xs leading-tight shadow-sm"
         title={`${it.product_name ?? `#${it.product_id}`}${it.unit ? ` (${it.unit})` : ''} × ${it.quantity}`}
       >
-        <span className="flex-1 min-w-0 max-w-[180px] whitespace-normal break-words break-all leading-tight">
+        <span className="flex-1 min-w-0 max-w-[180px] whitespace-normal break-words leading-tight">
           {it.product_name ?? `#${it.product_id}`}
           {it.unit ? ` (${it.unit})` : ''}
         </span>
@@ -39,7 +39,7 @@ export function ItemsSummaryCell({ items }: { items: OrderItem[] }) {
         className="inline-flex w-full max-w-full items-center justify-between gap-2 rounded-md border bg-muted/40 px-2 py-1 text-xs leading-tight shadow-sm"
         title={`${it.product_name ?? `#${it.product_id}`}${it.unit ? ` (${it.unit})` : ''} × ${it.quantity}`}
       >
-        <span className="flex-1 min-w-0 md:break-all break-words leading-tight">
+        <span className="flex-1 min-w-0 break-words leading-tight">
           {it.product_name ?? `#${it.product_id}`}
           {it.unit ? ` (${it.unit})` : ''}
         </span>

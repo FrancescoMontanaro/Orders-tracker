@@ -97,20 +97,26 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
       // Increase total quantity for the product in that day
       p.total_qty = Number(p.total_qty || 0) + Number(it.quantity || 0);
 
-      // Append a customer row for this order item
+      // Append a customer row for this order item (carry unit_price + amount for totals)
+      const unitPrice = Number(it.unit_price ?? 0);
+      const qty = Number(it.quantity || 0);
       p.customers.push({
         customer_id: o.customer_id,
         customer_name: o.customer_name,
-        quantity: Number(it.quantity || 0),
+        quantity: qty,
         order_status: o.status,
-      });
+        unit_price: unitPrice,
+        amount: unitPrice * qty,
+      } as any);
     }
   }
 
   return byDate;
 }
 
-/** Group a day view by customer (delivered state and list of items per customer) */
+/** Group a day view by customer (delivered state and list of items per customer).
+ *  We also accumulate total_amount per customer (sum of item amounts).
+ */
 function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
   if (!day) return [];
   const map = new Map<
@@ -118,9 +124,10 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
     {
       customer_id: number;
       customer_name: string;
-      items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
+      items: Array<{ product_id: number; product_name: string; quantity: number; unit: string; unit_price?: number; amount?: number }>;
       deliveredCount: number;
       totalCount: number;
+      total_amount: number;
     }
   >();
 
@@ -134,13 +141,17 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
           items: [],
           deliveredCount: 0,
           totalCount: 0,
+          total_amount: 0,
         };
       entry.items.push({
         product_id: p.product_id,
         product_name: p.product_name,
         quantity: Number(c.quantity || 0),
         unit: (p as any).product_unit,
+        unit_price: Number((c as any).unit_price ?? 0),
+        amount: Number((c as any).amount ?? 0),
       });
+      entry.total_amount += Number((c as any).amount ?? 0);
       entry.totalCount += 1;
       if (isDelivered(c.order_status)) entry.deliveredCount += 1;
       map.set(c.customer_id, entry);
@@ -153,6 +164,8 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
       customer_name: e.customer_name,
       delivered: e.totalCount > 0 && e.deliveredCount === e.totalCount,
       items: e.items,
+      // extra field (non-breaking for consumers that ignore it)
+      total_amount: e.total_amount,
     }))
     .sort((a, b) => Number(a.delivered) - Number(b.delivered)); // pending first
 }
@@ -169,6 +182,10 @@ export default function CalendarCard() {
 
   // Day-orders list dialog state
   const [listOpen, setListOpen] = React.useState(false);
+
+  // Totals for the selected day (computed on click)
+  const [totalsByCustomer, setTotalsByCustomer] = React.useState<Array<{ customer_id: number; customer_name: string; total: number }>>([]);
+  const [grandTotal, setGrandTotal] = React.useState<number>(0);
 
   // Scroll containers
   const desktopRef = React.useRef<HTMLDivElement>(null);
@@ -249,10 +266,38 @@ export default function CalendarCard() {
 
   const weekDays = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
-  // Click opens day-orders list
+  // === NEW: legend counters (delivered / pending across the current grid) ===
+  const legend = React.useMemo(() => {
+    let delivered = 0;
+    let pending = 0;
+    for (const d of Object.values(days)) {
+      const groups = groupByCustomer(d);
+      const dCount = groups.filter((g) => g.delivered).length;
+      const pCount = groups.length - dCount;
+      delivered += dCount;
+      pending += pCount;
+    }
+    return { delivered, pending };
+  }, [days]);
+
+  // Click opens day-orders list (+ compute totals)
   function onDayClick(date: Date) {
     const iso = toISO(date);
     setSelectedDate(iso);
+
+    // Compute per-customer totals and grand total for that date
+    const day = days[iso];
+    const groups = groupByCustomer(day);
+    const perCustomer = groups.map((g) => ({
+      customer_id: g.customer_id,
+      customer_name: g.customer_name,
+      total: (g as any).total_amount
+        ?? (g.items || []).reduce((s, it: any) => s + Number(it.amount ?? 0), 0),
+    }));
+    const grand = perCustomer.reduce((s, r) => s + r.total, 0);
+    setTotalsByCustomer(perCustomer);
+    setGrandTotal(grand);
+
     setListOpen(true);
   }
 
@@ -366,15 +411,29 @@ export default function CalendarCard() {
             </div>
           </div>
 
-          {/* Legend */}
+          {/* Legend (with global counters) */}
           <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-              <span>Consegnato</span>
-            </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
               <span>Da consegnare</span>
+              <Badge
+                variant="outline"
+                className="border-amber-500/40 text-amber-600 dark:text-amber-400"
+                title="Totale clienti con consegna ancora da effettuare (nell'intervallo visibile)"
+              >
+                {legend.pending}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+              <span>Consegnato</span>
+              <Badge
+                variant="outline"
+                className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                title="Totale clienti con ordini consegnati (nell'intervallo visibile)"
+              >
+                {legend.delivered}
+              </Badge>
             </div>
           </div>
         </CardHeader>
@@ -593,7 +652,7 @@ export default function CalendarCard() {
         </CardContent>
       </Card>
 
-      {/* Day orders list dialog */}
+      {/* Day orders list dialog (we pass totals so the dialog can show per-order and grand totals) */}
       <DayOrdersDialog
         open={listOpen}
         onOpenChange={setListOpen}
@@ -602,6 +661,10 @@ export default function CalendarCard() {
         onNewOrder={() => {
           setAddOpen(true);
         }}
+        {...({
+          totalsByCustomer,
+          grandTotal,
+        } as any)}
       />
 
       {/* Add dialog */}

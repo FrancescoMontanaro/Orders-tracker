@@ -381,6 +381,14 @@ export default function DailySummaryCard() {
             {groupByCustomer ? (
               /* ------------------------ Customer grouping view ------------------------ */
               <div className="space-y-6">
+                {/* Totale complessivo giornata */}
+                <div className="flex items-center justify-end px-1 text-sm text-muted-foreground">
+                  <span>Totale complessivo giornata:&nbsp;</span>
+                  <span className="font-semibold">
+                    {euro(customerGroups.reduce((acc, g) => acc + Number(g.total_amount_sum || 0), 0))}
+                  </span>
+                </div>
+
                 {customerGroups.map((g) => (
                   <div key={g.customer_id} className="rounded-md border">
                     {/* Customer header */}

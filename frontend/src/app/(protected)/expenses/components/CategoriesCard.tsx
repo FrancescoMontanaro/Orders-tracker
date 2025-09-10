@@ -128,7 +128,7 @@ export default function CategoriesCard() {
         <div className="max-w-[48ch] whitespace-pre-wrap break-words">
           <Link
             href={{ pathname: '/reports', query: { category_id: row.original.id } }}
-            className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+            className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm whitespace-pre-wrap break-words"
             title="Vai al report della categoria"
           >
             {row.original.descr}

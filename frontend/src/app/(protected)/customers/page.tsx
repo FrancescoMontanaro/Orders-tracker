@@ -124,7 +124,7 @@ export default function CustomersPage() {
       cell: ({ row }) => (
         <Link
           href={{ pathname: '/reports', query: { customer_id: row.original.id } }}
-          className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+          className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm whitespace-pre-wrap break-words"
           title="Vai al report del cliente"
         >
           {row.original.name}
@@ -515,7 +515,7 @@ export default function CustomersPage() {
                           <div className="min-w-0">
                           <Link
                             href={{ pathname: '/reports', query: { customer_id: r.id } }}
-                            className="block max-w-full truncate break-all md:break-words font-medium text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-0 rounded-sm"
+                            className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm whitespace-pre-wrap break-words"
                             title="Vai al report del cliente"
                           >
                             {r.name}

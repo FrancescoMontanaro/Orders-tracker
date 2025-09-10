@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { fmtDate } from '../utils/date';
+import { euro } from '../utils/currency';
 import {
   Dialog,
   DialogContent,
@@ -38,8 +39,8 @@ function StatusDot({ delivered }: { delivered: boolean }) {
 /**
  * DayOrdersDialog
  * - Shows the list of orders for a given ISO date.
- * - Lets the user create a new order for that date via parent callback.
- * - Mobile-friendly: cards, compact typography, scrollable content.
+ * - Header and counters are fixed; only the orders list is scrollable.
+ * - Displays per-order total and a fixed grand total for the day.
  */
 export default function DayOrdersDialog({
   open,
@@ -56,24 +57,32 @@ export default function DayOrdersDialog({
 }) {
   if (!dateISO) return null;
 
+  // Delivered / Pending counters
   const deliveredCount = customerGroups.filter((g) => g.delivered).length;
   const pendingCount = customerGroups.length - deliveredCount;
+
+  // Per-order total: for lack of price, we sum item quantities (keeps current data model)
+  const orderTotal = (g: DayOrdersGrouped[number]) =>
+    g.items.reduce((sum, it) => sum + Number(it.quantity || 0), 0);
+
+  // Grand total of the day (same logic as per-order totals)
+  const grandTotal = customerGroups.reduce((acc, g) => acc + orderTotal(g), 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="
           w-[calc(100vw-2rem)] sm:w-[34rem] md:w-[40rem]
-          max-h-[85vh] overflow-y-auto overflow-x-hidden
+          max-h-[85vh] flex flex-col
         "
       >
-        <DialogHeader>
-          {/* Keep title short and clear; ISO has no ambiguity */}
+        {/* Header (fixed) */}
+        <DialogHeader className="shrink-0">
           <DialogTitle>Ordini del {fmtDate(dateISO)}</DialogTitle>
         </DialogHeader>
 
-        {/* Counters summary */}
-        <div className="mb-2 flex items-center gap-2 text-xs">
+        {/* Counters summary (fixed) */}
+        <div className="mb-2 flex items-center gap-2 text-xs shrink-0">
           {deliveredCount > 0 && (
             <Badge
               variant="outline"
@@ -95,30 +104,54 @@ export default function DayOrdersDialog({
           )}
         </div>
 
-        {/* Orders, grouped by customer (compact cards) */}
-        <div className="space-y-2">
-          {customerGroups.map((g) => (
-            <div key={g.customer_id} className="rounded-md border p-2">
-              <div className="mb-1 flex items-center justify-between">
-                <div className="text-sm font-medium">
-                  <StatusDot delivered={g.delivered} />
-                  <span>{g.customer_name}</span>
+        {/* Scrollable orders list */}
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+          {customerGroups.map((g) => {
+            const total = orderTotal(g);
+            return (
+              <div key={g.customer_id} className="rounded-md border p-2">
+                {/* Header of the card */}
+                <div className="mb-1 flex items-center justify-between">
+                  <div className="text-sm font-medium">
+                    <StatusDot delivered={g.delivered} />
+                    <span>{g.customer_name}</span>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <ul className="text-xs text-muted-foreground leading-snug list-disc pl-5">
+                  {g.items.map((it, idx) => (
+                    <li key={idx} className="break-words">
+                      {it.product_name} × {it.quantity}
+                      {it.unit ? ` ${it.unit}` : ''}
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Per-order total (spaced from list, not glued to the border) */}
+                <div className="mt-3 border-t border-muted/40 pt-2 flex justify-end">
+                  <div className="inline-flex items-baseline gap-2 text-sm">
+                    <span className="text-muted-foreground">Totale ordine</span>
+                    <span className="font-semibold tabular-nums">{euro(total)}</span>
+                  </div>
                 </div>
               </div>
-
-              <ul className="text-xs text-muted-foreground leading-snug list-disc pl-5">
-                {g.items.map((it, idx) => (
-                  <li key={idx} className="break-words">
-                    {it.product_name} × {it.quantity}
-                    {it.unit ? ` ${it.unit}` : ''}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <DialogFooter className="mt-3 flex flex-row flex-wrap items-center justify-end gap-2">
+        {/* Grand total (fixed, outside the scrollable area) */}
+        <div className="mt-3 border-t pt-3 shrink-0">
+          <div className="flex items-center justify-end">
+            <div className="inline-flex items-baseline gap-2 text-sm">
+              <span className="text-muted-foreground">Totale complessivo</span>
+              <span className="font-semibold tabular-nums">{euro(grandTotal)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer (fixed) */}
+        <DialogFooter className="mt-3 flex flex-row flex-wrap items-center justify-end gap-2 shrink-0">
           <DialogClose asChild>
             <Button variant="outline">Chiudi</Button>
           </DialogClose>

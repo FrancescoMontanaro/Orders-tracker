@@ -20,6 +20,8 @@ export type DayOrdersGrouped = Array<{
   customer_id: number;
   customer_name: string;
   delivered: boolean;
+  /** Monetary total for this order as returned by the API */
+  total_amount: number;
   items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
 }>;
 
@@ -61,11 +63,10 @@ export default function DayOrdersDialog({
   const deliveredCount = customerGroups.filter((g) => g.delivered).length;
   const pendingCount = customerGroups.length - deliveredCount;
 
-  // Per-order total: for lack of price, we sum item quantities (keeps current data model)
-  const orderTotal = (g: DayOrdersGrouped[number]) =>
-    g.items.reduce((sum, it) => sum + Number(it.quantity || 0), 0);
+  // Per-order total comes straight from the API
+  const orderTotal = (g: DayOrdersGrouped[number]) => Number(g.total_amount ?? 0);
 
-  // Grand total of the day (same logic as per-order totals)
+  // Grand total of the day is the sum of all order totals
   const grandTotal = customerGroups.reduce((acc, g) => acc + orderTotal(g), 0);
 
   return (
@@ -128,7 +129,7 @@ export default function DayOrdersDialog({
                   ))}
                 </ul>
 
-                {/* Per-order total (spaced from list, not glued to the border) */}
+                {/* Per-order monetary total (from API) */}
                 <div className="mt-3 border-t border-muted/40 pt-2 flex justify-end">
                   <div className="inline-flex items-baseline gap-2 text-sm">
                     <span className="text-muted-foreground">Totale ordine</span>

@@ -38,28 +38,44 @@ function labelFromISO(iso: string) {
   return iso;
 }
 
+/* ---------- MODIFICATO: versioni UTC-safe ---------- */
+
+/** Crea una data UTC (00:00) da YYYY-MM-DD */
+function dateUTCFromISO(iso: string) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+/** Ritorna YYYY-MM-DD da una Date considerandola UTC */
+function toISOUTC(d: Date) {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function firstLastDayOfCurrentMonth() {
   const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const toISO = (d: Date) => d.toISOString().slice(0, 10);
-  return { start: toISO(first), end: toISO(last) };
+  const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+  return { start: toISOUTC(first), end: toISOUTC(last) };
 }
 
-/** Returns date string (YYYY-MM-DD) +/- n days */
-function shiftISO(dateISO: string, deltaDays: number) {
-  const [y, m, d] = dateISO.split('-').map(Number);
-  const date = new Date(y, (m - 1), d);
-  date.setDate(date.getDate() + deltaDays);
-  return date.toISOString().slice(0, 10);
+/** Somma giorni in UTC a una data (YYYY-MM-DD) */
+function addDaysUTC(dateISO: string, deltaDays: number) {
+  const d = dateUTCFromISO(dateISO);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return toISOUTC(d);
 }
 
-/** Compute number of days between two ISO dates (inclusive) */
+/** Compute number of days between two ISO dates (inclusive, UTC-safe) */
 function daysInclusive(startISO: string, endISO: string) {
-  const a = new Date(startISO + 'T00:00:00Z').getTime();
-  const b = new Date(endISO + 'T00:00:00Z').getTime();
+  const a = dateUTCFromISO(startISO).getTime();
+  const b = dateUTCFromISO(endISO).getTime();
   return Math.max(1, Math.round((b - a) / 86400000) + 1);
 }
+
+/* ---------- FINE MODIFICHE HELPERS ---------- */
 
 /** Weekday label (it-IT) from ISO date */
 function weekdayLabel(iso: string) {
@@ -149,10 +165,10 @@ export default function CashflowCardPro() {
       const totalOut = Number(current.expenses_total ?? s.reduce((a, r) => a + r.out, 0));
       const totalNet = Number(current.net ?? (Number.isFinite(totalIn) && Number.isFinite(totalOut) ? totalIn - totalOut : 0));
 
-      // 2) Previous period with same length, immediately preceding
+      // 2) Previous period with same length, immediately preceding (UTC-safe, escluso il giorno di inizio corrente)
       const len = daysInclusive(dateFrom, dateTo);
-      const prevEnd = shiftISO(dateFrom, -1);
-      const prevStart = shiftISO(prevEnd, -(len - 1));
+      const prevEnd = addDaysUTC(dateFrom, -1);            // giorno prima dell'inizio selezionato
+      const prevStart = addDaysUTC(prevEnd, -(len - 1));   // stessa lunghezza, inclusivo
 
       const prevRes = await api.post<SuccessResponse<CashflowResponse>>(
         '/reports/cashflow',

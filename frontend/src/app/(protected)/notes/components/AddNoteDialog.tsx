@@ -66,7 +66,7 @@ export function AddNoteDialog({
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Scrivi la tua nota…"
-                className="min-h-[24rem] resize-y" 
+                className="min-h-[18rem] resize-y" 
             />
           </div>
           {localError && <p className="text-sm text-red-600">{localError}</p>}

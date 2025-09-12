@@ -9,6 +9,7 @@ import {
   Package,
   Users,
   ClipboardList,
+  NotebookIcon,
   Receipt,
   BarChart3,
   Menu,
@@ -43,6 +44,7 @@ const routes = [
   { href: '/customers', label: 'Clienti', Icon: Users },
   { href: '/orders', label: 'Ordini', Icon: ClipboardList },
   { href: '/expenses', label: 'Spese', Icon: Receipt },
+  { href: '/notes', label: 'Note', Icon: NotebookIcon },
   { href: '/reports', label: 'Report', Icon: BarChart3 },
 ] as const
 

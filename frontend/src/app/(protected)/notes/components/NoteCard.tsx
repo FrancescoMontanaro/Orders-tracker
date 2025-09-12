@@ -62,8 +62,8 @@ export function NoteCard({
       title={selectMode ? 'Seleziona nota' : 'Apri la nota'}
     >
       {/* Testo clamped; preserva newlines */}
-      <p className="whitespace-pre-wrap break-words line-clamp-8 md:line-clamp-6 text-[0.95rem] leading-relaxed">
-        {note.text}
+      <p className="whitespace-pre-wrap break-words line-clamp-1 md:line-clamp-1 text-[0.95rem] leading-relaxed">
+        {note.text.split('\n')[0]}
       </p>
 
       {/* Meta */}

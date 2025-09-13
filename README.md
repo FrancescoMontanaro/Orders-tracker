@@ -8,6 +8,23 @@ Orders Tracker è un’applicazione full-stack per la gestione e il monitoraggio
 * **Reverse Proxy**: Nginx
 * **Backup**: Restic con supporto S3
 
+## 📸 Screenshot
+
+<p align="center">
+  <img src="docs/images/calendar.png" width="45%" />
+  <img src="docs/images/cashflow_1.png" width="45%" />
+</p>
+
+<p align="center">
+  <img src="docs/images/cashflow_2.png" width="45%" />
+  <img src="docs/images/customer_report.png" width="45%" />
+</p>
+
+<p align="center">
+  <img src="docs/images/daily_summary.png" width="45%" />
+  <img src="docs/images/orders.png" width="45%" />
+</p>
+
 ---
 
 ## Requisiti
@@ -64,11 +81,19 @@ Visita:
 I backup automatici sono gestiti da Restic e inviati a un repository (locale o S3).
 Esempio: listare gli snapshot disponibili
 
+1. Inizializzazione del repository Restic (solo al primo deploy)
+
+```bash
+docker compose run --rm db_backup restic init
+```
+
+2. Esecuzione manuale del backup
+
 ```bash
 docker compose run --rm db_backup restic snapshots
 ```
 
-Ripristino:
+3. Ripristino del backup più recente in `/restore` (cartella creata automaticamente)
 
 ```bash
 docker compose run --rm db_backup restic restore latest --target /restore

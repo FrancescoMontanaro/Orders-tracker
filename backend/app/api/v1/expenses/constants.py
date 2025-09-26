@@ -11,7 +11,8 @@ ALLOWED_EXPENSES_SORTING_FIELDS = {
     "timestamp_before": ExpenseORM.timestamp,
     "min_amount": ExpenseORM.amount,
     "max_amount": ExpenseORM.amount,
-    "category": ExpenseCategoryORM.descr
+    "category": ExpenseCategoryORM.descr,
+    "category_id": ExpenseORM.category_id
 }
 
 ALLOWED_CATEGORIES_SORTING_FIELDS = {

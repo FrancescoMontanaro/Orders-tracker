@@ -84,6 +84,16 @@ function weekdayLabel(iso: string) {
   return date.toLocaleDateString('it-IT', { weekday: 'short' });
 }
 
+/** ⬇️ AGGIUNTA: formatter per mostrare il periodo di confronto in modo leggibile */
+function fmtDateFullIT(iso: string) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 /* ============================================================
  * Chart configs
  * ============================================================ */
@@ -121,6 +131,8 @@ export default function CashflowCardPro() {
 
   // Previous period totals (always computed)
   const [prevTotals, setPrevTotals] = React.useState<{ in: number; out: number; net: number }>({ in: 0, out: 0, net: 0 });
+  // ⬇️ AGGIUNTA: intervallo del periodo precedente da mostrare in UI
+  const [prevRange, setPrevRange] = React.useState<{ start: string; end: string } | null>(null);
 
   // Derived analytics
   const [bestIn, setBestIn] = React.useState<{ label: string; value: number } | null>(null);
@@ -208,6 +220,9 @@ export default function CashflowCardPro() {
       setWorstOut(worstOutRow);
       setAvgNet(avg);
       setWeekdayRows(wrows);
+
+      // ⬇️ AGGIUNTA: salva intervallo precedente per mostrarlo in UI
+      setPrevRange({ start: prevStart, end: prevEnd });
     } catch (e: any) {
       const detail = e?.response?.data?.detail ?? e?.response?.data?.message ?? e?.message ?? 'Errore sconosciuto';
       setError(`Impossibile caricare il cashflow: ${String(detail)}`);
@@ -218,6 +233,7 @@ export default function CashflowCardPro() {
       setWorstOut(null);
       setAvgNet(0);
       setWeekdayRows([]);
+      setPrevRange(null); // ⬅️ AGGIUNTA: pulizia coerente
     } finally {
       setLoading(false);
     }
@@ -307,6 +323,13 @@ export default function CashflowCardPro() {
             </Select>
           </div>
         </div>
+
+        {/* ⬇️ AGGIUNTA: riga che indica il periodo di confronto (discreta e responsive) */}
+        {prevRange && (
+          <div className="text-xs text-muted-foreground">
+            Confronto con: {fmtDateFullIT(prevRange.start)} – {fmtDateFullIT(prevRange.end)}
+          </div>
+        )}
 
         {/* KPIs grid (with always-on deltas) */}
         {loading ? (

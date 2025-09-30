@@ -5,7 +5,7 @@ import { api } from '@/lib/api-client';
 import type { Expense, SortParam } from '../types/expense';
 import type { SortingState } from '@tanstack/react-table';
 
-type PaginationResponse<T> = { total: number; items: T[] };
+type PaginationResponse<T> = { total: number; items: T[]; total_amount: number; };
 
 // Map TanStack sorting → backend sort payload
 function mapSorting(sorting: SortingState): { field: SortParam['field']; order: 'asc' | 'desc' }[] | undefined {
@@ -33,6 +33,7 @@ export function useExpenses() {
   // Data state
   const [rows, setRows] = React.useState<Expense[]>([]);
   const [total, setTotal] = React.useState(0);
+  const [totalAmount, setTotalAmount] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -64,6 +65,7 @@ export function useExpenses() {
       const data = res?.data?.data;
       setRows(data?.items ?? []);
       setTotal(data?.total ?? 0);
+      setTotalAmount(data?.total_amount ?? 0);
     } catch (e: any) {
       const msg =
         e?.response?.data?.detail ??
@@ -97,5 +99,7 @@ export function useExpenses() {
     loading, error,
     // actions
     refetch,
+    // Total of current filter (not paginated)
+    totalAmount
   };
 }

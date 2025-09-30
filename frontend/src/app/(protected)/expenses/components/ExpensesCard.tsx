@@ -59,6 +59,7 @@ export default function ExpensesPage() {
     categoryId, setCategoryId,
     setPage, setSize, setSorting, setNoteQuery, setAmountMin, setAmountMax, setDateFrom, setDateTo,
     refetch,
+    totalAmount=0,
   } = useExpenses();
 
   const [globalError, setGlobalError] = React.useState<string | null>(null);
@@ -562,6 +563,16 @@ export default function ExpensesPage() {
       </CardHeader>
 
       <CardContent className="space-y-4 overflow-x-hidden">
+        <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 p-3">
+          <div className="text-sm text-muted-foreground">Totale periodo</div>
+          {loading ? (
+            <Skeleton className="h-6 w-28" />
+          ) : (
+            <div className="text-xl font-semibold tabular-nums">
+              {euro(Number.isFinite(totalAmount as number) ? (totalAmount as number) : 0)}
+            </div>
+          )}
+        </div>
         {loading ? (
           <div className="space-y-3">
             <Skeleton className="h-6 w-1/3" />

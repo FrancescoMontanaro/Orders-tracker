@@ -1,11 +1,24 @@
 from datetime import date
-from typing import Optional
 from pydantic import BaseModel, Field
+from typing import Optional, TypeVar, Generic
+
+from ....models.pagination import Pagination
+
+# Define a type variable for the pagination response
+T = TypeVar("T")
 
 
 # ==================== #
 # ===== Expenses ===== #
 # ==================== #
+
+class PaginationExpense(Pagination["Expense"], Generic[T]):
+    """
+    Pagination response model for expenses.
+    """
+    
+    total_amount: float = 0.0
+    
 
 class Expense(BaseModel):
     """

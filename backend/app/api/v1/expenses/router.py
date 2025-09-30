@@ -4,7 +4,7 @@ from fastapi import APIRouter, status, HTTPException, Query
 
 from ....core.response_models import SuccessResponse
 from ....models import Pagination, SortParam, ListingQueryParams
-from .models import Expense, ExpenseCreate, ExpenseUpdate, ExpenseCategory, ExpenseCategoryCreate, ExpenseCategoryUpdate
+from .models import Expense, ExpenseCreate, ExpenseUpdate, PaginationExpense, ExpenseCategory, ExpenseCategoryCreate, ExpenseCategoryUpdate
 
 # Services
 from .service import (
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
 @router.post(
     path = "/list",
-    response_model = SuccessResponse[Pagination[Expense]]
+    response_model = SuccessResponse[PaginationExpense[Expense]]
 )
 async def list_expenses(
     page: int = 1,
@@ -42,7 +42,7 @@ async def list_expenses(
     timestamp_before: Optional[date] = Query(default=None, description="Optional filter for expenses created before this date"),
     min_amount: Optional[float] = Query(default=None, description="Optional filter for minimum expense amount"),
     max_amount: Optional[float] = Query(default=None, description="Optional filter for maximum expense amount"),
-) -> SuccessResponse[Pagination[Expense]]:
+) -> SuccessResponse[PaginationExpense[Expense]]:
     """
     List expenses with pagination, filtering and sorting.
 
@@ -86,6 +86,8 @@ async def list_expenses(
 
     # Call the service
     data = await list_expenses_service(params)
+    
+    print(data)
 
     # Return the response
     return SuccessResponse(data=data)

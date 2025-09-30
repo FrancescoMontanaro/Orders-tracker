@@ -13,13 +13,14 @@ from .models import (
     ExpenseCategory,
     ExpenseCategoryCreate,
     ExpenseCategoryUpdate,
+    PaginationExpense
 )
 
 # ==================== #
 # ===== Expenses ===== #
 # ==================== #
 
-async def list_expenses(params: ListingQueryParams) -> Pagination[Expense]:
+async def list_expenses(params: ListingQueryParams) -> PaginationExpense[Expense]:
     """
     List all expenses in the database with pagination, filtering and sorting.
     
@@ -27,7 +28,7 @@ async def list_expenses(params: ListingQueryParams) -> Pagination[Expense]:
     - params: ListingQueryParams - includes page, size, filters, and sort options.
     
     Returns:
-    - Pagination[Expense]: Paginated list of expenses.
+    - PaginationExpense[Expense]: Paginated list of expenses.
     """
 
     # Compute pagination params
@@ -36,17 +37,16 @@ async def list_expenses(params: ListingQueryParams) -> Pagination[Expense]:
     offset = (page - 1) * size
 
     async with db_session() as session:
-        # Base statement with join to categories to expose the category descr
-        stmt = (
-            select(
-                ExpenseORM,
-                ExpenseCategoryORM.descr.label("category"),
-            )
-            .join(ExpenseCategoryORM, ExpenseCategoryORM.id == ExpenseORM.category_id)
-        )
-
-        # Apply filters (keeps your pattern based on ALLOWED_SORTING_FIELDS mapping)
+        # --- Costruisco condizioni di filtro una sola volta ---
         filters: Dict[str, str] = params.filters or {}
+        conditions = []
+
+        def parse_date_safe(val: str) -> date | None:
+            try:
+                return date.fromisoformat(str(val))
+            except Exception:
+                return None
+
         for field, value in filters.items():
             if value is None:
                 continue
@@ -55,42 +55,52 @@ async def list_expenses(params: ListingQueryParams) -> Pagination[Expense]:
 
             col = ALLOWED_EXPENSES_SORTING_FIELDS[field]
 
-            # Timestamp filters
             if field == "timestamp_after":
-                try:
-                    dvalue = date.fromisoformat(str(value))
-                except ValueError:
-                    stmt = stmt.where(col == date(1900, 1, 1))
-                    continue
-                stmt = stmt.where(col >= dvalue)
-
+                dvalue = parse_date_safe(value)
+                conditions.append(col >= dvalue if dvalue else (col == date(1900, 1, 1)))
             elif field == "timestamp_before":
-                try:
-                    dvalue = date.fromisoformat(str(value))
-                except ValueError:
-                    stmt = stmt.where(col == date(1900, 1, 1))
-                    continue
-                stmt = stmt.where(col <= dvalue)
-
-            # Amount filters
+                dvalue = parse_date_safe(value)
+                conditions.append(col <= dvalue if dvalue else (col == date(1900, 1, 1)))
             elif field == "min_amount":
-                stmt = stmt.where(col >= value)
+                conditions.append(col >= value)
             elif field == "max_amount":
-                stmt = stmt.where(col <= value)
-
-            # Category id filter (exact match)
+                conditions.append(col <= value)
             elif field == "category_id":
-                stmt = stmt.where(col == value)
-
-            # Generic text filters (e.g. note, category descr if mapped)
+                conditions.append(col == value)
             else:
-                stmt = stmt.where(col.ilike(f"%{value}%"))
+                conditions.append(col.ilike(f"%{value}%"))
 
-        # Count total
-        count_stmt = select(func.count()).select_from(stmt.subquery())
-        total = int(await session.scalar(count_stmt) or 0)
+        # --- Subquery filtrata SOLO con ExpenseORM per COUNT e SUM ---
+        filtered_base = (
+            select(ExpenseORM)
+            .join(ExpenseCategoryORM, ExpenseCategoryORM.id == ExpenseORM.category_id)
+            .where(*conditions) if conditions else
+            select(ExpenseORM).join(ExpenseCategoryORM, ExpenseCategoryORM.id == ExpenseORM.category_id)
+        )
+        filtered_sq = filtered_base.subquery()
 
-        # Sorting
+        # COUNT totale elementi filtrati
+        total = int(await session.scalar(select(func.count()).select_from(filtered_sq)) or 0)
+
+        # SUM importi filtrati (indipendente da paginazione)
+        total_amount = float(
+            await session.scalar(
+                select(func.coalesce(func.sum(filtered_sq.c.amount), 0.0))
+            ) or 0.0
+        )
+
+        # --- Query per le righe (con categoria visibile) ---
+        rows_stmt = (
+            select(
+                ExpenseORM,
+                ExpenseCategoryORM.descr.label("category"),
+            )
+            .join(ExpenseCategoryORM, ExpenseCategoryORM.id == ExpenseORM.category_id)
+        )
+        if conditions:
+            rows_stmt = rows_stmt.where(*conditions)
+
+        # Ordinamento
         if params.sort:
             order_clauses: List = []
             for s in params.sort:
@@ -100,25 +110,25 @@ async def list_expenses(params: ListingQueryParams) -> Pagination[Expense]:
                     col = ALLOWED_EXPENSES_SORTING_FIELDS[field]
                     order_clauses.append(desc(col) if order == "desc" else asc(col))
             if order_clauses:
-                stmt = stmt.order_by(*order_clauses)
+                rows_stmt = rows_stmt.order_by(*order_clauses)
 
-        # Pagination
-        if size > 0: stmt = stmt.offset(offset).limit(size)
+        # Paginazione
+        if size > 0:
+            rows_stmt = rows_stmt.offset(offset).limit(size)
 
-        # Execute
-        res = await session.execute(stmt)
+        # Esecuzione
+        res = await session.execute(rows_stmt)
         rows = res.all()
 
-        # Build response items
         items = [
             Expense.model_validate({
                 **expense.__dict__,
-                "category": category_descr,   # from label in select
+                "category": category_descr,
             })
             for expense, category_descr in rows
         ]
 
-        return Pagination(total=total or 0, items=items)
+        return PaginationExpense(total=total, items=items, total_amount=total_amount)
 
 
 async def get_expense_by_id(expense_id: int) -> Optional[Expense]:

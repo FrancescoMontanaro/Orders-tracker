@@ -11,12 +11,10 @@ MYSQL_PASSWORD="${MYSQL_PASSWORD:-orders}"
 HEARTBEAT_FILE="${HEARTBEAT_FILE:-/status/last_ok}"
 
 # Set the backup file name and tags
-NOW="$(date +%F_%H-%M-%S)"
 STDIN_NAME="/mysql/${MYSQL_DATABASE}.sql.gz"
-TAGS="mysql,orders-tracker,${MYSQL_DATABASE}"
 
 # Dump the database
-echo "[backup] streaming dump of '${MYSQL_DATABASE}' -> restic (${STDIN_NAME})"
+echo "$(date '+%Y-%m-%d %H:%M:%S') [backup] streaming dump of '${MYSQL_DATABASE}' -> restic (${STDIN_NAME})"
 mysqldump \
   --host="${MYSQL_HOST}" \
   --user="${MYSQL_USER}" \
@@ -28,11 +26,18 @@ mysqldump \
   --no-tablespaces \
   --databases "${MYSQL_DATABASE}" \
   | gzip \
-  | restic backup --stdin --stdin-filename "${STDIN_NAME}" --tag "${TAGS}" --host "${RESTIC_HOST:-orders-db-backup}"
+  | restic backup --stdin --stdin-filename "${STDIN_NAME}" \
+  --tag mysql --tag orders-tracker --tag "${MYSQL_DATABASE}" \
+  --host "${RESTIC_HOST:-orders-db-backup}"
 
 # Apply retention
-echo "[restic] applying retention (forget+prune)"
-restic forget --prune --group-by host,tags --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+# Apply retention
+echo "$(date '+%Y-%m-%d %H:%M:%S') [restic] applying retention (forget+prune)"
+restic forget \
+  --group-by host,tags \
+  --host "${RESTIC_HOST:-orders-db-backup}" \
+  --tag mysql --tag orders-tracker --tag "${MYSQL_DATABASE}" \
+  --keep-daily 7 --keep-weekly 4 --keep-monthly 6
 
 # Save the backup status to the sentinel file
 if [ -n "${HEARTBEAT_FILE}" ]; then
@@ -43,4 +48,4 @@ if [ -n "${HEARTBEAT_FILE}" ]; then
   mv -f "${TMP_FILE}" "${HEARTBEAT_FILE}"
   echo "[backup] heartbeat updated at ${HEARTBEAT_FILE}"
 fi
-echo "[backup] done."
+echo "$(date '+%Y-%m-%d %H:%M:%S') [backup] done."

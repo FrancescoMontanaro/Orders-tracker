@@ -3,3 +3,4 @@ database
 .DS_Store
 .vscode/
 restic
+restore_out

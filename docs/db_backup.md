@@ -1,200 +1,219 @@
-# Backup automatico del database MySQL con Docker Compose + Restic
+# Backup MySQL automatici con Docker Compose + Restic
 
-Questa guida mostra come effettuare **backup automatici** di un database MySQL usando un servizio dedicato (`db_backup`) che sfrutta **Restic** per snapshot incrementali e retention policy.
+*(guida compatta, aggiornata a `backup.sh` con filename fisso, cron e retention corretta)*
 
----
+## Prerequisiti
 
-## Avvio e test
-
-Avvia lo stack (incluso il servizio di backup):
-
-```bash
-docker compose up -d
-```
-
-Esegui subito un backup manuale di test:
-
-```bash
-docker compose exec db_backup /usr/local/bin/backup.sh
-```
-
-Verifica i log:
-
-```bash
-docker compose logs -f db_backup
-```
-
-Controlla le snapshot disponibili nel repository Restic:
-
-```bash
-docker compose run --rm db_backup restic snapshots
-```
-
----
-
-## Ripristino (restore) di un backup
-
-> ⚠️ Il ripristino sovrascrive i dati esistenti. Usa con cautela.
-
-### 1. Metti in pausa l’applicazione
-
-```bash
-docker compose stop backend frontend nginx
-```
-
-### 2. Elenca i file nell’ultimo snapshot
-
-```bash
-docker compose run --rm db_backup restic ls latest "/mysql/"
-```
-
-Troverai voci del tipo:
-
-```
-mysql/<db_name>_YYYY-MM-DD_HH-MM-SS.sql.gz
-```
-
-Imposta il percorso del dump in una variabile:
-
-```bash
-dump="mysql/<db_name>_YYYY-MM-DD_HH-MM-SS.sql.gz"
-```
-
-### 3. Ripristina il file desiderato in una cartella locale
-
-```bash
-docker compose run --rm -v "$PWD/restore_out:/restore" db_backup \
-  restic restore latest --include "${dump}" --target /restore
-```
-
-Il file sarà disponibile in:
-
-```
-./restore_out/${dump}
-```
-
-### 4. Carica il dump nel database MySQL
-
-```bash
-gunzip -c "restore_out/${dump}" | \
-docker compose exec -T db sh -lc \
-  'MYSQL_PWD="$MYSQL_PASSWORD" mysql -h127.0.0.1 -u"$MYSQL_USER" "$MYSQL_DATABASE"'
-```
-
-### 5. Riavvia i servizi applicativi
-
-```bash
-docker compose up -d backend frontend nginx
-```
-
----
-
-## Gestione del repository Restic
-
-### Lista snapshot
-
-```bash
-docker compose run --rm db_backup restic snapshots
-```
-
-### Verifica integrità
-
-```bash
-docker compose run --rm db_backup restic check
-```
-
-### Pulizia con retention policy
-
-(già eseguita nello script `backup.sh`, ma può essere forzata manualmente)
-
-```bash
-docker compose run --rm db_backup restic forget --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
-```
-
----
-
-# Salvataggio su storage bucket (S3 o compatibili)
-
-## Aggiorna `docker-compose.yml`
-
-Il servizio `db_backup` deve avere:
+Nel servizio `db_backup` di `docker-compose.yml`:
 
 ```yaml
 services:
   db_backup:
     environment:
-      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}   # es. s3:https://<endpoint>/<bucket>
+      # Restic
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}   # es: s3:https://endpoint/bucket
       RESTIC_PASSWORD: ${RESTIC_PASSWORD}
       RESTIC_CACHE_DIR: /restic-cache
-
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_DEFAULT_REGION: ${AWS_REGION}
+
+      # MySQL (se non già definiti)
+      MYSQL_HOST: db
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - ./restic/restic_cache:/restic-cache
+      - ./status:/status
 ```
 
-## 1) Inizializza il repository remoto (una volta sola)
+Inizializza una sola volta il repository Restic:
 
 ```bash
 docker compose run --rm db_backup restic init
 ```
 
-Verifica:
+---
+
+## Script di backup
+
+`backup.sh` esegue:
+
+* Dump MySQL → gzip → Restic backup (`/mysql/<db>.sql.gz`)
+* Tag: `mysql`, `orders-tracker`, `<db>`
+* Retention automatica: `forget --prune` con `--keep-daily 7 --keep-weekly 4 --keep-monthly 6`
+* Scrive heartbeat in `/status/last_ok`
+
+> Filename fisso → pruning efficace e restore semplice.
+
+---
+
+## Scheduler (cron)
+
+Nel container `db_backup` è configurato un cron:
 
 ```bash
-docker compose run --rm db_backup restic snapshots
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Every day at 3AM and 3PM
+0 3,15 * * * /usr/local/bin/backup.sh
 ```
 
-## 2) Esegui un backup di prova
+L’immagine Docker:
+
+```dockerfile
+FROM alpine:3.20
+RUN apk add --no-cache mysql-client tzdata ca-certificates restic
+ENV TZ=Europe/Rome
+COPY backup.sh /usr/local/bin/backup.sh
+COPY crontab /etc/crontabs/root
+RUN chmod +x /usr/local/bin/backup.sh
+CMD ["crond", "-f", "-l", "2"]
+```
+
+> I log di cron vanno su **stdout**, quindi visibili con:
+>
+> ```bash
+> docker compose logs -f db_backup
+> ```
+
+---
+
+## Avvio e test
 
 ```bash
+# Avvio dei servizi
+docker compose up -d
+
+# Esecuzione manuale del backup
 docker compose exec db_backup /usr/local/bin/backup.sh
+
+# Monitoraggio log cron
+docker compose logs -f db_backup
 ```
 
-Controlla le snapshot nel bucket remoto:
+Statistiche e integrità:
 
 ```bash
-docker compose run --rm db_backup restic snapshots
+# Statistiche repository e spazio usato
+docker compose exec db_backup restic stats
+
+# Check integrità repository
+docker compose run --rm db_backup restic check
 ```
 
-## 3) Restore da bucket
-
-Elenca i file:
+Elenco snapshot:
 
 ```bash
-docker compose run --rm db_backup restic ls latest /mysql/
-```
-
-Ripristina un dump:
-
-```bash
-docker compose run --rm -v "$PWD/restore_out:/restore" db_backup \
-  sh -lc 'restic restore latest --include "/mysql/<db_name>_YYYY-MM-DD_HH-MM-SS.sql.gz" --target /restore'
-```
-
-Importa nel DB:
-
-```bash
-gunzip -c restore_out/mysql/<db_name>_YYYY-MM-DD_HH-MM-SS.sql.gz | \
-  docker compose exec -T db sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
-```
-
-### Stream diretto (senza file temporanei)
-
-```bash
-docker compose run --rm db_backup \
-  sh -lc 'restic dump latest "/mysql/<db_name>_YYYY-MM-DD_HH-MM-SS.sql.gz"' \
-  | gunzip \
-  | docker compose exec -T db sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
+# Elenco completo degli snapshot
+docker compose run --rm db_backup restic snapshots \
+  --host orders-db-backup --tag mysql --tag orders-tracker --tag orders
 ```
 
 ---
 
-## Note operative
+## Pulizia manuale
 
-* Restic cifra **client‑side** con `RESTIC_PASSWORD`.
-* La retention (`forget --prune`) è già inclusa nello script, ma può essere lanciata manualmente.
-* Mantieni `RESTIC_CACHE_DIR` montato per prestazioni migliori.
-* Se usi credenziali temporanee (STS/assume‑role), esporta anche `AWS_SESSION_TOKEN`.
-* Il VPS deve poter uscire verso l’endpoint S3 (controlla firewall/egress).
+Dry-run:
+
+```bash
+# Dry-run della pulizia (senza eliminare nulla effettivamente)
+docker compose run --rm db_backup \
+  restic forget --dry-run --prune --group-by host,tags \
+  --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+```
+
+Pulizia effettiva:
+
+```bash
+# Esecuzione della pulizia effettiva
+docker compose run --rm db_backup \
+  restic forget --prune --group-by host,tags \
+  --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+```
+
+Eliminazione totale:
+
+```bash
+# Elimina tutti gli snapshot (attenzione!)
+docker compose run --rm db_backup restic forget --prune --keep-last 0
+```
+
+---
+
+## Restore (tre modalità)
+
+### A) Ultimo snapshot (`latest`)
+
+```bash
+# Elenca file nello snapshot
+docker compose run --rm db_backup restic ls latest "/mysql/"
+
+# Ripristina su ./restore_out
+docker compose run --rm -v "$PWD/restore_out:/restore" db_backup \
+  restic restore latest --include "/mysql/orders_tracker.sql.gz" --target /restore
+
+# Import nel DB
+gunzip -c restore_out/mysql/orders_tracker.sql.gz | \
+docker compose exec -T db sh -lc \
+  'MYSQL_PWD="$MYSQL_PASSWORD" mysql -h127.0.0.1 -u"$MYSQL_USER" "$MYSQL_DATABASE"'
+```
+
+### B) Snapshot specifico (per ID)
+
+```bash
+# Elenca snapshot per ottenere l'ID
+docker compose run --rm db_backup restic snapshots
+
+# Ripristina direttamente nel DB
+docker compose run --rm db_backup \
+  sh -lc 'restic dump <SNAPSHOT_ID> "/mysql/orders_tracker.sql.gz"' \
+| gunzip \
+| docker compose exec -T db sh -lc \
+  'MYSQL_PWD="$MYSQL_PASSWORD" mysql -h127.0.0.1 -u"$MYSQL_USER" "$MYSQL_DATABASE"'
+```
+
+### C) Point-in-time (`--time`)
+
+```bash
+# Ripristina su ./restore_out a una data specifica
+docker compose run --rm -v "$PWD/restore_out:/restore" db_backup \
+  restic restore --time "2025-10-20 15:00:00" \
+  --include "/mysql/orders_tracker.sql.gz" --target /restore
+```
+
+---
+
+## Operatività utile
+
+Ultimo heartbeat:
+
+```bash
+# Leggi ultimo heartbeat e converti in data leggibile
+docker compose exec db_backup cat /status/last_ok | xargs -I{} date -r {}
+```
+
+Backup manuale:
+
+```bash
+# Esegui manualmente un backup
+docker compose exec db_backup /usr/local/bin/backup.sh
+```
+
+Lista file in uno snapshot:
+
+```bash
+# Elenca file nello snapshot "latest"
+docker compose run --rm db_backup restic ls latest "/mysql/"
+```
+
+---
+
+## Note tecniche
+
+* `gzip` riduce dimensione a scapito della deduplica → ok per dump SQL.
+* `--group-by host,tags` evita grouping per path → pruning coerente.
+* `RESTIC_REPOSITORY` e `RESTIC_PASSWORD` devono essere sempre definiti.
+* Ripristino diretto su altro database modificando il nome nel comando `mysql`.

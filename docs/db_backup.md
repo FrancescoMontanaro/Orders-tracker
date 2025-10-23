@@ -108,8 +108,7 @@ Elenco snapshot:
 
 ```bash
 # Elenco completo degli snapshot
-docker compose run --rm db_backup restic snapshots \
-  --host orders-db-backup --tag mysql --tag orders-tracker --tag orders
+docker compose run --rm db_backup restic snapshots
 ```
 
 ---
@@ -137,8 +136,14 @@ docker compose run --rm db_backup \
 Eliminazione totale:
 
 ```bash
-# Elimina tutti gli snapshot (attenzione!)
-docker compose run --rm db_backup restic forget --prune --keep-last 0
+# ATTENZIONE: elimina TUTTI gli snapshot in due passaggi
+
+# Elimina tutti gli snapshot ad eccezione dell'ultimo
+docker compose run --rm db_backup restic forget --keep-last 1 --prune
+
+# Elenca snapshot per ottenere l'ID dell'ultimo rimasto ed eliminarlo
+docker compose run --rm db_backup restic snapshots
+docker compose run --rm db_backup sh -c "restic forget <last_id> && restic prune"
 ```
 
 ---
@@ -192,7 +197,7 @@ Ultimo heartbeat:
 
 ```bash
 # Leggi ultimo heartbeat e converti in data leggibile
-docker compose exec db_backup cat /status/last_ok | xargs -I{} date -r {}
+docker compose exec db_backup sh -c 'ts=$(cat /status/last_ok); date -d "@$ts" 2>/dev/null || date -r "$ts"'
 ```
 
 Backup manuale:

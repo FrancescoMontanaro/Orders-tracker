@@ -14,6 +14,9 @@ class OrderItem(BaseModel):
     unit: str
     quantity: float
     unit_price: float
+    lot_id: Optional[int] = None
+    lot_name: Optional[str] = None
+    lot_date: Optional[date] = None
 
     # Pydantic config
     class Config:
@@ -48,6 +51,7 @@ class OrderItemCreate(BaseModel):
     product_id: int
     quantity: float = Field(gt=0)
     unit_price: Optional[float] = Field(default=None, gt=0)
+    lot_id: Optional[int] = Field(default=None, gt=0)
 
 
 class OrderCreate(BaseModel):
@@ -68,6 +72,7 @@ class OrderUpdateItem(BaseModel):
 
     product_id: Optional[int] = None
     quantity: Optional[float] = Field(default=None, gt=0)
+    lot_id: Optional[int] = Field(default=None, gt=0)
 
 
 class OrderUpdate(BaseModel):

@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple, Any
 from sqlalchemy import select, delete, asc, desc, func
 
 from ....db.session import db_session
@@ -7,6 +7,7 @@ from ....db.orm.product import ProductORM
 from ....db.orm.customer import CustomerORM
 from .constants import ALLOWED_SORTING_FIELDS
 from ....db.orm import OrderORM, OrderItemORM
+from ....db.orm.lot import LotORM
 from ....models import Pagination, ListingQueryParams
 from .models import Order, OrderCreate, OrderUpdate, OrderItem
 
@@ -162,10 +163,13 @@ async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
             select(
                 OrderItemORM, 
                 ProductORM.name.label("product_name"),
-                ProductORM.unit.label("unit")
+                ProductORM.unit.label("unit"),
+                LotORM.name.label("lot_name"),
+                LotORM.lot_date.label("lot_date")
             )
             .where(OrderItemORM.order_id.in_(order_ids))
             .join(ProductORM, ProductORM.id == OrderItemORM.product_id)
+            .outerjoin(LotORM, LotORM.id == OrderItemORM.lot_id)
         )
 
         # Execute the query and extract the results
@@ -176,12 +180,14 @@ async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
         items_by_order: Dict[int, List[OrderItem]] = {}
 
         # Map each item to its order
-        for item, product_name, unit in items_rows:
+        for item, product_name, unit, lot_name, lot_date in items_rows:
             # Validate and map the item
             pyd = OrderItem.model_validate({
                 **item.__dict__,
                 "product_name": product_name,
-                "unit": unit
+                "unit": unit,
+                "lot_name": lot_name,
+                "lot_date": lot_date
             })
 
             # Append the item to the list for its order
@@ -244,9 +250,12 @@ async def get_order_by_id(order_id: int) -> Optional[Order]:
             select(
                 OrderItemORM,
                 ProductORM.name.label("product_name"),
-                ProductORM.unit.label("unit")
+                ProductORM.unit.label("unit"),
+                LotORM.name.label("lot_name"),
+                LotORM.lot_date.label("lot_date")
             )
             .join(ProductORM, ProductORM.id == OrderItemORM.product_id)
+            .outerjoin(LotORM, LotORM.id == OrderItemORM.lot_id)
             .where(OrderItemORM.order_id == order.id)
         )
 
@@ -257,12 +266,14 @@ async def get_order_by_id(order_id: int) -> Optional[Order]:
         order_items = result.all()
 
         # Validate and map the order items
-        for item, product_name, unit in order_items:
+        for item, product_name, unit, lot_name, lot_date in order_items:
             # Validate and map the item
             pyd = OrderItem.model_validate({
                 **item.__dict__,
                 "product_name": product_name,
-                "unit": unit
+                "unit": unit,
+                "lot_name": lot_name,
+                "lot_date": lot_date
             })
 
             # Append the item to the order
@@ -298,21 +309,30 @@ async def create_order(payload: OrderCreate) -> Optional[Order]:
         total = 0.0
 
         # Aggregate quantities by product_id
-        agg: Dict[int, Dict] = {}
+        agg: Dict[Tuple[int, Optional[int]], Dict[str, Any]] = {}
         for it in payload.items:
-            agg[it.product_id] = agg.get(it.product_id, {"quantity": 0.0, "unit_price": None})
-            agg[it.product_id]["quantity"] += float(it.quantity)
-            agg[it.product_id]["unit_price"] = float(it.unit_price) if it.unit_price else None
+            key = (it.product_id, it.lot_id)
+            agg[key] = agg.get(key, {"quantity": 0.0, "unit_price": None})
+            agg[key]["quantity"] += float(it.quantity)
+            if it.unit_price is not None:
+                agg[key]["unit_price"] = float(it.unit_price)
 
         # Build unique rows using snapshot unit_price
-        for pid, data in agg.items():
+        for (pid, lot_id), data in agg.items():
             prod = await session.get(ProductORM, pid)
             if not prod:
                 raise ValueError(f"Product {pid} not found")
-            unit_price = float(prod.unit_price) if data["unit_price"] is None else data["unit_price"]
+            unit_price = float(prod.unit_price) if data["unit_price"] is None else float(data["unit_price"])
+            if lot_id is not None and not await session.get(LotORM, lot_id):
+                raise ValueError(f"Lot {lot_id} not found")
             total += unit_price * data["quantity"]
             items_orm.append(
-                OrderItemORM(product_id=pid, quantity=data["quantity"], unit_price=unit_price)
+                OrderItemORM(
+                    product_id=pid,
+                    quantity=data["quantity"],
+                    unit_price=unit_price,
+                    lot_id=lot_id
+                )
             )
 
         # Create the order
@@ -368,14 +388,17 @@ async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
         # Replace items if provided
         if payload.items is not None:
             # Lock the existing items for update
-            existing_items = await session.execute(
+            existing_items_result = await session.execute(
                 select(OrderItemORM)
                 .where(OrderItemORM.order_id == order_orm.id)
                 .with_for_update()
             )
 
             # Extract existing item prices
-            existing_items = {item.product_id: item.unit_price for item in existing_items.scalars()}
+            existing_items: Dict[Tuple[int, Optional[int]], float] = {
+                (item.product_id, item.lot_id): item.unit_price
+                for item in existing_items_result.scalars()
+            }
 
             # Delete existing items
             await session.execute(
@@ -386,27 +409,36 @@ async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
             new_rows: list[OrderItemORM] = []
 
             # Aggregate quantities by product_id
-            agg: Dict[int, Dict] = {}
+            agg: Dict[Tuple[int, Optional[int]], Dict[str, Any]] = {}
             for it in payload.items:
-                agg[it.product_id] = agg.get(it.product_id, {"quantity": 0.0, "unit_price": None})
-                agg[it.product_id]["quantity"] += float(it.quantity)
-                agg[it.product_id]["unit_price"] = float(it.unit_price) if it.unit_price else None
+                key = (it.product_id, it.lot_id)
+                agg[key] = agg.get(key, {"quantity": 0.0, "unit_price": None})
+                agg[key]["quantity"] += float(it.quantity)
+                if it.unit_price is not None:
+                    agg[key]["unit_price"] = float(it.unit_price)
 
             # For each unique product_id pick existing unit_price or current product price
-            for pid, data in agg.items():
-                unit_price = existing_items.get(pid) if data["unit_price"] is None else data["unit_price"]
+            for (pid, lot_id), data in agg.items():
+                unit_price = data["unit_price"]
+                if unit_price is None:
+                    unit_price = existing_items.get((pid, lot_id))
                 if unit_price is None:
                     prod = await session.get(ProductORM, pid)
                     if not prod:
                         raise ValueError(f"Product {pid} not found")
                     unit_price = float(prod.unit_price)
+                else:
+                    unit_price = float(unit_price)
+                if lot_id is not None and not await session.get(LotORM, lot_id):
+                    raise ValueError(f"Lot {lot_id} not found")
 
                 new_rows.append(
                     OrderItemORM(
-                        order_id=order_orm.id,
-                        product_id=pid,
-                        quantity=float(data["quantity"]),
-                        unit_price=float(unit_price),
+                        order_id = order_orm.id,
+                        product_id = pid,
+                        quantity = float(data["quantity"]),
+                        unit_price = unit_price,
+                        lot_id = lot_id,
                     )
                 )
 

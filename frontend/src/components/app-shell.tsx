@@ -13,6 +13,7 @@ import {
   Receipt,
   BarChart3,
   Menu,
+  Boxes,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,7 @@ const routes = [
   { href: '/products', label: 'Prodotti', Icon: Package },
   { href: '/customers', label: 'Clienti', Icon: Users },
   { href: '/orders', label: 'Ordini', Icon: ClipboardList },
+  { href: '/lots', label: 'Lotti', Icon: Boxes },
   { href: '/expenses', label: 'Spese', Icon: Receipt },
   { href: '/notes', label: 'Note', Icon: NotebookIcon },
   { href: '/reports', label: 'Report', Icon: BarChart3 },

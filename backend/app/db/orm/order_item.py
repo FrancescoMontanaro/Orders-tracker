@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Numeric, ForeignKey, UniqueConstraint, Index, CheckConstraint
 
+from .lot import LotORM
 from .base import BaseORM
 from .order import OrderORM
 from .product import ProductORM
@@ -25,8 +26,9 @@ class OrderItemORM(BaseORM):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="RESTRICT"), index=True)
     quantity: Mapped[float] = mapped_column()
     unit_price: Mapped[float] = mapped_column(Numeric(10, 2))
+    lot_id: Mapped[int] = mapped_column(ForeignKey(LotORM.id, ondelete="SET NULL"), nullable=True, index=True)
 
     # Relationships
     order: Mapped[OrderORM] = relationship(back_populates="items")
     product: Mapped[ProductORM] = relationship(back_populates="items")
-    
+    lot: Mapped[LotORM] = relationship(back_populates="items")

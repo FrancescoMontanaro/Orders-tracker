@@ -19,6 +19,7 @@ export function useLots() {
 
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: 'lot_date', desc: true },
+    { id: 'id', desc: true }
   ]);
 
   const [loading, setLoading] = React.useState(false);

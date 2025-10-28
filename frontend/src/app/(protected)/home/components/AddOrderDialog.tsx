@@ -15,6 +15,9 @@ import type { Option } from '../types/option';
 import type { OrderItem } from '../types/dailySummary';
 import { euro } from '../utils/currency';
 import { fmtDate } from '../utils/date';
+import { LotSelect } from '@/components/lot-select';
+import type { LotOption } from '@/types/lot';
+import { formatLotOptionDate } from '@/types/lot';
 
 // --- util: robust local number parsing (e.g., "1,5" -> 1.5) ---
 function parseLocaleNumber(v: unknown): number | null {
@@ -40,6 +43,7 @@ export default function AddOrderDialog({
   const [items, setItems] = React.useState<OrderItem[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
+  const [orderLot, setOrderLot] = React.useState<LotOption | null>(null);
 
   // Reset form state when the dialog opens (keep defaultDate pre-filled)
   React.useEffect(() => {
@@ -50,6 +54,7 @@ export default function AddOrderDialog({
       setStatus('created');
       setItems([]);
       setLocalError(null);
+      setOrderLot(null);
     }
   }, [open, defaultDate]);
 
@@ -69,6 +74,36 @@ export default function AddOrderDialog({
   // Use normalized values to compute totals so mobile users see correct numbers
   const totals = usePreviewTotals(normalizedItemsForPreview as any, appliedDiscount);
 
+  React.useEffect(() => {
+    if (!orderLot) return;
+    setItems((prev) =>
+      prev.map((item) =>
+        item.lot_id ? item : {
+          ...item,
+          lot_id: orderLot.id,
+          lot_name: orderLot.name,
+          lot_date: orderLot.lot_date ?? null,
+        }
+      )
+    );
+  }, [orderLot]);
+
+  const applyLotToAll = React.useCallback((lot: LotOption | null) => {
+    setItems((prev) =>
+      prev.map((item) => ({
+        ...item,
+        lot_id: lot ? lot.id : null,
+        lot_name: lot ? lot.name : null,
+        lot_date: lot ? lot.lot_date ?? null : null,
+      }))
+    );
+  }, []);
+
+  const clearLots = React.useCallback(() => {
+    applyLotToAll(null);
+    setOrderLot(null);
+  }, [applyLotToAll]);
+
   async function create() {
     if (saving) return; // prevent double taps
 
@@ -87,7 +122,8 @@ export default function AddOrderDialog({
         quantity: qty,
         // include unit_price only when valid (avoid clobbering server defaults)
         ...(price != null && Number.isFinite(price) && price >= 0 ? { unit_price: price } : {}),
-      } as { product_id: number; quantity: number | null; unit_price?: number };
+        ...(raw.lot_id != null ? { lot_id: Number(raw.lot_id) } : {}),
+      } as { product_id: number; quantity: number | null; unit_price?: number; lot_id?: number };
     });
 
     // Validate quantities
@@ -105,10 +141,11 @@ export default function AddOrderDialog({
       customer_id: Number(customer.id),
       delivery_date: deliveryDate,
       // cast quantities to number after validation
-      items: itemsPayload.map(({ product_id, quantity, unit_price }) => ({
+      items: itemsPayload.map(({ product_id, quantity, unit_price, lot_id }) => ({
         product_id,
         quantity: Number(quantity),
         ...(unit_price != null ? { unit_price: Number(unit_price) } : {}),
+        ...(lot_id != null ? { lot_id: Number(lot_id) } : {}),
       })),
       status,
     };
@@ -133,9 +170,12 @@ export default function AddOrderDialog({
       <DialogContent
         className="
           w-[calc(100vw-2rem)]
-          sm:w-[36rem] md:w-[44rem]
-          lg:w-[56rem] xl:w-[64rem]
-          2xl:w-[72rem]
+          sm:w-[31rem] md:w-[41rem]
+          lg:w-[51rem] xl:w-[58rem]
+          2xl:w-[65rem]
+          sm:max-w-[31rem] md:max-w-[41rem]
+          lg:max-w-[51rem] xl:max-w-[58rem]
+          2xl:max-w-[65rem]
           max-h-[85vh] overflow-y-auto overflow-x-hidden
         "
       >
@@ -194,11 +234,45 @@ export default function AddOrderDialog({
             </Select>
           </div>
 
+          {/* Default lot selector */}
+          <div className="grid gap-2 min-w-0">
+            <Label>Lotto predefinito (opzionale)</Label>
+            <LotSelect value={orderLot} onChange={setOrderLot} />
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {orderLot ? (
+                <>
+                  <span>
+                    Lotto selezionato: {orderLot.name}
+                    {orderLot.lot_date ? ` (${formatLotOptionDate(orderLot.lot_date)})` : ''}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => applyLotToAll(orderLot)}
+                  >
+                    Applica a tutti gli articoli
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={clearLots}>
+                    Rimuovi da tutti
+                  </Button>
+                </>
+              ) : (
+                <span>Imposta un lotto e personalizzalo in seguito sui singoli prodotti.</span>
+              )}
+            </div>
+          </div>
+
           {/* Items editor: mobile-friendly cards; the editor already allows unit_price editing */}
           <div className="grid gap-2 mt-2 rounded-lg border p-3 text-sm">
             <Label>Prodotti</Label>
             <hr />
-            <ItemsEditor items={items} onChange={setItems} />
+            <ItemsEditor
+              items={items}
+              onChange={setItems}
+              defaultLot={orderLot}
+              onApplyLotToAll={applyLotToAll}
+            />
           </div>
 
           {/* Totals preview */}

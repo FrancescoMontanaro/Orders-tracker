@@ -8,6 +8,9 @@ export type OrderItem = {
   quantity: number;
   unit_price?: number | null;    // Provided by API in GET /orders/:id
   total_price?: number | null;   // Legacy total per item (kept for compatibility)
+  lot_id?: number | null;
+  lot_name?: string | null;
+  lot_date?: string | null;
 };
 
 export type Order = {

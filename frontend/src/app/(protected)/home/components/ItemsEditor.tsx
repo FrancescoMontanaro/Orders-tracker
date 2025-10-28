@@ -7,6 +7,9 @@ import { Label } from '@/components/ui/label';
 import SearchCombobox from './SearchCombobox';
 import type { OrderItem } from '../types/dailySummary';
 import { euro } from '../utils/currency';
+import { LotSelect } from '@/components/lot-select';
+import type { LotOption } from '@/types/lot';
+import { formatLotOptionDate } from '@/types/lot';
 
 /** Robust locale number parser (e.g., "1,5" -> 1.5) */
 function parseLocaleNumber(v: unknown): number | null {
@@ -21,13 +24,19 @@ function parseLocaleNumber(v: unknown): number | null {
 }
 
 /** Reusable items editor for order dialogs; unit price is now editable. */
+type ItemsEditorProps = {
+  items: OrderItem[];
+  onChange: (next: OrderItem[]) => void;
+  defaultLot?: LotOption | null;
+  onApplyLotToAll?: (lot: LotOption | null) => void;
+};
+
 export default function ItemsEditor({
   items,
   onChange,
-}: {
-  items: OrderItem[];
-  onChange: (next: OrderItem[]) => void;
-}) {
+  defaultLot,
+  onApplyLotToAll,
+}: ItemsEditorProps) {
   /** Immutable update helper for a specific row */
   function updateAt(i: number, patch: Partial<OrderItem>) {
     const next = [...items];
@@ -43,26 +52,69 @@ export default function ItemsEditor({
   }
 
   /** Append a new empty row */
+  function lotPatch(lot?: LotOption | null) {
+    if (!lot) return { lot_id: null, lot_name: null, lot_date: null };
+    return { lot_id: lot.id, lot_name: lot.name, lot_date: lot.lot_date ?? null };
+  }
+
   function add() {
     onChange([
       ...(items ?? []),
-      { product_id: 0, product_name: '', unit: null, quantity: 1, unit_price: null } as OrderItem,
+      {
+        product_id: 0,
+        product_name: '',
+        unit: null,
+        quantity: 1,
+        unit_price: null,
+        ...lotPatch(defaultLot),
+      } as OrderItem,
     ]);
   }
 
   return (
     <div className="grid gap-3 min-w-0 max-w-full">
       {/* Desktop header */}
+      {defaultLot && (
+        <div className="hidden sm:flex items-center justify-between rounded-md border border-dashed p-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="font-medium text-foreground">Lotto predefinito:</span>
+            <span>{defaultLot.name}</span>
+            {defaultLot.lot_date && <span>({formatLotOptionDate(defaultLot.lot_date)})</span>}
+          </div>
+          {onApplyLotToAll && (
+            <Button type="button" variant="outline" size="sm" onClick={() => onApplyLotToAll(defaultLot)}>
+              Applica a tutti
+            </Button>
+          )}
+        </div>
+      )}
+      {defaultLot && (
+        <div className="sm:hidden rounded-md border border-dashed p-2 text-xs text-muted-foreground space-y-2">
+          <div>
+            Lotto predefinito: <span className="font-medium text-foreground">{defaultLot.name}</span>
+            {defaultLot.lot_date ? ` (${formatLotOptionDate(defaultLot.lot_date)})` : ''}
+          </div>
+          {onApplyLotToAll && (
+            <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => onApplyLotToAll(defaultLot)}>
+              Applica lotto a tutti gli articoli
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="hidden sm:grid sm:grid-cols-12 items-end gap-2">
         {items?.length ? (
           <>
-            <div className="col-span-6">
+            <div className="col-span-5">
               <Label>Prodotto</Label>
             </div>
             <div className="col-span-3">
+              <Label>Lotto</Label>
+            </div>
+            <div className="col-span-2">
               <Label>Prezzo unitario</Label>
             </div>
-            <div className="col-span-3">
+            <div className="col-span-2">
               <Label>Quantità</Label>
             </div>
           </>
@@ -81,7 +133,7 @@ export default function ItemsEditor({
             "
           >
             {/* Product field: full width on mobile, col-span on desktop */}
-            <div className="min-w-0 sm:col-span-6">
+            <div className="min-w-0 sm:col-span-5">
               <div className="sm:hidden mb-2">
                 <Label>Prodotto</Label>
               </div>
@@ -111,8 +163,28 @@ export default function ItemsEditor({
               />
             </div>
 
-            {/* Unit price editor: editable numeric input with locale-friendly behavior */}
+            {/* Lot select */}
             <div className="sm:col-span-3 min-w-0">
+              <div className="sm:hidden mb-2">
+                <Label>Lotto</Label>
+              </div>
+              <LotSelect
+                value={
+                  it.lot_id
+                    ? {
+                        id: Number(it.lot_id),
+                        name: it.lot_name ?? `Lotto #${it.lot_id}`,
+                        lot_date: it.lot_date ?? '',
+                      }
+                    : null
+                }
+                onChange={(lot) => updateAt(i, lotPatch(lot))}
+                placeholder="Nessun lotto"
+              />
+            </div>
+
+            {/* Unit price editor: editable numeric input with locale-friendly behavior */}
+            <div className="sm:col-span-2 min-w-0">
               <div className="sm:hidden mb-2">
                 <Label>Prezzo unitario</Label>
               </div>
@@ -149,8 +221,8 @@ export default function ItemsEditor({
             </div>
 
             {/* Quantity + remove: compact row on mobile; grid on desktop */}
-            <div className="grid grid-cols-[1fr_auto] items-end gap-2 sm:col-span-3 sm:grid-cols-3">
-              <div className="col-span-1 sm:col-span-2 min-w-0">
+            <div className="grid grid-cols-[1fr_auto] items-end gap-2 sm:col-span-2 sm:grid-cols-2">
+              <div className="col-span-1 sm:col-span-1 min-w-0">
                 <div className="sm:hidden mb-2">
                   <Label>Quantità{it?.unit ? ` (${it.unit})` : ''}</Label>
                 </div>

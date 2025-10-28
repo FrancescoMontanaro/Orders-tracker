@@ -28,6 +28,9 @@ export type OrderItem = {
   quantity: number;
   unit_price?: number | null;
   total_price?: number | null;
+  lot_id?: number | null;
+  lot_name?: string | null;
+  lot_date?: string | null;
 };
 
 // Generic API wrapper

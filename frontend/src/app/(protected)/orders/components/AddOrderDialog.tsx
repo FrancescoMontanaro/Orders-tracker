@@ -15,6 +15,9 @@ import { usePreviewTotals } from '../hooks/usePreviewTotals';
 import { euro } from '../utils/currency';
 import { Option } from '../types/option';
 import { OrderItem } from '../types/order';
+import { LotSelect } from '@/components/lot-select';
+import type { LotOption } from '@/types/lot';
+import { formatLotOptionDate } from '@/types/lot';
 
 /**
  * AddOrderDialog (responsive)
@@ -38,6 +41,7 @@ export function AddOrderDialog({
   const [items, setItems] = React.useState<OrderItem[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
+  const [orderLot, setOrderLot] = React.useState<LotOption | null>(null);
 
   // Reset form state when the dialog opens
   React.useEffect(() => {
@@ -48,11 +52,42 @@ export function AddOrderDialog({
       setStatus('created');
       setItems([]);
       setLocalError(null);
+      setOrderLot(null);
     }
   }, [open]);
 
   // Totals preview (computed client-side, independent from the payload)
   const totals = usePreviewTotals(items, appliedDiscount);
+
+  React.useEffect(() => {
+    if (!orderLot) return;
+    setItems((prev) =>
+      prev.map((item) =>
+        item.lot_id ? item : {
+          ...item,
+          lot_id: orderLot.id,
+          lot_name: orderLot.name,
+          lot_date: orderLot.lot_date ?? null,
+        }
+      )
+    );
+  }, [orderLot]);
+
+  const applyLotToAll = React.useCallback((lot: LotOption | null) => {
+    setItems((prev) =>
+      prev.map((item) => ({
+        ...item,
+        lot_id: lot ? lot.id : null,
+        lot_name: lot ? lot.name : null,
+        lot_date: lot ? lot.lot_date ?? null : null,
+      }))
+    );
+  }, []);
+
+  const clearAllLots = React.useCallback(() => {
+    applyLotToAll(null);
+    setOrderLot(null);
+  }, [applyLotToAll]);
 
   // Create order and send to API
   async function create() {
@@ -63,12 +98,15 @@ export function AddOrderDialog({
 
     // Build items payload, including unit_price only when provided
     const itemsPayload = items.map((it) => {
-      const base: { product_id: number; quantity: number; unit_price?: number } = {
+      const base: { product_id: number; quantity: number; unit_price?: number; lot_id?: number | null } = {
         product_id: Number(it.product_id),
         quantity: Number(it.quantity),
       };
       if (it.unit_price != null && !Number.isNaN(Number(it.unit_price))) {
         base.unit_price = Number(it.unit_price);
+      }
+      if (it.lot_id != null) {
+        base.lot_id = Number(it.lot_id);
       }
       return base;
     });
@@ -106,7 +144,8 @@ export function AddOrderDialog({
       <DialogContent
         className="
           w-[calc(100vw-2rem)]
-          sm:w-[36rem] md:w-[44rem] lg:w-[56rem] xl:w-[64rem]
+          sm:w-[31rem] md:w-[38rem] lg:w-[48rem] xl:w-[56rem]
+          sm:max-w-[31rem] md:max-w-[38rem] lg:max-w-[48rem] xl:max-w-[56rem]
           max-h-[85vh] overflow-y-auto overflow-x-hidden
         "
       >
@@ -166,11 +205,45 @@ export function AddOrderDialog({
             </Select>
           </div>
 
+          {/* Default lot selector */}
+          <div className="grid gap-2 min-w-0">
+            <Label>Lotto predefinito (opzionale)</Label>
+            <LotSelect value={orderLot} onChange={setOrderLot} />
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {orderLot ? (
+                <>
+                  <span>
+                    Applicato automaticamente ai nuovi articoli
+                    {orderLot.lot_date ? ` • ${formatLotOptionDate(orderLot.lot_date)}` : ''}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => applyLotToAll(orderLot)}
+                  >
+                    Applica a tutti gli articoli
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={clearAllLots}>
+                    Rimuovi da tutti
+                  </Button>
+                </>
+              ) : (
+                <span>Puoi impostare un lotto qui e personalizzarlo per singolo prodotto.</span>
+              )}
+            </div>
+          </div>
+
           {/* Items editor: supports unit_price editing per line */}
           <div className="grid gap-2 mt-2 rounded-lg border p-3 text-sm min-w-0">
             <Label>Prodotti</Label>
             <div className="h-px bg-border" />
-            <ItemsEditor items={items} onChange={setItems} />
+            <ItemsEditor
+              items={items}
+              onChange={setItems}
+              defaultLot={orderLot}
+              onApplyLotToAll={applyLotToAll}
+            />
           </div>
 
           {/* Totals preview (client-side estimation) */}

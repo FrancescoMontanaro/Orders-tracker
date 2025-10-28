@@ -26,6 +26,23 @@ import { usePreviewTotals } from '../hooks/usePreviewTotals';
 import { euro } from '../utils/currency';
 import { Option } from '../types/option';
 import { Order, OrderItem } from '../types/order';
+import { LotSelect } from '@/components/lot-select';
+import type { LotOption } from '@/types/lot';
+import { formatLotOptionDate } from '@/types/lot';
+
+function mapOrderItemFromApi(it: any): OrderItem {
+  return {
+    product_id: Number(it.product_id),
+    product_name: it.product_name ?? null,
+    unit: it.unit ?? null,
+    quantity: Number(it.quantity ?? 1),
+    unit_price: it.unit_price ?? null,
+    total_price: it.total_price ?? null,
+    lot_id: it.lot_id ?? null,
+    lot_name: it.lot_name ?? null,
+    lot_date: it.lot_date ?? null,
+  };
+}
 
 /** Robust local number parser (e.g., "1,5" -> 1.5) */
 function parseLocaleNumber(v: unknown): number | null {
@@ -63,9 +80,12 @@ export function EditOrderDialog({
   );
   const [appliedDiscount, setAppliedDiscount] = React.useState<number | ''>(order?.applied_discount ?? '');
   const [status, setStatus] = React.useState<'created' | 'delivered'>(order?.status ?? 'created');
-  const [items, setItems] = React.useState<OrderItem[]>(order?.items ?? []);
+  const [items, setItems] = React.useState<OrderItem[]>(
+    order?.items ? order.items.map(mapOrderItemFromApi) : []
+  );
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
+  const [orderLot, setOrderLot] = React.useState<LotOption | null>(null);
 
   // Confirm delete state + inert cleanup safety
   const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
@@ -94,17 +114,28 @@ export function EditOrderDialog({
         );
         setAppliedDiscount(full.applied_discount ?? '');
         setStatus(full.status ?? 'created');
-        const its: OrderItem[] = Array.isArray(full.items) ? full.items : [];
-        setItems(
-          its.map((it: any) => ({
-            product_id: Number(it.product_id),
-            product_name: it.product_name ?? null,
-            unit: it.unit ?? null,
-            quantity: Number(it.quantity ?? 1),
-            unit_price: it.unit_price ?? null,
-            total_price: it.total_price ?? null,
-          }))
+        const its = Array.isArray(full.items) ? full.items : [];
+        const mapped = its.map(mapOrderItemFromApi);
+        setItems(mapped);
+
+        const uniqueLotIds = Array.from(
+          new Set(mapped.map((it) => (it.lot_id ? Number(it.lot_id) : null)).filter((id): id is number => id != null))
         );
+        if (uniqueLotIds.length === 1) {
+          const lotId = uniqueLotIds[0];
+          const exemplar = mapped.find((it) => Number(it.lot_id) === lotId);
+          if (exemplar) {
+            setOrderLot({
+              id: lotId,
+              name: exemplar.lot_name ?? `Lotto #${lotId}`,
+              lot_date: exemplar.lot_date ?? '',
+            });
+          } else {
+            setOrderLot(null);
+          }
+        } else {
+          setOrderLot(null);
+        }
       } catch (e: any) {
         const detail = e?.response?.data?.detail ?? e?.response?.data?.message ?? e?.message ?? 'Errore sconosciuto';
         const msg = `Caricamento ordine non riuscito: ${String(detail)}`;
@@ -121,6 +152,36 @@ export function EditOrderDialog({
 
   // Totals preview (client-side estimate)
   const totals = usePreviewTotals(items, appliedDiscount);
+
+  React.useEffect(() => {
+    if (!orderLot) return;
+    setItems((prev) =>
+      prev.map((item) =>
+        item.lot_id ? item : {
+          ...item,
+          lot_id: orderLot.id,
+          lot_name: orderLot.name,
+          lot_date: orderLot.lot_date ?? null,
+        }
+      )
+    );
+  }, [orderLot]);
+
+  const applyLotToAll = React.useCallback((lot: LotOption | null) => {
+    setItems((prev) =>
+      prev.map((item) => ({
+        ...item,
+        lot_id: lot ? lot.id : null,
+        lot_name: lot ? lot.name : null,
+        lot_date: lot ? lot.lot_date ?? null : null,
+      }))
+    );
+  }, []);
+
+  const clearAllLots = React.useCallback(() => {
+    applyLotToAll(null);
+    setOrderLot(null);
+  }, [applyLotToAll]);
 
   // Save changes to the API (PATCH)
   async function save() {
@@ -140,7 +201,8 @@ export function EditOrderDialog({
         quantity: qty,
         // include unit_price only when valid (avoid overriding server defaults with null)
         ...(price != null && Number.isFinite(price) && price >= 0 ? { unit_price: price } : {}),
-      } as { product_id: number; quantity: number | null; unit_price?: number };
+        ...(raw.lot_id != null ? { lot_id: Number(raw.lot_id) } : {}),
+      } as { product_id: number; quantity: number | null; unit_price?: number; lot_id?: number };
     });
 
     // Validate quantities
@@ -154,10 +216,11 @@ export function EditOrderDialog({
     const payload: any = {
       delivery_date: deliveryDate,
       customer_id: Number(customer.id),
-      items: itemsPayload.map(({ product_id, quantity, unit_price }) => ({
+      items: itemsPayload.map(({ product_id, quantity, unit_price, lot_id }) => ({
         product_id,
         quantity: Number(quantity),
         ...(unit_price != null ? { unit_price: Number(unit_price) } : {}),
+        ...(lot_id != null ? { lot_id: Number(lot_id) } : {}),
       })),
       status,
     };
@@ -201,7 +264,8 @@ export function EditOrderDialog({
         <DialogContent
           className="
             w-[calc(100vw-2rem)]
-            sm:w-[36rem] md:w-[44rem] lg:w-[56rem] xl:w-[64rem]
+            sm:w-[31rem] md:w-[38rem] lg:w-[48rem] xl:w-[56rem]
+            sm:max-w-[31rem] md:max-w-[38rem] lg:max-w-[48rem] xl:max-w-[56rem]
             max-h-[85vh] overflow-y-auto overflow-x-hidden
           "
         >
@@ -258,22 +322,56 @@ export function EditOrderDialog({
               {/* Status */}
               <div className="grid gap-1 min-w-0">
                 <Label>Stato</Label>
-                <Select value={status} onValueChange={(v: 'created' | 'delivered') => setStatus(v)}>
-                  <SelectTrigger className="min-w-0 w-full max-w-full">
-                    <SelectValue placeholder="Seleziona stato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="created">Da consegnare</SelectItem>
-                    <SelectItem value="delivered">Consegnato</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Select value={status} onValueChange={(v: 'created' | 'delivered') => setStatus(v)}>
+                <SelectTrigger className="min-w-0 w-full max-w-full">
+                  <SelectValue placeholder="Seleziona stato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="created">Da consegnare</SelectItem>
+                  <SelectItem value="delivered">Consegnato</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+              {/* Default lot selector */}
+              <div className="grid gap-2 min-w-0">
+                <Label>Lotto predefinito (opzionale)</Label>
+                <LotSelect value={orderLot} onChange={setOrderLot} />
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  {orderLot ? (
+                    <>
+                      <span>
+                        Lotto selezionato: {orderLot.name}
+                        {orderLot.lot_date ? ` (${formatLotOptionDate(orderLot.lot_date)})` : ''}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => applyLotToAll(orderLot)}
+                      >
+                        Applica a tutti gli articoli
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={clearAllLots}>
+                        Rimuovi da tutti
+                      </Button>
+                    </>
+                  ) : (
+                    <span>Imposta un lotto predefinito e personalizzalo sui singoli prodotti se necessario.</span>
+                  )}
+                </div>
               </div>
 
               {/* Items editor section with divider instead of <br />; avoids layout quirks */}
               <div className="grid gap-2 mt-2 rounded-lg border p-3 text-sm min-w-0">
                 <Label>Prodotti</Label>
                 <div className="h-px bg-border" />
-                <ItemsEditor items={items} onChange={setItems} />
+                <ItemsEditor
+                  items={items}
+                  onChange={setItems}
+                  defaultLot={orderLot}
+                  onApplyLotToAll={applyLotToAll}
+                />
               </div>
 
               {/* Totals preview */}

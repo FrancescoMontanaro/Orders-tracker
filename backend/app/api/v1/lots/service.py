@@ -102,6 +102,7 @@ async def list_lots(params: ListingQueryParams) -> Pagination[Lot]:
         items_stmt = (
             select(
                 OrderItemORM,
+                OrderORM.delivery_date.label("order_date"),
                 ProductORM.name.label("product_name"),
                 ProductORM.unit.label("product_unit"),
                 CustomerORM.id.label("customer_id"),
@@ -115,12 +116,13 @@ async def list_lots(params: ListingQueryParams) -> Pagination[Lot]:
         items_res = await session.execute(items_stmt)
 
         items_by_lot: Dict[int, List[LotOrderItem]] = {}
-        for item, product_name, product_unit, customer_id, customer_name in items_res.all():
+        for item, order_date, product_name, product_unit, customer_id, customer_name in items_res.all():
             items_by_lot.setdefault(item.lot_id, []).append(
                 LotOrderItem.model_validate(
                     {
                         "id": item.id,
                         "order_id": item.order_id,
+                        "order_date": order_date,
                         "product_id": item.product_id,
                         "quantity": float(item.quantity),
                         "unit_price": float(item.unit_price),
@@ -163,6 +165,7 @@ async def get_lot_by_id(lot_id: int) -> Optional[Lot]:
         items_stmt = (
             select(
                 OrderItemORM,
+                OrderORM.delivery_date.label("order_date"),
                 ProductORM.name.label("product_name"),
                 ProductORM.unit.label("product_unit"),
                 CustomerORM.id.label("customer_id"),
@@ -179,6 +182,7 @@ async def get_lot_by_id(lot_id: int) -> Optional[Lot]:
                 {
                     "id": item.id,
                     "order_id": item.order_id,
+                    "order_date": order_date,
                     "product_id": item.product_id,
                     "quantity": float(item.quantity),
                     "unit_price": float(item.unit_price),
@@ -188,7 +192,7 @@ async def get_lot_by_id(lot_id: int) -> Optional[Lot]:
                     "customer_name": customer_name,
                 }
             )
-            for item, product_name, product_unit, customer_id, customer_name in items_res.all()
+            for item, order_date, product_name, product_unit, customer_id, customer_name in items_res.all()
         ]
 
         lot_model = Lot.model_validate(lot)

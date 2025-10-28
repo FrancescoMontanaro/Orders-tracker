@@ -4,6 +4,7 @@
 export type LotOrderItem = {
   id: number;
   order_id: number;
+  order_date: string; // ISO YYYY-MM-DD
   product_id: number;
   quantity: number;
   unit_price: number;

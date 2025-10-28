@@ -10,6 +10,7 @@ class LotOrderItem(BaseModel):
     
     id: int
     order_id: int
+    order_date: date
     product_id: int
     quantity: float
     unit_price: float

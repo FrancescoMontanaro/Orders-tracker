@@ -37,6 +37,9 @@ export function useOrderItemsOptions(dialogOpen: boolean, seedOrderIds: number[]
                 product_name: it.product_name,
                 unit: it.unit,
                 quantity: it.quantity,
+                lot_id: it.lot_id ?? null,
+                lot_name: it.lot_name ?? null,
+                lot_location: it.lot_location ?? null,
               }))
             : [],
         });

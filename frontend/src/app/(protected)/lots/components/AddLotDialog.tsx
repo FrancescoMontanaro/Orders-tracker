@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import { api } from '@/lib/api-client';
-import type { SuccessResponse, Pagination } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +16,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { OrderItemsPicker, ItemSelection } from './OrderItemsPicker';
-import type { Lot } from '../types/lot';
+import { composeLotName } from '../utils/name';
 
 /**
  * Creation dialog for new lots.
@@ -34,54 +33,28 @@ export function AddLotDialog({
   onCreated: () => void;
   onError: (msg: string) => void;
 }) {
-  const [name, setName] = React.useState('');
   const [lotDate, setLotDate] = React.useState('');
+  const [location, setLocation] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [selection, setSelection] = React.useState<ItemSelection>({ itemIds: [] });
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
+
+  const composedName = React.useMemo(
+    () => composeLotName(lotDate, location),
+    [lotDate, location]
+  );
 
   React.useEffect(() => {
     if (!open) return;
 
     const today = new Date();
     const isoDate = today.toISOString().slice(0, 10);
-    const formattedDate = `${today.getFullYear()}_${String(today.getMonth() + 1).padStart(2, '0')}_${String(
-      today.getDate()
-    ).padStart(2, '0')}`;
-    setName(`lotto_n1_${formattedDate}`);
     setLotDate(isoDate);
+    setLocation('');
     setDescription('');
     setSelection({ itemIds: [] });
     setLocalError(null);
-
-    let active = true;
-    const fetchMaxLot = async () => {
-      try {
-        const res = await api.post<SuccessResponse<Pagination<Lot>>>(
-          '/lots/list',
-          { sort: [{ field: 'id', order: 'desc' }] },
-          {
-            params: { page: 1, size: 1 },
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
-        const items = res.data.data.items ?? [];
-        const maxId = items.length ? Number(items[0].id) : 0;
-        if (!active) return;
-        const nextId = Number.isFinite(maxId) ? maxId + 1 : 1;
-        setName(`lotto_n${nextId}_${formattedDate}`);
-      } catch {
-        if (!active) return;
-        setName(`lotto_n1_${formattedDate}`);
-      }
-    };
-
-    fetchMaxLot();
-
-    return () => {
-      active = false;
-    };
   }, [open]);
 
   React.useEffect(() => {
@@ -89,21 +62,27 @@ export function AddLotDialog({
   }, [open]);
 
   async function create() {
-    if (!name.trim()) {
-      setLocalError('Il nome è obbligatorio.');
-      return;
-    }
     if (!lotDate) {
       setLocalError('La data di raccolta del lotto è obbligatoria.');
+      return;
+    }
+    if (!location.trim()) {
+      setLocalError('La locazione è obbligatoria.');
+      return;
+    }
+    if (!composedName) {
+      setLocalError('Completa data e locazione per generare il numero lotto.');
       return;
     }
 
     setSaving(true);
     setLocalError(null);
     try {
+      const trimmedLocation = location.trim();
       const payload: Record<string, any> = {
-        name: name.trim(),
+        name: composedName,
         lot_date: lotDate,
+        location: trimmedLocation,
         description: description.trim() ? description.trim() : null,
       };
       if (selection.itemIds.length) {
@@ -144,16 +123,6 @@ export function AddLotDialog({
 
         <div className="grid gap-3 min-w-0 max-w-full">
           <div className="grid gap-1 min-w-0">
-            <Label>Numero lotto</Label>
-            <Input
-              placeholder="Numero lotto"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="min-w-0 w-full max-w-full"
-            />
-          </div>
-
-          <div className="grid gap-1 min-w-0">
             <Label>Data di raccolta</Label>
             <DatePicker
               value={lotDate}
@@ -161,6 +130,29 @@ export function AddLotDialog({
               placeholder="Seleziona data raccolta"
               className="min-w-0 w-full max-w-full"
             />
+          </div>
+
+          <div className="grid gap-1 min-w-0">
+            <Label>Locazione</Label>
+            <Input
+              placeholder="Inserisci locazione"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="min-w-0 w-full max-w-full"
+            />
+          </div>
+
+          <div className="grid gap-1 min-w-0">
+            <Label>Numero lotto</Label>
+            <Input
+              value={composedName}
+              readOnly
+              placeholder="Generato da data e locazione"
+              className="min-w-0 w-full max-w-full bg-muted/50"
+            />
+            <p className="text-xs text-muted-foreground">
+              Il numero viene generato automaticamente (yyyymmdd + locazione).
+            </p>
           </div>
 
           <div className="grid gap-1 min-w-0">

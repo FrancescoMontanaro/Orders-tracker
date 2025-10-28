@@ -18,12 +18,13 @@ export type Lot = {
   id: number;
   lot_date: string; // ISO YYYY-MM-DD
   name: string;
+  location: string;
   description?: string | null;
   order_items: LotOrderItem[];
 };
 
 export type SortParam = {
-  field: 'name' | 'lot_date' | 'id';
+  field: 'name' | 'lot_date' | 'id' | 'location';
   order: 'asc' | 'desc';
 };
 
@@ -31,6 +32,7 @@ export type SortParam = {
 export const allowedSortFields = new Set([
   'name',
   'lot_date',
+  'location',
   'id',
 ] as const);
 
@@ -40,6 +42,9 @@ export type OrderOptionItem = {
   product_name?: string | null;
   unit?: string | null;
   quantity: number;
+  lot_id?: number | null;
+  lot_name?: string | null;
+  lot_location?: string | null;
 };
 
 export type OrderOption = {

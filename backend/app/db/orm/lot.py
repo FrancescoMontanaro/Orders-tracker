@@ -19,6 +19,7 @@ class LotORM(BaseORM):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     lot_date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    location: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     description: Mapped[str] = mapped_column(Text, nullable=True)
     
     # Relationships

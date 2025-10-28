@@ -273,6 +273,12 @@ export function OrderItemsPicker({
                             <div className="text-xs text-muted-foreground">
                               Articolo ordine: #{item.id} · Quantità: {item.quantity} {item.unit}
                             </div>
+                            {item.lot_id ? (
+                              <div className="text-xs text-muted-foreground">
+                                Lotto: {item.lot_name ?? `#${item.lot_id}`}
+                                {item.lot_location ? ` • ${item.lot_location}` : ''}
+                              </div>
+                            ) : null}
                           </div>
                         </label>
                       ))}

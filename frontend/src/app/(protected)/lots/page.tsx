@@ -58,7 +58,7 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { PaginationControls } from '@/components/ui/pagination-controls';
-import { X } from 'lucide-react';
+import { X, MapPin } from 'lucide-react';
 
 /**
  * Lots management page.
@@ -76,12 +76,14 @@ export default function LotsPage() {
     loading,
     error,
     searchTerm,
+    locationTerm,
     dateFrom,
     dateTo,
     setPage,
     setSize,
     setSorting,
     setSearchTerm,
+    setLocationTerm,
     setDateFrom,
     setDateTo,
     refetch,
@@ -153,6 +155,14 @@ export default function LotsPage() {
       ),
     },
     {
+      accessorKey: 'location',
+      header: 'Locazione',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span className="truncate">{row.original.location || '—'}</span>
+      ),
+    },
+    {
       accessorKey: 'lot_date',
       header: 'Data raccolta',
       enableSorting: true,
@@ -199,6 +209,24 @@ export default function LotsPage() {
       size: 56,
     },
   ], [onEdit, refetch]);
+
+  const primarySortValue = React.useMemo(() => {
+    const first = sorting?.[0];
+    if (!first) return 'lot_date-desc';
+    const suffix = first.desc ? 'desc' : 'asc';
+    switch (first.id) {
+      case 'name':
+        return `name-${suffix}`;
+      case 'location':
+        return `location-${suffix}`;
+      case 'id':
+        return `id-${suffix}`;
+      case 'lot_date':
+        return `lot_date-${suffix}`;
+      default:
+        return 'lot_date-desc';
+    }
+  }, [sorting]);
 
   const table = useReactTable({
     data: rows,
@@ -263,11 +291,12 @@ export default function LotsPage() {
 
   const resetFilters = React.useCallback(() => {
     setSearchTerm('');
+    setLocationTerm('');
     setDateFrom(undefined);
     setDateTo(undefined);
     setSorting([{ id: 'lot_date', desc: true }]);
     setPage(1);
-  }, [setSearchTerm, setDateFrom, setDateTo, setSorting, setPage]);
+  }, [setSearchTerm, setLocationTerm, setDateFrom, setDateTo, setSorting, setPage]);
 
   return (
     <Card className="max-w-full">
@@ -298,13 +327,22 @@ export default function LotsPage() {
         )}
 
         {/* Desktop filters */}
-        <div className="hidden md:grid md:grid-cols-5 md:gap-3 min-w-0">
+        <div className="hidden md:grid md:grid-cols-6 md:gap-3 min-w-0">
           <div className="col-span-2 grid gap-1 min-w-0">
             <Label>Nome</Label>
             <Input
               placeholder="Cerca per nome…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              className="min-w-0 w-full max-w-full"
+            />
+          </div>
+          <div className="col-span-2 grid gap-1 min-w-0">
+            <Label>Locazione</Label>
+            <Input
+              placeholder="Cerca per locazione…"
+              value={locationTerm}
+              onChange={(e) => setLocationTerm(e.target.value)}
               className="min-w-0 w-full max-w-full"
             />
           </div>
@@ -326,8 +364,7 @@ export default function LotsPage() {
               className="min-w-0 w-full max-w-full"
             />
           </div>
-          <div className="grid gap-1 min-w-0">
-            <Label className="opacity-0 select-none">Reset</Label>
+          <div className="col-span-6 flex justify-end items-end min-w-0 pt-1">
             <Button variant="outline" onClick={resetFilters}>
               Reset filtri
             </Button>
@@ -342,6 +379,15 @@ export default function LotsPage() {
               placeholder="Cerca per nome…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              className="min-w-0 w-full max-w-full"
+            />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Locazione</Label>
+            <Input
+              placeholder="Cerca per locazione…"
+              value={locationTerm}
+              onChange={(e) => setLocationTerm(e.target.value)}
               className="min-w-0 w-full max-w-full"
             />
           </div>
@@ -381,18 +427,12 @@ export default function LotsPage() {
             <div className="grid gap-1 min-w-0">
               <Label>Ordina per</Label>
               <Select
-                value={
-                  sorting?.[0]?.id === 'name'
-                    ? (sorting?.[0]?.desc ? 'name-desc' : 'name-asc')
-                    : sorting?.[0]?.id === 'id'
-                      ? (sorting?.[0]?.desc ? 'id-desc' : 'id-asc')
-                      : sorting?.[0]?.id === 'lot_date'
-                        ? (sorting?.[0]?.desc ? 'lot_date-desc' : 'lot_date-asc')
-                        : 'lot_date-desc'
-                }
+                value={primarySortValue}
                 onValueChange={(v) => {
                   if (v === 'name-asc') setSorting([{ id: 'name', desc: false }]);
                   else if (v === 'name-desc') setSorting([{ id: 'name', desc: true }]);
+                  else if (v === 'location-asc') setSorting([{ id: 'location', desc: false }]);
+                  else if (v === 'location-desc') setSorting([{ id: 'location', desc: true }]);
                   else if (v === 'id-asc') setSorting([{ id: 'id', desc: false }]);
                   else if (v === 'id-desc') setSorting([{ id: 'id', desc: true }]);
                   else if (v === 'lot_date-asc') setSorting([{ id: 'lot_date', desc: false }]);
@@ -407,6 +447,8 @@ export default function LotsPage() {
                   <SelectItem value="lot_date-asc">Data (più vecchi)</SelectItem>
                   <SelectItem value="name-asc">Nome (A→Z)</SelectItem>
                   <SelectItem value="name-desc">Nome (Z→A)</SelectItem>
+                  <SelectItem value="location-asc">Locazione (A→Z)</SelectItem>
+                  <SelectItem value="location-desc">Locazione (Z→A)</SelectItem>
                   <SelectItem value="id-desc">ID (↓)</SelectItem>
                   <SelectItem value="id-asc">ID (↑)</SelectItem>
                 </SelectContent>
@@ -497,6 +539,10 @@ export default function LotsPage() {
                         />
                         <div className="min-w-0">
                           <div className="font-medium break-words leading-tight">{lot.name}</div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <MapPin className="h-3 w-3" aria-hidden />
+                            <span className="truncate">{lot.location || '—'}</span>
+                          </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             Data: {formatLotDate(lot.lot_date)}
                           </div>

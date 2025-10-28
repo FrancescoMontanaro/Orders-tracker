@@ -4,6 +4,7 @@ from ....db.orm.lot import LotORM
 ALLOWED_LOTS_SORTING_FIELDS = {
     "id": LotORM.id,
     "name": LotORM.name,
+    "location": LotORM.location,
     "lot_date": LotORM.lot_date,
     "description": LotORM.description,
     "lot_date_after": LotORM.lot_date,

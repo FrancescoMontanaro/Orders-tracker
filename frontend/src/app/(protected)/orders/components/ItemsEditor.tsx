@@ -52,12 +52,13 @@ export function ItemsEditor({
   }
   function lotPatchFromOption(lot?: LotOption | null) {
     if (!lot) {
-      return { lot_id: null, lot_name: null, lot_date: null };
+      return { lot_id: null, lot_name: null, lot_date: null, lot_location: null };
     }
     return {
       lot_id: lot.id,
       lot_name: lot.name,
       lot_date: lot.lot_date ?? null,
+      lot_location: lot.location ?? null,
     };
   }
 
@@ -83,6 +84,7 @@ export function ItemsEditor({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-foreground">Lotto predefinito:</span>
             <span>{defaultLot.name}</span>
+            {defaultLot.location ? <span>• {defaultLot.location}</span> : null}
             {defaultLot.lot_date && <span>({formatLotOptionDate(defaultLot.lot_date)})</span>}
           </div>
           <div className="flex gap-2">
@@ -103,6 +105,7 @@ export function ItemsEditor({
         <div className="sm:hidden rounded-md border border-dashed p-2 text-xs text-muted-foreground space-y-2">
           <div>
             Lotto predefinito: <span className="font-medium text-foreground">{defaultLot.name}</span>
+            {defaultLot.location ? ` • ${defaultLot.location}` : ''}
             {defaultLot.lot_date ? ` (${formatLotOptionDate(defaultLot.lot_date)})` : ''}
           </div>
           {onApplyLotToAll && (
@@ -169,6 +172,7 @@ export function ItemsEditor({
                         id: Number(it.lot_id),
                         name: it.lot_name ?? `Lotto #${it.lot_id}`,
                         lot_date: it.lot_date ?? '',
+                        location: it.lot_location ?? '',
                       }
                     : null
                 }

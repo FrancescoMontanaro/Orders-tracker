@@ -41,6 +41,7 @@ function mapOrderItemFromApi(it: any): OrderItem {
     lot_id: it.lot_id ?? null,
     lot_name: it.lot_name ?? null,
     lot_date: it.lot_date ?? null,
+    lot_location: it.lot_location ?? null,
   };
 }
 
@@ -115,7 +116,7 @@ export function EditOrderDialog({
         setAppliedDiscount(full.applied_discount ?? '');
         setStatus(full.status ?? 'created');
         const its = Array.isArray(full.items) ? full.items : [];
-        const mapped = its.map(mapOrderItemFromApi);
+        const mapped: OrderItem[] = its.map((item: OrderItem | any) => mapOrderItemFromApi(item));
         setItems(mapped);
 
         const uniqueLotIds = Array.from(
@@ -129,6 +130,7 @@ export function EditOrderDialog({
               id: lotId,
               name: exemplar.lot_name ?? `Lotto #${lotId}`,
               lot_date: exemplar.lot_date ?? '',
+              location: exemplar.lot_location ?? '',
             });
           } else {
             setOrderLot(null);
@@ -162,6 +164,7 @@ export function EditOrderDialog({
           lot_id: orderLot.id,
           lot_name: orderLot.name,
           lot_date: orderLot.lot_date ?? null,
+          lot_location: orderLot.location ?? null,
         }
       )
     );
@@ -174,6 +177,7 @@ export function EditOrderDialog({
         lot_id: lot ? lot.id : null,
         lot_name: lot ? lot.name : null,
         lot_date: lot ? lot.lot_date ?? null : null,
+        lot_location: lot ? lot.location ?? null : null,
       }))
     );
   }, []);
@@ -342,6 +346,7 @@ export function EditOrderDialog({
                     <>
                       <span>
                         Lotto selezionato: {orderLot.name}
+                        {orderLot.location ? ` • ${orderLot.location}` : ''}
                         {orderLot.lot_date ? ` (${formatLotOptionDate(orderLot.lot_date)})` : ''}
                       </span>
                       <Button

@@ -83,6 +83,7 @@ export default function AddOrderDialog({
           lot_id: orderLot.id,
           lot_name: orderLot.name,
           lot_date: orderLot.lot_date ?? null,
+          lot_location: orderLot.location ?? null,
         }
       )
     );
@@ -95,6 +96,7 @@ export default function AddOrderDialog({
         lot_id: lot ? lot.id : null,
         lot_name: lot ? lot.name : null,
         lot_date: lot ? lot.lot_date ?? null : null,
+        lot_location: lot ? lot.location ?? null : null,
       }))
     );
   }, []);
@@ -243,6 +245,7 @@ export default function AddOrderDialog({
                 <>
                   <span>
                     Lotto selezionato: {orderLot.name}
+                    {orderLot.location ? ` • ${orderLot.location}` : ''}
                     {orderLot.lot_date ? ` (${formatLotOptionDate(orderLot.lot_date)})` : ''}
                   </span>
                   <Button

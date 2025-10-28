@@ -11,6 +11,7 @@ export type OrderItem = {
   lot_id?: number | null;
   lot_name?: string | null;
   lot_date?: string | null;
+  lot_location?: string | null;
 };
 
 export type Order = {

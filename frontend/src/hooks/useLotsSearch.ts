@@ -28,7 +28,13 @@ function normaliseLotDate(query: string): string | null {
   return null;
 }
 
-type LotsResponse = SuccessResponse<Pagination<{ id: number; name: string; lot_date: string; description?: string | null }>>;
+type LotsResponse = SuccessResponse<Pagination<{
+  id: number;
+  name: string;
+  lot_date: string;
+  location: string;
+  description?: string | null;
+}>>;
 
 export function useLotsSearch(open: boolean, query: string) {
   const debounced = useDebounced(query, 250);
@@ -42,12 +48,17 @@ export function useLotsSearch(open: boolean, query: string) {
     setError(null);
     try {
       const filters: Record<string, any> = {};
-      if (debounced.trim()) {
-        filters.name = debounced.trim();
-        const date = normaliseLotDate(debounced);
-        if (date) {
-          filters.lot_date_after = date;
-          filters.lot_date_before = date;
+      const trimmed = debounced.trim();
+      if (trimmed) {
+        const normalizedDate = normaliseLotDate(trimmed);
+        if (normalizedDate) {
+          filters.lot_date_after = normalizedDate;
+          filters.lot_date_before = normalizedDate;
+          filters.name = trimmed;
+        } else if (/\d/.test(trimmed)) {
+          filters.name = trimmed;
+        } else {
+          filters.location = trimmed;
         }
       }
       const res = await api.post<LotsResponse>(
@@ -71,6 +82,7 @@ export function useLotsSearch(open: boolean, query: string) {
           id: Number(lot.id),
           name: String(lot.name),
           lot_date: lot.lot_date ?? '',
+          location: String(lot.location ?? ''),
           description: lot.description ?? null,
         }))
       );

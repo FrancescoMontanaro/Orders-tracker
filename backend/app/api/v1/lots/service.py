@@ -13,6 +13,12 @@ from .constants import ALLOWED_LOTS_SORTING_FIELDS
 from .models import Lot, LotCreate, LotUpdate, LotOrderItem
 
 
+def _compose_lot_name(lot_date: date, location: str) -> str:
+    clean_location = (location or "").strip()
+    base = lot_date.strftime("%Y%m%d")
+    return f"{base} {clean_location}".strip()
+
+
 async def list_lots(params: ListingQueryParams) -> Pagination[Lot]:
     """
     List lots with pagination, filtering and sorting.
@@ -212,9 +218,15 @@ async def create_lot(payload: LotCreate) -> Optional[Lot]:
     """
 
     async with db_session() as session:
+        clean_location = payload.location.strip()
+        expected_name = _compose_lot_name(payload.lot_date, clean_location)
+        provided_name = payload.name.strip()
+        final_name = expected_name if provided_name != expected_name else provided_name
+
         lot = LotORM(
             lot_date = payload.lot_date,
-            name = payload.name,
+            name = final_name,
+            location = clean_location,
             description = payload.description,
         )
 
@@ -257,9 +269,15 @@ async def update_lot(lot_id: int, payload: LotUpdate) -> Optional[Lot]:
         if payload.lot_date is not None:
             lot.lot_date = payload.lot_date
         if payload.name is not None:
-            lot.name = payload.name
+            lot.name = payload.name.strip()
+        if payload.location is not None:
+            lot.location = payload.location.strip()
         if payload.description is not None:
             lot.description = payload.description
+
+        expected_name = _compose_lot_name(lot.lot_date, lot.location)
+        if payload.name is None or lot.name != expected_name:
+            lot.name = expected_name
 
         if payload.order_item_ids is not None or payload.order_id is not None:
             await _apply_lot_associations(

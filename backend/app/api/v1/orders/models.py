@@ -17,6 +17,7 @@ class OrderItem(BaseModel):
     lot_id: Optional[int] = None
     lot_name: Optional[str] = None
     lot_date: Optional[date] = None
+    lot_location: Optional[str] = None
 
     # Pydantic config
     class Config:

@@ -85,7 +85,8 @@ export function LotItemsCell({ items }: { items: LotOrderItem[] }) {
                     className="inline-flex items-center gap-1 rounded-md border bg-muted px-2 py-0.5 text-xs leading-tight"
                   >
                     <span className="truncate max-w-[160px]">
-                      {item.product_name ?? `Prodotto #${item.product_id}`} ({item.product_unit})
+                      {item.product_name ?? `Prodotto #${item.product_id}`}
+                      {item.product_unit ? ` (${item.product_unit})` : ''}
                     </span>
                     <Badge
                       variant="secondary"

@@ -62,10 +62,10 @@ export default function OrdersPage() {
     }
   }, []);
 
-  const onEdit = (o: Order) => {
+  const onEdit = React.useCallback((o: Order) => {
     setEditOrder(o);
     setEditOpen(true);
-  };
+  }, []);
 
   const cleanupInert = React.useCallback(() => {
     if (typeof document !== 'undefined') {

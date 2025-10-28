@@ -27,6 +27,7 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { OrderItemsPicker, ItemSelection } from './OrderItemsPicker';
+import { composeLotName } from '../utils/name';
 
 /**
  * Edit dialog for an existing lot.
@@ -46,14 +47,20 @@ export function EditLotDialog({
   onDeleted: () => void;
   onError: (msg: string) => void;
 }) {
-  const [name, setName] = React.useState(lot?.name ?? '');
   const [lotDate, setLotDate] = React.useState(lot?.lot_date ?? '');
+  const [location, setLocation] = React.useState(lot?.location ?? '');
   const [description, setDescription] = React.useState(lot?.description ?? '');
   const [selection, setSelection] = React.useState<ItemSelection>({ itemIds: [] });
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
 
   const initialSelectionRef = React.useRef<ItemSelection>({ itemIds: [] });
+
+  const composedName = React.useMemo(() => {
+    const generated = composeLotName(lotDate, location);
+    if (generated) return generated;
+    return lot?.name ?? '';
+  }, [lotDate, location, lot]);
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
   const handleConfirmDeleteOpenChange = React.useCallback((o: boolean) => {
@@ -66,8 +73,8 @@ export function EditLotDialog({
 
   React.useEffect(() => {
     if (open && lot) {
-      setName(lot.name);
       setLotDate(lot.lot_date);
+      setLocation(lot.location);
       setDescription(lot.description ?? '');
       const itemIds = Array.from(
         new Set((lot.order_items ?? []).map((it) => it.id).filter((id): id is number => typeof id === 'number'))
@@ -84,18 +91,23 @@ export function EditLotDialog({
 
   async function save() {
     if (!lot) return;
-    if (!name.trim()) {
-      setLocalError('Il nome è obbligatorio.');
-      return;
-    }
     if (!lotDate) {
       setLocalError('La data di raccolta del lotto è obbligatoria.');
       return;
     }
+    if (!location.trim()) {
+      setLocalError('La locazione è obbligatoria.');
+      return;
+    }
+    if (!composedName) {
+      setLocalError('Completa data e locazione per generare il numero lotto.');
+      return;
+    }
 
     const payload: Record<string, any> = {
-      name: name.trim(),
+      name: composedName,
       lot_date: lotDate,
+      location: location.trim(),
       description: description.trim() ? description.trim() : null,
     };
 
@@ -174,15 +186,6 @@ export function EditLotDialog({
           ) : (
             <div className="grid gap-3 min-w-0 max-w-full">
               <div className="grid gap-1 min-w-0">
-                <Label>Numero lotto</Label>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="min-w-0 w-full max-w-full"
-                />
-              </div>
-
-              <div className="grid gap-1 min-w-0">
                 <Label>Data di raccolta</Label>
                 <DatePicker
                   value={lotDate}
@@ -190,6 +193,29 @@ export function EditLotDialog({
                   placeholder="Seleziona data raccolta"
                   className="min-w-0 w-full max-w-full"
                 />
+              </div>
+
+              <div className="grid gap-1 min-w-0">
+                <Label>Locazione</Label>
+                <Input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="Inserisci locazione…"
+                  className="min-w-0 w-full max-w-full"
+                />
+              </div>
+
+              <div className="grid gap-1 min-w-0">
+                <Label>Numero lotto</Label>
+                <Input
+                  value={composedName}
+                  readOnly
+                  placeholder="Generato da data e locazione"
+                  className="min-w-0 w-full max-w-full bg-muted/50"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Il numero viene aggiornato automaticamente quando cambi data o locazione.
+                </p>
               </div>
 
               <div className="grid gap-1 min-w-0">

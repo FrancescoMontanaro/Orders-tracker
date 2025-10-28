@@ -165,7 +165,8 @@ async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
                 ProductORM.name.label("product_name"),
                 ProductORM.unit.label("unit"),
                 LotORM.name.label("lot_name"),
-                LotORM.lot_date.label("lot_date")
+                LotORM.lot_date.label("lot_date"),
+                LotORM.location.label("lot_location")
             )
             .where(OrderItemORM.order_id.in_(order_ids))
             .join(ProductORM, ProductORM.id == OrderItemORM.product_id)
@@ -180,14 +181,15 @@ async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
         items_by_order: Dict[int, List[OrderItem]] = {}
 
         # Map each item to its order
-        for item, product_name, unit, lot_name, lot_date in items_rows:
+        for item, product_name, unit, lot_name, lot_date, lot_location in items_rows:
             # Validate and map the item
             pyd = OrderItem.model_validate({
                 **item.__dict__,
                 "product_name": product_name,
                 "unit": unit,
                 "lot_name": lot_name,
-                "lot_date": lot_date
+                "lot_date": lot_date,
+                "lot_location": lot_location,
             })
 
             # Append the item to the list for its order
@@ -252,7 +254,8 @@ async def get_order_by_id(order_id: int) -> Optional[Order]:
                 ProductORM.name.label("product_name"),
                 ProductORM.unit.label("unit"),
                 LotORM.name.label("lot_name"),
-                LotORM.lot_date.label("lot_date")
+                LotORM.lot_date.label("lot_date"),
+                LotORM.location.label("lot_location")
             )
             .join(ProductORM, ProductORM.id == OrderItemORM.product_id)
             .outerjoin(LotORM, LotORM.id == OrderItemORM.lot_id)
@@ -266,14 +269,15 @@ async def get_order_by_id(order_id: int) -> Optional[Order]:
         order_items = result.all()
 
         # Validate and map the order items
-        for item, product_name, unit, lot_name, lot_date in order_items:
+        for item, product_name, unit, lot_name, lot_date, lot_location in order_items:
             # Validate and map the item
             pyd = OrderItem.model_validate({
                 **item.__dict__,
                 "product_name": product_name,
                 "unit": unit,
                 "lot_name": lot_name,
-                "lot_date": lot_date
+                "lot_date": lot_date,
+                "lot_location": lot_location,
             })
 
             # Append the item to the order

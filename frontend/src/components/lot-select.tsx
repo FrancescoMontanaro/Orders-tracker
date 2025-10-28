@@ -10,7 +10,7 @@ import {
   CommandItem,
   CommandEmpty,
 } from '@/components/ui/command';
-import { ChevronsUpDown, Check, CalendarDays } from 'lucide-react';
+import { ChevronsUpDown, Check, CalendarDays, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLotsSearch } from '@/hooks/useLotsSearch';
 import { LotOption, formatLotOptionDate } from '@/types/lot';
@@ -65,7 +65,7 @@ export function LotSelect({
           <CommandInput
             value={query}
             onValueChange={setQuery}
-            placeholder="Cerca per nome o data…"
+            placeholder="Cerca per nome, data o luogo…"
           />
           <CommandList>
             {allowClear && (
@@ -104,6 +104,10 @@ export function LotSelect({
                   />
                   <div className="flex flex-col">
                     <span className="font-medium leading-tight">{lot.name}</span>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <MapPin className="h-3 w-3" aria-hidden />
+                      {lot.location || 'Luogo non disponibile'}
+                    </span>
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <CalendarDays className="h-3 w-3" aria-hidden />
                       {formatLotOptionDate(lot.lot_date) || 'Data non disponibile'}

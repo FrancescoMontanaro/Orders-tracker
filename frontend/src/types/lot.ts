@@ -2,6 +2,7 @@ export type LotOption = {
   id: number;
   name: string;
   lot_date: string;
+  location: string;
   description?: string | null;
 };
 

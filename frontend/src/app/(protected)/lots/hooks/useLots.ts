@@ -29,8 +29,10 @@ export function useLots() {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [dateFrom, setDateFrom] = React.useState<string | undefined>(undefined);
   const [dateTo, setDateTo] = React.useState<string | undefined>(undefined);
+  const [locationTerm, setLocationTerm] = React.useState('');
 
   const debouncedSearch = useDebouncedValue(searchTerm, 350);
+  const debouncedLocation = useDebouncedValue(locationTerm, 350);
 
   const fetchPage = React.useCallback(async () => {
     setLoading(true);
@@ -38,6 +40,7 @@ export function useLots() {
     try {
       const filters: Record<string, any> = {};
       if (debouncedSearch.trim()) filters.name = debouncedSearch.trim();
+      if (debouncedLocation.trim()) filters.location = debouncedLocation.trim();
       if (dateFrom) filters.lot_date_after = dateFrom;
       if (dateTo) filters.lot_date_before = dateTo;
 
@@ -73,7 +76,7 @@ export function useLots() {
     } finally {
       setLoading(false);
     }
-  }, [page, size, sorting, debouncedSearch, dateFrom, dateTo]);
+  }, [page, size, sorting, debouncedSearch, debouncedLocation, dateFrom, dateTo]);
 
   React.useEffect(() => {
     fetchPage();
@@ -81,7 +84,7 @@ export function useLots() {
 
   React.useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, dateFrom, dateTo]);
+  }, [debouncedSearch, debouncedLocation, dateFrom, dateTo]);
 
   return {
     rows,
@@ -94,12 +97,14 @@ export function useLots() {
     searchTerm,
     dateFrom,
     dateTo,
+    locationTerm,
     setPage,
     setSize,
     setSorting,
     setSearchTerm,
     setDateFrom,
     setDateTo,
+    setLocationTerm,
     refetch: fetchPage,
   };
 }

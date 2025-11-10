@@ -14,7 +14,7 @@ export type Option = {
   unit?: string | null;
 };
 
-type Endpoint = '/customers/list' | '/products/list' | 'expenses/categories/list';
+type Endpoint = '/customers/list' | '/products/list' | 'expenses/categories/list' | 'incomes/categories/list';
 
 /**
  * Remote search with debounce tailored to the shadcn combobox UX:
@@ -52,7 +52,7 @@ export function useRemoteSearch(endpoint: Endpoint) {
         list.map((x: any) =>
           endpoint === '/products/list'
             ? { id: Number(x.id), name: String(x.name), unit_price: x.unit_price ?? null, unit: x.unit ?? null }
-            : endpoint === 'expenses/categories/list'
+            : endpoint === 'expenses/categories/list' || endpoint === 'incomes/categories/list'
             ? { id: Number(x.id), name: String(x.descr ?? x.name ?? '') }
             : { id: Number(x.id), name: String(x.name) }
         )

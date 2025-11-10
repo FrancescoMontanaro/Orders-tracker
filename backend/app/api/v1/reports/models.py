@@ -53,6 +53,26 @@ class ExpenseCategoriesRow(BaseModel):
     category_descr: str
     amount: float
     count: int
+    
+    
+### Incomes Categories ###
+
+class IncomeCategoriesRequest(DateRange):
+    """
+    Represents a request for expenses data within a date range.
+    """
+    
+    category_ids: Optional[list[int]] = None
+
+class IncomeCategoriesRow(BaseModel):
+    """
+    Represents a row in the income report.
+    """
+    
+    category_id: int
+    category_descr: str
+    amount: float
+    count: int
 
 
 ### Customer Sales ###
@@ -112,6 +132,17 @@ class CashExpense(BaseModel):
     note: Optional[str] = None
 
 
+class CashIncome(BaseModel):
+    """
+    Represents a cash income in the cash flow report.
+    """
+    
+    id: int
+    date: date
+    amount: float
+    note: Optional[str] = None
+
+
 class CashflowResponse(BaseModel):
     """
     Represents a response containing cash flow data.
@@ -122,6 +153,7 @@ class CashflowResponse(BaseModel):
     net: float
     entries: List[CashEntry]
     expenses: List[CashExpense]
+    incomes: List[CashIncome]
 
 
 class CashflowRequest(DateRange):
@@ -129,4 +161,4 @@ class CashflowRequest(DateRange):
     Represents a request for cash flow data within a date range.
     """
     
-    pass
+    include_incomes: bool = True

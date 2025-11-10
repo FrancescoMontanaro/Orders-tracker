@@ -1,0 +1,1778 @@
+{
+	"info": {
+		"_postman_id": "6edf5797-f793-4a9c-90be-7973d80329b3",
+		"name": "Orders tracker",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "21446559"
+	},
+	"item": [
+		{
+			"name": "Base",
+			"item": [
+				{
+					"name": "/",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}",
+							"host": [
+								"{{base_url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "/auth/register",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "username",
+									"value": "dghydrofarm@gmail.com",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "P9wUES6WAIp0WNsi",
+									"type": "text"
+								},
+								{
+									"key": "name",
+									"value": "Anthony Vendittelli",
+									"type": "text"
+								},
+								{
+									"key": "registration_password",
+									"value": "meqdu9-qixkiB-suvpod",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/auth/login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Extract the response",
+									"const response = pm.response.json();",
+									"",
+									"// Check if the status code is 200",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"",
+									"// Extract access_token and set it to the environment variable",
+									"if (response && response.access_token) {",
+									"    pm.environment.set(\"access_token\", response.access_token);",
+									"    pm.test(\"Access token is extracted and set to environment variable\", function () {",
+									"        pm.expect(pm.environment.get(\"access_token\")).to.equal(response.access_token);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "username",
+									"value": "{{email}}",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "{{password}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/auth/refresh",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Extract the response",
+									"const response = pm.response.json();",
+									"",
+									"// Check if the status code is 200",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"",
+									"// Extract access_token and set it to the environment variable",
+									"if (response && response.access_token) {",
+									"    pm.environment.set(\"access_token\", response.access_token);",
+									"    pm.test(\"Access token is extracted and set to environment variable\", function () {",
+									"        pm.expect(pm.environment.get(\"access_token\")).to.equal(response.access_token);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Customers",
+			"item": [
+				{
+					"name": "/customers/list",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"filters\": {\n        \"name\": \"V\"\n    },\n    \"sort\": [\n        {\n            \"field\": \"id\",\n            \"order\": \"desc\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/customers/list",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"customers",
+								"list"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/customers/{customer_id}",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/customers/:customer_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"customers",
+								":customer_id"
+							],
+							"variable": [
+								{
+									"key": "customer_id",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/customers",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"test5\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/customers",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"customers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/customers/{customer_id}",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"update\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/customers/:customer_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"customers",
+								":customer_id"
+							],
+							"variable": [
+								{
+									"key": "customer_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/customers/{customer_id}",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/customers/:customer_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"customers",
+								":customer_id"
+							],
+							"variable": [
+								{
+									"key": "customer_id",
+									"value": "6"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "/products/list",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"filters\": {\n        \"is_active\": false\n    },\n    \"sort\": [\n        {\n            \"field\": \"unit_price\",\n            \"order\": \"asc\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products/list",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products",
+								"list"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/products/{product_id}",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/products/:product_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products",
+								":product_id"
+							],
+							"variable": [
+								{
+									"key": "product_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/products",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Fagioli\",\n  \"unit_price\": 2.5,\n  \"unit\": \"Px\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/products/{product_id}",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"unit_price\": 3.1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products/:product_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products",
+								":product_id"
+							],
+							"variable": [
+								{
+									"key": "product_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/products/{product_id}",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/products/:product_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products",
+								":product_id"
+							],
+							"variable": [
+								{
+									"key": "product_id",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Orders",
+			"item": [
+				{
+					"name": "/orders/list",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"filters\": {\n        \"name\": \"Fagioli\"\n    },\n    \"sort\": [\n        {\n            \"field\": \"unit_price\",\n            \"order\": \"asc\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/orders/list?page=1&size=10&delivery_date_after=2025-08-13&delivery_date_before=2025-08-14",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"orders",
+								"list"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								},
+								{
+									"key": "delivery_date_after",
+									"value": "2025-08-13"
+								},
+								{
+									"key": "delivery_date_before",
+									"value": "2025-08-14"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/orders/{order_id}",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/orders/:order_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"orders",
+								":order_id"
+							],
+							"variable": [
+								{
+									"key": "order_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/orders",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_id\": 1,\n  \"delivery_date\": \"2025-08-14\",\n  \"applied_discount\": 8,\n  \"items\": [\n    {\n      \"product_id\": 1,\n      \"quantity\": 2\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/orders",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"orders"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/orders/{order_id}",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"delivered\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/orders/:order_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"orders",
+								":order_id"
+							],
+							"variable": [
+								{
+									"key": "order_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/orders/{order_id}",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/orders/:order_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"orders",
+								":order_id"
+							],
+							"variable": [
+								{
+									"key": "order_id",
+									"value": "5"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Expenses",
+			"item": [
+				{
+					"name": "/expenses/list",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"filters\": {        \n    },\n    \"sort\": [\n        {\n            \"field\": \"amount\",\n            \"order\": \"desc\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/expenses/list?page=1&size=10&timestamp_after=2025-08-12",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"expenses",
+								"list"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								},
+								{
+									"key": "timestamp_after",
+									"value": "2025-08-12"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/expenses/{expense_id}",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/expenses/:expense_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"expenses",
+								":expense_id"
+							],
+							"variable": [
+								{
+									"key": "expense_id",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/expenses",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"category_id\": 1,\n    \"timestamp\": \"2025-08-13\",\n    \"amount\": 30,\n    \"note\": \"Questa è una spesa\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/expenses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"expenses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/expenses/{expense_id}",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 50,\n    \"timestamp\": \"2025-08-15\",\n    \"note\": \"test\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/expenses/:expense_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"expenses",
+								":expense_id"
+							],
+							"variable": [
+								{
+									"key": "expense_id",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/expenses/{expense_id}",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/expenses/:expense_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"expenses",
+								":expense_id"
+							],
+							"variable": [
+								{
+									"key": "expense_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Expenses Categories",
+			"item": [
+				{
+					"name": "/expenses/categories/list",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"filters\": {        \n    },\n    \"sort\": [\n        {\n            \"field\": \"id\",\n            \"order\": \"asc\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/expenses/categories/list?page=1&size=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"expenses",
+								"categories",
+								"list"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "expenses/categories/{category_id}",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/expenses/categories/:category_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"expenses",
+								"categories",
+								":category_id"
+							],
+							"variable": [
+								{
+									"key": "category_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/expenses/categories/",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"descr\": \"test\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/expenses/categories/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"expenses",
+								"categories",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/expenses/categories/{expense_id}",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"descr\": \"test1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/expenses/categories/:category_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"expenses",
+								"categories",
+								":category_id"
+							],
+							"variable": [
+								{
+									"key": "category_id",
+									"value": "3"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/expenses/categories/{expense_id}",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/expenses/categories/:category_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"expenses",
+								"categories",
+								":category_id"
+							],
+							"variable": [
+								{
+									"key": "category_id",
+									"value": "3"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Incomes",
+			"item": [
+				{
+					"name": "/incomes/list",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"filters\": {        \n    },\n    \"sort\": [\n        {\n            \"field\": \"amount\",\n            \"order\": \"desc\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/incomes/list?page=1&size=10&timestamp_after=2025-08-12",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"incomes",
+								"list"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								},
+								{
+									"key": "timestamp_after",
+									"value": "2025-08-12"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/incomes/{income_id}",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/incomes/:income_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"incomes",
+								":income_id"
+							],
+							"variable": [
+								{
+									"key": "income_id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/incomes",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"category_id\": 1,\n    \"timestamp\": \"2025-08-13\",\n    \"amount\": 30,\n    \"note\": \"Questa è un'entrata\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/incomes",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"incomes"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/incomes/{income_id}",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 50,\n    \"timestamp\": \"2025-08-15\",\n    \"note\": \"test\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/incomes/:income_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"incomes",
+								":income_id"
+							],
+							"variable": [
+								{
+									"key": "income_id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/incomes/{income_id}",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/incomes/:income_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"incomes",
+								":income_id"
+							],
+							"variable": [
+								{
+									"key": "income_id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Incomes Categories",
+			"item": [
+				{
+					"name": "/incomes/categories/list",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"filters\": {        \n    },\n    \"sort\": [\n        {\n            \"field\": \"id\",\n            \"order\": \"asc\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/incomes/categories/list?page=1&size=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"incomes",
+								"categories",
+								"list"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "incomes/categories/{category_id}",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/incomes/categories/:category_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"incomes",
+								"categories",
+								":category_id"
+							],
+							"variable": [
+								{
+									"key": "category_id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/incomes/categories/",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"descr\": \"test\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/incomes/categories/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"incomes",
+								"categories",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/incomes/categories/{expense_id}",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"descr\": \"test1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/incomes/categories/:category_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"incomes",
+								"categories",
+								":category_id"
+							],
+							"variable": [
+								{
+									"key": "category_id",
+									"value": "3"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/incomes/categories/{expense_id}",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/incomes/categories/:category_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"incomes",
+								"categories",
+								":category_id"
+							],
+							"variable": [
+								{
+									"key": "category_id",
+									"value": "3"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Lots",
+			"item": [
+				{
+					"name": "/lots/list",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"filters\": {\n    },\n    \"sort\": [\n        {\n            \"field\": \"id\",\n            \"order\": \"desc\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/lots/list",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"lots",
+								"list"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/lots/{lot_id}",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/lots/:lot_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"lots",
+								":lot_id"
+							],
+							"variable": [
+								{
+									"key": "lot_id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/lots",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"lot_date\": \"2025-10-28\",\n    \"name\": \"2025-10-28-vasca_1\",\n    \"description\": \"vasca 1\",\n    \"order_id\": 48\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/lots",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"lots"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/lots/{lot_id}",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"update\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/lots/:lot_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"lots",
+								":lot_id"
+							],
+							"variable": [
+								{
+									"key": "lot_id",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/lots/{lot_id}",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/lots/:lot_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"lots",
+								":lot_id"
+							],
+							"variable": [
+								{
+									"key": "lot_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Notes",
+			"item": [
+				{
+					"name": "/notes/list",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sort\": [\n        {\n            \"field\": \"id\",\n            \"order\": \"desc\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/notes/list",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notes",
+								"list"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/notes/{note_id}",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notes/:note_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notes",
+								":note_id"
+							],
+							"variable": [
+								{
+									"key": "note_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/notes",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"text\": \"test\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/notes",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notes"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/notes/{note_id}",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"text\": \"update\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/notes/:note_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notes",
+								":note_id"
+							],
+							"variable": [
+								{
+									"key": "note_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/notes/{note_id}",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notes/:note_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notes",
+								":note_id"
+							],
+							"variable": [
+								{
+									"key": "note_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Reports",
+			"item": [
+				{
+					"name": "/reports/product-sales",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcmFuY2VzY28ubW9udGFuYXJvOTk4QGdtYWlsLmNvbSIsImlhdCI6MTc1NTA3NDExOSwiZXhwIjoxNzU1MDc1MDE5LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.vybtVvjtpS5y9u-x8F6Ds5uNEVrP_sPwjQNPqGnl3JM"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"start_date\": \"2025-08-13\",\n  \"end_date\": \"2025-08-13\",\n  \"product_ids\": [1, 2]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/reports/product-sales",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reports",
+								"product-sales"
+							]
+						},
+						"description": "Generated from cURL: curl -X 'POST' \\\n  'http://127.0.0.1:8000/reports/product-sales' \\\n  -H 'accept: application/json' \\\n  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcmFuY2VzY28ubW9udGFuYXJvOTk4QGdtYWlsLmNvbSIsImlhdCI6MTc1NTA3NDExOSwiZXhwIjoxNzU1MDc1MDE5LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.vybtVvjtpS5y9u-x8F6Ds5uNEVrP_sPwjQNPqGnl3JM' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"start_date\": \"2025-08-13\",\n  \"end_date\": \"2025-08-13\",\n  \"product_id\": 0\n}'"
+					},
+					"response": []
+				},
+				{
+					"name": "/reports/expenses",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcmFuY2VzY28ubW9udGFuYXJvOTk4QGdtYWlsLmNvbSIsImlhdCI6MTc1NTA3NDExOSwiZXhwIjoxNzU1MDc1MDE5LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.vybtVvjtpS5y9u-x8F6Ds5uNEVrP_sPwjQNPqGnl3JM"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"start_date\": \"2025-05-01\",\n  \"end_date\": \"2025-10-01\",\n  \"category_ids\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/reports/expenses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reports",
+								"expenses"
+							]
+						},
+						"description": "Generated from cURL: curl -X 'POST' \\\n  'http://127.0.0.1:8000/reports/product-sales' \\\n  -H 'accept: application/json' \\\n  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcmFuY2VzY28ubW9udGFuYXJvOTk4QGdtYWlsLmNvbSIsImlhdCI6MTc1NTA3NDExOSwiZXhwIjoxNzU1MDc1MDE5LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.vybtVvjtpS5y9u-x8F6Ds5uNEVrP_sPwjQNPqGnl3JM' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"start_date\": \"2025-08-13\",\n  \"end_date\": \"2025-08-13\",\n  \"product_id\": 0\n}'"
+					},
+					"response": []
+				},
+				{
+					"name": "/reports/incomes",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcmFuY2VzY28ubW9udGFuYXJvOTk4QGdtYWlsLmNvbSIsImlhdCI6MTc1NTA3NDExOSwiZXhwIjoxNzU1MDc1MDE5LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.vybtVvjtpS5y9u-x8F6Ds5uNEVrP_sPwjQNPqGnl3JM"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"start_date\": \"2025-05-01\",\n  \"end_date\": \"2025-10-01\",\n  \"category_ids\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/reports/incomes",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reports",
+								"incomes"
+							]
+						},
+						"description": "Generated from cURL: curl -X 'POST' \\\n  'http://127.0.0.1:8000/reports/product-sales' \\\n  -H 'accept: application/json' \\\n  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcmFuY2VzY28ubW9udGFuYXJvOTk4QGdtYWlsLmNvbSIsImlhdCI6MTc1NTA3NDExOSwiZXhwIjoxNzU1MDc1MDE5LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.vybtVvjtpS5y9u-x8F6Ds5uNEVrP_sPwjQNPqGnl3JM' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"start_date\": \"2025-08-13\",\n  \"end_date\": \"2025-08-13\",\n  \"product_id\": 0\n}'"
+					},
+					"response": []
+				},
+				{
+					"name": "/reports/customer-sales",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcmFuY2VzY28ubW9udGFuYXJvOTk4QGdtYWlsLmNvbSIsImlhdCI6MTc1NTA3NDExOSwiZXhwIjoxNzU1MDc1MDE5LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.vybtVvjtpS5y9u-x8F6Ds5uNEVrP_sPwjQNPqGnl3JM"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"start_date\": \"2025-08-13\",\n  \"end_date\": \"2025-09-13\",\n  \"customer_id\": 3\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/reports/customer-sales",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reports",
+								"customer-sales"
+							]
+						},
+						"description": "Generated from cURL: curl -X 'POST' \\\n  'http://127.0.0.1:8000/reports/product-sales' \\\n  -H 'accept: application/json' \\\n  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcmFuY2VzY28ubW9udGFuYXJvOTk4QGdtYWlsLmNvbSIsImlhdCI6MTc1NTA3NDExOSwiZXhwIjoxNzU1MDc1MDE5LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.vybtVvjtpS5y9u-x8F6Ds5uNEVrP_sPwjQNPqGnl3JM' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"start_date\": \"2025-08-13\",\n  \"end_date\": \"2025-08-13\",\n  \"product_id\": 0\n}'"
+					},
+					"response": []
+				},
+				{
+					"name": "/reports/cashflow",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcmFuY2VzY28ubW9udGFuYXJvOTk4QGdtYWlsLmNvbSIsImlhdCI6MTc1NTA3NDExOSwiZXhwIjoxNzU1MDc1MDE5LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.vybtVvjtpS5y9u-x8F6Ds5uNEVrP_sPwjQNPqGnl3JM"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"start_date\": \"2025-08-13\",\n  \"end_date\": \"2025-08-13\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/reports/cashflow",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reports",
+								"cashflow"
+							]
+						},
+						"description": "Generated from cURL: curl -X 'POST' \\\n  'http://127.0.0.1:8000/reports/cashflow' \\\n  -H 'accept: application/json' \\\n  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcmFuY2VzY28ubW9udGFuYXJvOTk4QGdtYWlsLmNvbSIsImlhdCI6MTc1NTA3NDExOSwiZXhwIjoxNzU1MDc1MDE5LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.vybtVvjtpS5y9u-x8F6Ds5uNEVrP_sPwjQNPqGnl3JM' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"start_date\": \"2025-08-13\",\n  \"end_date\": \"2025-08-13\"\n}'"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

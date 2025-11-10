@@ -6,6 +6,8 @@ from ....db.orm import (
     ProductORM,
     ExpenseORM,
     ExpenseCategoryORM,
+    IncomeORM,
+    IncomesCategoryORM,
     CustomerORM,
     OrderORM,
     OrderItemORM
@@ -15,11 +17,12 @@ from ....db.orm import (
 from .models import (
     ProductSalesRequest, ProductSalesRow,
     ExpensesCategoriesRequest, ExpenseCategoriesRow,
+    IncomeCategoriesRequest, IncomeCategoriesRow,
     CustomerSalesRequest, CustomerSalesResponse, CustomerSalesRow,
-    CashflowRequest, CashflowResponse, CashEntry, CashExpense
+    CashflowRequest, CashflowResponse, CashEntry, CashExpense, CashIncome
 )
 
-\
+
 # --------------------------- #
 # ------ Product Sales ------ #
 # --------------------------- #
@@ -130,6 +133,68 @@ async def report_expenses_categories(payload: ExpensesCategoriesRequest) -> List
         # Create and return the list of ExpenseCategoriesRow
         return [
             ExpenseCategoriesRow(
+                category_id = int(r.category_id),
+                category_descr = r.category_descr,
+                amount = round(float(r.amount or 0), 2),
+                count = int(r.records_count or 0)
+            )
+            for r in rows
+        ]
+
+# --------------------- #
+# ------ Incomes ------ #
+# --------------------- #
+
+
+async def report_income_categories(payload: IncomeCategoriesRequest) -> List[IncomeCategoriesRow]:
+    """
+    Function to generate income report.
+
+    Parameters:
+    - payload: IncomeCategoriesRequest
+
+    Returns:
+    - List[IncomeCategoriesRow]
+    """
+
+    # Querying the database
+    async with db_session() as session:
+        # Create the statement to compute income by category
+        stmt = (
+            select(
+                IncomesCategoryORM.id.label("category_id"),
+                IncomesCategoryORM.descr.label("category_descr"),
+                func.coalesce(func.sum(IncomeORM.amount), 0).label("amount"),
+                func.count(IncomeORM.id).label("records_count"),
+            )
+            .select_from(IncomesCategoryORM)
+            .join(
+                IncomeORM,
+                and_(
+                    IncomeORM.category_id == IncomesCategoryORM.id,
+                    IncomeORM.timestamp >= payload.start_date,
+                    IncomeORM.timestamp <= payload.end_date,
+                ),
+                isouter = True, 
+            )
+            .group_by(IncomesCategoryORM.id, IncomesCategoryORM.descr)
+            .order_by(IncomesCategoryORM.id.asc())
+        )
+        
+        # If specific category IDs are provided, filter the results
+        if payload.category_ids:
+            # Filtering by category ID
+            stmt = stmt.where(IncomesCategoryORM.id.in_(payload.category_ids))
+
+        # Executing the query
+        res = await session.execute(stmt)
+        
+        # Extracting all rows
+        rows = res.all()
+
+        # Create and return the list of IncomesCategoriesRow
+        return [
+            IncomeCategoriesRow(
                 category_id = int(r.category_id),
                 category_descr = r.category_descr,
                 amount = round(float(r.amount or 0), 2),
@@ -273,6 +338,42 @@ async def report_cashflow(payload: CashflowRequest) -> CashflowResponse:
 
         # Calculating the total entries amount
         entries_total = sum(e.amount for e in entries)
+        
+        # Initializing incomes list
+        incomes: List[CashIncome] = []
+        
+        # If include_incomes is True, process incomes
+        if payload.include_incomes:
+            # Create the statement for cash flow incomes
+            incomes_stmt = (
+                select(
+                    IncomeORM.id,
+                    IncomeORM.timestamp,
+                    IncomeORM.amount,
+                    IncomeORM.note,
+                )
+                .where(IncomeORM.timestamp.between(payload.start_date, payload.end_date))
+                .order_by(IncomeORM.timestamp.asc(), IncomeORM.id.asc())
+            )
+
+            # Executing the query
+            incomes_res = await session.execute(incomes_stmt)
+            incomes_rows = incomes_res.all()
+
+            # Mapping the results to CashIncome objects
+            incomes = [
+                CashIncome(
+                    id = int(r.id), 
+                    date = r.timestamp, 
+                    amount = float(r.amount or 0), 
+                    note = r.note
+                )
+                for r in incomes_rows
+            ]
+
+            # Adding incomes amounts to entries total
+            incomes_total = sum(i.amount for i in incomes)
+            entries_total += incomes_total
 
         # Create the statement for cash flow expenses
         expenses_stmt = (
@@ -313,5 +414,6 @@ async def report_cashflow(payload: CashflowRequest) -> CashflowResponse:
             expenses_total = round(expenses_total, 2),
             net = round(net, 2),
             entries = entries,
-            expenses = expenses
+            expenses = expenses,
+            incomes = incomes,
         )

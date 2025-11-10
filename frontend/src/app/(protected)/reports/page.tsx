@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ProductSalesCard } from './components/ProductSalesCard';
 import { CustomerSalesCard } from './components/CustomerSalesCard';
 import { CategoryExpensesCard } from './components/CategoryExpensesCard';
+import { CategoryIncomesCard } from './components/CategoryIncomesCard';
 
 /**
  * Reports page
@@ -27,7 +28,8 @@ export default function ReportPage() {
         <TabsList>
           <TabsTrigger value="product">Per Prodotto</TabsTrigger>
           <TabsTrigger value="customer">Per Cliente</TabsTrigger>
-          <TabsTrigger value="category">Per Spesa</TabsTrigger>
+          <TabsTrigger value="expenses">Per Spesa</TabsTrigger>
+          <TabsTrigger value="incomes">Per Entrata</TabsTrigger>
         </TabsList>
 
         <TabsContent value="product" className="space-y-6">
@@ -38,8 +40,12 @@ export default function ReportPage() {
           <CustomerSalesCard />
         </TabsContent>
 
-        <TabsContent value="category" className="space-y-6">
+        <TabsContent value="expenses" className="space-y-6">
           <CategoryExpensesCard />
+        </TabsContent>
+
+        <TabsContent value="incomes" className="space-y-6">
+          <CategoryIncomesCard />
         </TabsContent>
       </Tabs>
     </div>

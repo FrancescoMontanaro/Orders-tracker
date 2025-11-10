@@ -11,6 +11,7 @@ from .api.v1.lots.router import router as lots_router
 from .api.v1.notes.router import router as notes_router
 from .api.v1.health.router import router as health_router
 from .api.v1.orders.router import router as orders_router
+from .api.v1.incomes.router import router as incomes_router
 from .api.v1.reports.router import router as reports_router
 from .api.v1.products.router import router as products_router
 from .api.v1.expenses.router import router as expenses_router
@@ -39,6 +40,7 @@ app.include_router(customers_router, dependencies=[Depends(require_active_user)]
 app.include_router(products_router, dependencies=[Depends(require_active_user)])
 app.include_router(orders_router, dependencies=[Depends(require_active_user)])
 app.include_router(expenses_router, dependencies=[Depends(require_active_user)])
+app.include_router(incomes_router, dependencies=[Depends(require_active_user)])
 app.include_router(lots_router, dependencies=[Depends(require_active_user)])
 app.include_router(notes_router, dependencies=[Depends(require_active_user)])
 app.include_router(reports_router, dependencies=[Depends(require_active_user)])

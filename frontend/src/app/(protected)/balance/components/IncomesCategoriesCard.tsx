@@ -3,11 +3,9 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api-client';
-import { DatePicker } from '@/components/ui/date-picker';
-import { useFixRadixInertLeak } from '../hooks/useFixRadixInertLeak';
-import { useExpenses } from '../hooks/useExpenses';
-import { euro } from '../utils/currency';
-import { fmtDate } from '../utils/date';
+import Link from 'next/link';
+import { useFixRadixInertLeak } from '../../balance/hooks/useFixRadixInertLeak';
+import { useIncomeCategories } from '../hooks/useIncomeCategories';
 
 import {
   ColumnDef,
@@ -23,44 +21,41 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { X } from 'lucide-react';
-
-import { PaginationControls } from '@/components/ui/pagination-controls';
-import { RowActions } from './RowActions'; // Expense row actions
-import { EditExpenseDialog } from './EditExpenseDialog';
-import { AddExpenseDialog } from './AddExpenseDialog';
-import type { Expense } from '../types/expense';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
   AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
 } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { X } from 'lucide-react';
 
-/** Lightweight type for categories list */
-type ExpenseCategory = { id: number; descr: string };
+import { PaginationControls } from '@/components/ui/pagination-controls';
+import { IncomeRowActionsCategory } from './IncomeRowActionsCategory';
+import { EditIncomeCategoryDialog } from './EditIncomeCategoryDialog';
+import { AddIncomeCategoryDialog } from './AddIncomeCategoryDialog';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
-/** Sentinel value used by SelectItem for "All categories" (Radix cannot use empty string) */
-const ALL_CATEGORIES = '__ALL__';
+type IncomeCategory = { id: number; descr: string };
 
 /**
- * Expenses page (responsive)
- * - Desktop: classic table with selection/sort.
- * - Mobile: card list + mobile toolbar (select all + sort).
- * - Prevent horizontal overflow via min-w-0, wrappers and safe truncation.
- * - Category column + category filter (by category_id).
+ * Income Categories page (responsive)
+ * - Mirrors Expenses UI: selection, sorting, pagination, responsive table/list.
+ * - Single text filter (description), same error handling and bulk delete flow.
  */
-export default function ExpensesPage() {
+export default function IncomesCategoriesCard() {
   useFixRadixInertLeak();
 
   const {
     rows, total, page, size, sorting, loading, error,
-    noteQuery, amountMin, amountMax, dateFrom, dateTo,
-    categoryId, setCategoryId,
-    setPage, setSize, setSorting, setNoteQuery, setAmountMin, setAmountMax, setDateFrom, setDateTo,
+    descrQuery, setDescrQuery,
+    setPage, setSize, setSorting,
     refetch,
-    totalAmount=0,
-  } = useExpenses();
+  } = useIncomeCategories();
 
   const [globalError, setGlobalError] = React.useState<string | null>(null);
 
@@ -69,7 +64,7 @@ export default function ExpensesPage() {
 
   // Edit & Add dialogs
   const [editOpen, setEditOpen] = React.useState(false);
-  const [editExpense, setEditExpense] = React.useState<Expense | null>(null);
+  const [editCat, setEditCat] = React.useState<IncomeCategory | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
 
   // Bulk delete confirm + inert cleanup
@@ -82,12 +77,12 @@ export default function ExpensesPage() {
     }
   }, []);
 
-  const onEdit = (e: Expense) => {
-    setEditExpense(e);
+  const onEdit = (c: IncomeCategory) => {
+    setEditCat(c);
     setEditOpen(true);
   };
 
-  // Cleanup after dialogs close
+  // Cleanup after dialogs close (prevents stuck inert state)
   const cleanupInert = React.useCallback(() => {
     if (typeof document !== 'undefined') {
       document.querySelectorAll('[inert]').forEach((el) => el.removeAttribute('inert'));
@@ -103,47 +98,8 @@ export default function ExpensesPage() {
     if (!o) cleanupInert();
   }, [cleanupInert]);
 
-  // ===============================
-  // Fetch categories via POST /expenses/categories/list (size = -1)
-  // ===============================
-  const [categories, setCategories] = React.useState<ExpenseCategory[]>([]);
-  const [catLoading, setCatLoading] = React.useState(false);
-  const [catError, setCatError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    let active = true;
-    (async () => {
-      setCatLoading(true);
-      setCatError(null);
-      try {
-        const res = await api.post(
-          '/expenses/categories/list',
-          {
-            filters: {},
-            sort: [{ field: 'id', order: 'asc' as const }],
-          },
-          { params: { page: 1, size: -1 } }
-        );
-        const items: ExpenseCategory[] = res?.data?.data?.items ?? [];
-        if (active) setCategories(items);
-      } catch (e: any) {
-        if (active) {
-          setCatError(
-            e?.response?.data?.detail ??
-            e?.response?.data?.message ??
-            e?.message ??
-            'Errore categorie'
-          );
-        }
-      } finally {
-        if (active) setCatLoading(false);
-      }
-    })();
-    return () => { active = false; };
-  }, []);
-
   // Desktop columns
-  const columns = React.useMemo<ColumnDef<Expense>[]>(() => [
+  const columns = React.useMemo<ColumnDef<IncomeCategory>[]>(() => [
     {
       id: 'select',
       header: ({ table }) => (
@@ -165,51 +121,28 @@ export default function ExpensesPage() {
       size: 32,
     },
     {
-      accessorKey: 'timestamp',
-      header: 'Data',
+      accessorKey: 'descr',
+      header: 'Descrizione',
       enableSorting: true,
-      cell: ({ row }) => <span className="tabular-nums">{fmtDate(row.original.timestamp)}</span>,
-    },
-    {
-      accessorKey: 'amount',
-      header: 'Importo',
-      enableSorting: true,
-      cell: ({ row }) => <span className="tabular-nums">{euro(row.original.amount)}</span>,
-    },
-    // Category column (read-only, comes from API as `category`)
-    {
-      accessorKey: 'category',
-      header: 'Categoria',
-      enableSorting: true, // allowed if backend supports sorting by category descr
       cell: ({ row }) => (
-        <span className="truncate" title={row.original.category || undefined}>
-          {row.original.category || '—'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'note',
-      header: 'Nota',
-      enableSorting: false,
-      cell: ({ row }) => {
-        const note = row.original.note || '-';
-        return (
-          <div
-            title={typeof note === 'string' ? note : undefined}
-            className="max-w-[28ch] sm:max-w-[48ch] whitespace-pre-wrap break-words line-clamp-2"
+        <div className="max-w-[48ch] whitespace-pre-wrap break-words">
+          <Link
+            href={{ pathname: '/reports', query: { category_id: row.original.id } }}
+            className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm whitespace-pre-wrap break-words"
+            title="Vai al report della categoria"
           >
-            {note}
-          </div>
-        );
-      },
+            {row.original.descr}
+          </Link>
+        </div>
+      ),
     },
     {
       id: 'actions',
       header: 'Azioni',
       enableSorting: false,
       cell: ({ row }) => (
-        <RowActions
-          expense={row.original}
+        <IncomeRowActionsCategory
+          category={row.original}
           onEdit={onEdit}
           onChanged={() => refetch()}
           onError={(msg) => setGlobalError(msg)}
@@ -238,20 +171,15 @@ export default function ExpensesPage() {
   );
 
   const resetFilters = React.useCallback(() => {
-    setNoteQuery('');
-    setAmountMin('');
-    setAmountMax('');
-    setDateFrom('');
-    setDateTo('');
-    setCategoryId(''); // reset category filter
-    setSorting([{ id: 'timestamp', desc: true }]);
+    setDescrQuery('');
+    setSorting([{ id: 'descr', desc: false }]);
     setPage(1);
-  }, [setNoteQuery, setAmountMin, setAmountMax, setDateFrom, setDateTo, setCategoryId, setSorting, setPage]);
+  }, [setDescrQuery, setSorting, setPage]);
 
   const [errorVisible, setErrorVisible] = React.useState(false);
   React.useEffect(() => {
-    if (globalError || error || catError) setErrorVisible(true);
-  }, [globalError, error, catError]);
+    if (globalError || error) setErrorVisible(true);
+  }, [globalError, error]);
 
   // Bulk delete
   async function bulkDeletePerform() {
@@ -260,7 +188,7 @@ export default function ExpensesPage() {
 
     const errors: string[] = [];
     const results = await Promise.allSettled(
-      selectedIds.map((id) => api.delete(`/expenses/${id}`))
+      selectedIds.map((id) => api.delete(`/incomes/categories/${id}`))
     );
 
     results.forEach((res, idx) => {
@@ -303,19 +231,19 @@ export default function ExpensesPage() {
     <Card className="max-w-full">
       <CardHeader className="space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-lg">Spese</CardTitle>
+          <CardTitle className="text-lg">Categorie di entrata</CardTitle>
 
           {selectedIds.length > 0 ? (
             <Button variant="destructive" onClick={() => setConfirmBulkOpen(true)}>
               Elimina selezionate ({selectedIds.length})
             </Button>
           ) : (
-            <Button onClick={() => setAddOpen(true)}>+ Aggiungi spesa</Button>
+            <Button onClick={() => setAddOpen(true)}>+ Aggiungi categoria</Button>
           )}
         </div>
 
         {/* Global errors */}
-        {errorVisible && (globalError || error || catError) && (
+        {errorVisible && (globalError || error) && (
           <div className="relative rounded-md border border-red-200 bg-red-50 p-3 pr-10 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300 whitespace-pre-line">
             <button
               type="button"
@@ -325,99 +253,21 @@ export default function ExpensesPage() {
             >
               <X className="h-4 w-4" />
             </button>
-            {globalError || error || catError}
+            {globalError || error}
           </div>
         )}
 
         {/* ===== Desktop filters (md+) ===== */}
         <div className="hidden md:flex flex-wrap items-end gap-3 min-w-0">
-          {/* Date range */}
-          <div className="min-w-[160px]">
+          {/* Description search */}
+          <div className="flex-1 min-w-[260px]">
             <div className="grid gap-1">
-              <Label>Da</Label>
-              <DatePicker
-                value={dateFrom}
-                onChange={setDateFrom}
-                placeholder="Data da"
-              />
-            </div>
-          </div>
-          <div className="min-w-[160px]">
-            <div className="grid gap-1">
-              <Label>A</Label>
-              <DatePicker
-                value={dateTo}
-                onChange={setDateTo}
-                placeholder="Data a"
-              />
-            </div>
-          </div>
-
-          {/* Amount min/max */}
-          <div className="min-w-[140px]">
-            <div className="grid gap-1">
-              <Label>Importo min</Label>
+              <Label>Descrizione</Label>
               <Input
-                type="number"
-                step="0.01"
-                value={amountMin}
-                placeholder="0.00"
-                onChange={(e) => setAmountMin(e.target.value)}
+                placeholder="Cerca nella descrizione…"
+                value={descrQuery}
+                onChange={(e) => setDescrQuery(e.target.value)}
               />
-            </div>
-          </div>
-          <div className="min-w-[140px]">
-            <div className="grid gap-1">
-              <Label>Importo max</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={amountMax}
-                placeholder="0.00"
-                onChange={(e) => setAmountMax(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Note search */}
-          <div className="flex-1 min-w-[220px]">
-            <div className="grid gap-1">
-              <Label>Nota</Label>
-              <Input
-                placeholder="Cerca nella nota…"
-                value={noteQuery}
-                onChange={(e) => setNoteQuery(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Category filter (by category_id) */}
-          <div className="min-w-[220px]">
-            <div className="grid gap-1">
-              <Label>Categoria</Label>
-              <Select
-                disabled={catLoading}
-                // When no filter, keep value undefined so placeholder shows (no need to match any item)
-                value={categoryId === '' ? undefined : String(categoryId)}
-                onValueChange={(v) => {
-                  if (v === ALL_CATEGORIES) setCategoryId('');
-                  else setCategoryId(Number(v));
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={catLoading ? 'Caricamento…' : 'Tutte le categorie'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* Non-empty sentinel to satisfy Radix rule */}
-                  <SelectItem value={ALL_CATEGORIES}>Tutte le categorie</SelectItem>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.descr}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
 
@@ -434,85 +284,21 @@ export default function ExpensesPage() {
 
         {/* ===== Mobile filters (<md) ===== */}
         <div className="md:hidden space-y-3">
-          {/* Row 1: note search full width */}
+          {/* Row 1: descr search full width */}
           <div className="grid gap-1 min-w-0">
-            <Label>Nota</Label>
+            <Label>Descrizione</Label>
             <Input
-              placeholder="Cerca nella nota…"
-              value={noteQuery}
-              onChange={(e) => setNoteQuery(e.target.value)}
+              placeholder="Cerca nella descrizione…"
+              value={descrQuery}
+              onChange={(e) => setDescrQuery(e.target.value)}
               className="min-w-0 w-full max-w-full"
             />
-          </div>
-
-          {/* Row 2: date range (2 cols) */}
-          <div className="grid grid-cols-2 gap-3 min-w-0">
-            <div className="grid gap-1 min-w-0">
-              <Label>Da</Label>
-              <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Data da" />
-            </div>
-            <div className="grid gap-1 min-w-0">
-              <Label>A</Label>
-              <DatePicker value={dateTo} onChange={setDateTo} placeholder="Data a" />
-            </div>
-          </div>
-
-          {/* Row 3: amount min/max (2 cols) */}
-          <div className="grid grid-cols-2 gap-3 min-w-0">
-            <div className="grid gap-1 min-w-0">
-              <Label>Importo min</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={amountMin}
-                placeholder="0.00"
-                onChange={(e) => setAmountMin(e.target.value)}
-                className="min-w-0 w-full max-w-full"
-              />
-            </div>
-            <div className="grid gap-1 min-w-0">
-              <Label>Importo max</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={amountMax}
-                placeholder="0.00"
-                onChange={(e) => setAmountMax(e.target.value)}
-                className="min-w-0 w-full max-w-full"
-              />
-            </div>
-          </div>
-
-          {/* Row 4: category select full width */}
-          <div className="grid gap-1 min-w-0">
-            <Label>Categoria</Label>
-            <Select
-              disabled={catLoading}
-              value={categoryId === '' ? undefined : String(categoryId)}
-              onValueChange={(v) => {
-                if (v === ALL_CATEGORIES) setCategoryId('');
-                else setCategoryId(Number(v));
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="min-w-0 w-full max-w-full">
-                <SelectValue placeholder={catLoading ? 'Caricamento…' : 'Tutte le categorie'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_CATEGORIES}>Tutte le categorie</SelectItem>
-                {categories.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.descr}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Divider */}
           <div className="h-px bg-border" />
 
-          {/* Row 5: select all + sort + reset */}
+          {/* Row 2: select all + sort + reset */}
           <div className="grid grid-cols-2 gap-3 min-w-0 items-end">
             {/* Select all current page */}
             <label className="inline-flex items-center gap-2 text-sm min-w-0">
@@ -524,32 +310,28 @@ export default function ExpensesPage() {
               <span className="truncate">Seleziona tutti</span>
             </label>
 
-            {/* Sort select */}
+            {/* Sort select (Radix/Shadcn for consistent style) */}
             <div className="grid gap-1 min-w-0">
               <Label>Ordina per</Label>
               <Select
                 value={
-                  sorting?.[0]?.id === 'timestamp'
-                    ? sorting?.[0]?.desc ? 'date-desc' : 'date-asc'
-                    : sorting?.[0]?.id === 'amount'
-                    ? sorting?.[0]?.desc ? 'amount-desc' : 'amount-asc'
-                    : 'date-desc'
+                  sorting?.[0]?.id === 'descr'
+                    ? sorting?.[0]?.desc ? 'descr-desc' : 'descr-asc'
+                    : sorting?.[0]?.id === 'id'
+                    ? sorting?.[0]?.desc ? 'id-desc' : 'id-asc'
+                    : 'descr-asc'
                 }
                 onValueChange={(v) => {
-                  if (v === 'date-asc') setSorting([{ id: 'timestamp', desc: false }]);
-                  else if (v === 'date-desc') setSorting([{ id: 'timestamp', desc: true }]);
-                  else if (v === 'amount-asc') setSorting([{ id: 'amount', desc: false }]);
-                  else if (v === 'amount-desc') setSorting([{ id: 'amount', desc: true }]);
+                  if (v === 'descr-asc') setSorting([{ id: 'descr', desc: false }]);
+                  else if (v === 'descr-desc') setSorting([{ id: 'descr', desc: true }]);
                 }}
               >
                 <SelectTrigger className="min-w-0 w-full max-w-full">
                   <SelectValue placeholder="Ordina per" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="date-desc">Data (nuove → vecchie)</SelectItem>
-                  <SelectItem value="date-asc">Data (vecchie → nuove)</SelectItem>
-                  <SelectItem value="amount-desc">Importo (alto → basso)</SelectItem>
-                  <SelectItem value="amount-asc">Importo (basso → alto)</SelectItem>
+                  <SelectItem value="descr-asc">Descrizione (A → Z)</SelectItem>
+                  <SelectItem value="descr-desc">Descrizione (Z → A)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -563,16 +345,6 @@ export default function ExpensesPage() {
       </CardHeader>
 
       <CardContent className="space-y-4 overflow-x-hidden">
-        <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 p-3">
-          <div className="text-sm text-muted-foreground">Totale periodo</div>
-          {loading ? (
-            <Skeleton className="h-6 w-28" />
-          ) : (
-            <div className="text-xl font-semibold tabular-nums">
-              {euro(Number.isFinite(totalAmount as number) ? (totalAmount as number) : 0)}
-            </div>
-          )}
-        </div>
         {loading ? (
           <div className="space-y-3">
             <Skeleton className="h-6 w-1/3" />
@@ -582,9 +354,9 @@ export default function ExpensesPage() {
           </div>
         ) : (
           <>
-            {/* Desktop table (md+): classic table; inner min-width only on md+ */}
+            {/* Desktop table (md+): mirrors Expenses layout */}
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
-              <div className="md:min-w-[60rem]">{/* widened to fit the new column */}
+              <div className="md:min-w-[44rem]">
                 <Table>
                   <TableHeader>
                     {rows.length > 0 ? (
@@ -611,7 +383,7 @@ export default function ExpensesPage() {
                       ))
                     ) : (
                       <TableRow>
-                        {['', 'Data', 'Importo', 'Categoria', 'Nota', ''].map((h, i) => (
+                        {['', 'Descrizione', ''].map((h, i) => (
                           <TableHead key={i}>{h}</TableHead>
                         ))}
                       </TableRow>
@@ -632,7 +404,7 @@ export default function ExpensesPage() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center text-sm text-muted-foreground">
-                          Nessuna spesa trovata.
+                          Nessuna categoria trovata.
                         </TableCell>
                       </TableRow>
                     )}
@@ -641,51 +413,41 @@ export default function ExpensesPage() {
               </div>
             </div>
 
-            {/* Mobile list (<md): card layout to avoid horizontal overflow */}
+            {/* Mobile list (<md): card layout */}
             <div className="md:hidden space-y-2">
               {rows.length ? (
-                rows.map((r) => (
-                  <div key={r.id} className="rounded-md border p-3">
-                    {/* Top row: checkbox + date + actions */}
+                rows.map((c) => (
+                  <div key={c.id} className="rounded-md border p-3">
+                    {/* Top row: checkbox + descr + actions */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2 min-w-0">
                         <Checkbox
-                          checked={!!(rowSelection as any)[String(r.id)]}
+                          checked={!!(rowSelection as any)[String(c.id)]}
                           onCheckedChange={(v) =>
-                            setRowSelection((prev) => ({ ...prev, [String(r.id)]: !!v }))
+                            setRowSelection((prev) => ({ ...prev, [String(c.id)]: !!v }))
                           }
-                          aria-label={`Seleziona spesa ${r.id}`}
+                          aria-label={`Seleziona categoria ${c.id}`}
                           className="mt-0.5 shrink-0"
                         />
                         <div className="min-w-0">
-                          <div className="font-medium tabular-nums">{fmtDate(r.timestamp)}</div>
-                          <div className="text-sm tabular-nums">{euro(r.amount)}</div>
-                          {/* Category line under amount */}
-                          <div className="text-xs text-muted-foreground truncate" title={r.category || undefined}>
-                            {r.category || '—'}
-                          </div>
+                          <div className="font-medium break-words">{c.descr}</div>
                         </div>
                       </div>
 
                       <div className="shrink-0">
-                        <RowActions
-                          expense={r}
-                          onEdit={(e) => onEdit(e)}
+                        <IncomeRowActionsCategory
+                          category={c}
+                          onEdit={(cat) => onEdit(cat)}
                           onChanged={() => refetch()}
                           onError={(msg) => setGlobalError(msg)}
                         />
                       </div>
                     </div>
-
-                    {/* Note */}
-                    <div className="mt-2 text-sm text-muted-foreground break-words whitespace-pre-wrap">
-                      {r.note || '—'}
-                    </div>
                   </div>
                 ))
               ) : (
                 <div className="rounded-md border p-4 text-center text-sm text-muted-foreground">
-                  Nessuna spesa trovata.
+                  Nessuna categoria trovata.
                 </div>
               )}
             </div>
@@ -704,16 +466,15 @@ export default function ExpensesPage() {
       </CardContent>
 
       {/* Centralized dialogs */}
-      <EditExpenseDialog
+      <EditIncomeCategoryDialog
         open={editOpen}
         onOpenChange={handleEditOpenChange}
-        expense={editExpense}
+        category={editCat}
         onSaved={() => { setGlobalError(null); refetch(); }}
-        onDeleted={() => { setGlobalError(null); refetch(); }}
         onError={(msg) => setGlobalError(msg)}
       />
 
-      <AddExpenseDialog
+      <AddIncomeCategoryDialog
         open={addOpen}
         onOpenChange={handleAddOpenChange}
         onCreated={() => { setGlobalError(null); refetch(); }}
@@ -724,7 +485,7 @@ export default function ExpensesPage() {
       <AlertDialog open={confirmBulkOpen} onOpenChange={handleConfirmBulkOpenChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare {selectedIds.length} spesa/e?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminare {selectedIds.length} categoria/e di entrata?</AlertDialogTitle>
             <AlertDialogDescription>
               Questa azione non può essere annullata.
             </AlertDialogDescription>

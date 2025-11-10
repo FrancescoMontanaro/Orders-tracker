@@ -17,10 +17,10 @@ import {
 } from '@/components/ui/chart';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { MultiIncomeCategoryCombobox } from './MultiIncomeCategoryCombobox';
-import { useDebouncedValue } from '@/app/(protected)/expenses/hooks/useDebouncedValue';
+import { useDebouncedValue } from '@/app/(protected)/balance/hooks/useDebouncedValue';
 import type { SuccessResponse } from '@/types/api';
 import type { Option } from '../hooks/useRemoteSearch';
-import { euro } from '@/app/(protected)/expenses/utils/currency';
+import { euro } from '@/app/(protected)/balance/utils/currency';
 import { addDays, toIsoDate } from '../utils/date';
 
 /* ---------- Types for this report ---------- */
@@ -55,7 +55,7 @@ function truncateLabel(s: string, max = 18) {
 /* Chart config: show two series (Amount €, Count) */
 const categoryChartConfig = {
   amount: { label: 'Totale (EUR)', color: 'var(--chart-1)' },
-  count: { label: 'Numero spese', color: 'var(--chart-2)' },
+  count: { label: 'Numero entrate', color: 'var(--chart-2)' },
 } satisfies ChartConfig;
 
 type TWMode = 'none' | 'top5' | 'top10' | 'worst5' | 'worst10';
@@ -156,7 +156,7 @@ export function CategoryIncomesCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Spese per Categoria</CardTitle>
+        <CardTitle>Entrate per Categoria</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 overflow-x-hidden">
         {/* Filters */}
@@ -257,7 +257,7 @@ export function CategoryIncomesCard() {
                       {r.category_descr}
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                      <div className="text-muted-foreground">Numero spese</div>
+                      <div className="text-muted-foreground">Numero entrate</div>
                       <div className="text-right tabular-nums">{r.count}</div>
                       <div className="text-muted-foreground">Totale</div>
                       <div className="text-right tabular-nums font-medium">{euro(r.amount)}</div>
@@ -271,7 +271,7 @@ export function CategoryIncomesCard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Categoria</TableHead>
-                      <TableHead className="text-right">Numero spese</TableHead>
+                      <TableHead className="text-right">Numero entrate</TableHead>
                       <TableHead className="text-right">Totale</TableHead>
                     </TableRow>
                   </TableHeader>

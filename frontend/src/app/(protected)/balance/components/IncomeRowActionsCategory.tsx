@@ -2,8 +2,6 @@
 
 import * as React from 'react';
 import { api } from '@/lib/api-client';
-import type { Expense } from '../types/expense';
-import { fmtDate } from '../utils/date';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
@@ -12,15 +10,17 @@ import {
 } from '@/components/ui/alert-dialog';
 import { MoreHorizontal } from 'lucide-react';
 
+type IncomeCategory = { id: number; descr: string };
+
 /**
- * Row actions for a single expense: edit and delete (with confirm).
- * Keeps the inert cleanup after closing the AlertDialog.
+ * Row actions for a single income category: edit and delete (with confirm).
+ * Mirrors the expenses category actions but points to /incomes endpoints.
  */
-export function RowActions({
-  expense, onEdit, onChanged, onError,
+export function IncomeRowActionsCategory({
+  category, onEdit, onChanged, onError,
 }: {
-  expense: Expense;
-  onEdit: (e: Expense) => void;
+  category: IncomeCategory;
+  onEdit: (c: IncomeCategory) => void;
   onChanged: () => void;
   onError: (msg: string) => void;
 }) {
@@ -46,7 +46,7 @@ export function RowActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" className="min-w-[10rem]">
-          <DropdownMenuItem onClick={() => onEdit(expense)}>Modifica</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onEdit(category)}>Modifica</DropdownMenuItem>
           <DropdownMenuItem className="text-red-600" onClick={requestDeleteOne}>
             Elimina
           </DropdownMenuItem>
@@ -57,7 +57,7 @@ export function RowActions({
       <AlertDialog open={confirmOpen} onOpenChange={handleConfirmOpenChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare la spesa del {fmtDate(expense.timestamp)}?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminare la categoria “{category.descr}”?</AlertDialogTitle>
             <AlertDialogDescription>
               Questa azione non può essere annullata.
             </AlertDialogDescription>
@@ -67,7 +67,7 @@ export function RowActions({
             <AlertDialogAction
               onClick={async () => {
                 try {
-                  await api.delete(`/expenses/${expense.id}`);
+                  await api.delete(`/incomes/categories/${category.id}`);
                   handleConfirmOpenChange(false);
                   onChanged();
                 } catch (e: any) {

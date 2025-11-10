@@ -28,7 +28,7 @@ export default function ReportPage() {
         <TabsList>
           <TabsTrigger value="product">Per Prodotto</TabsTrigger>
           <TabsTrigger value="customer">Per Cliente</TabsTrigger>
-          <TabsTrigger value="expenses">Per Spesa</TabsTrigger>
+          <TabsTrigger value="expenses">Per Uscita</TabsTrigger>
           <TabsTrigger value="incomes">Per Entrata</TabsTrigger>
         </TabsList>
 

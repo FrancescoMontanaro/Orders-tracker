@@ -4,7 +4,7 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api-client';
 import Link from 'next/link';
-import { useFixRadixInertLeak } from '../../expenses/hooks/useFixRadixInertLeak';
+import { useFixRadixInertLeak } from '../../balance/hooks/useFixRadixInertLeak';
 import { useExpenseCategories } from '../hooks/useExpenseCategories';
 
 import {
@@ -231,7 +231,7 @@ export default function CategoriesCard() {
     <Card className="max-w-full">
       <CardHeader className="space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-lg">Categorie di spesa</CardTitle>
+          <CardTitle className="text-lg">Categorie di uscita</CardTitle>
 
           {selectedIds.length > 0 ? (
             <Button variant="destructive" onClick={() => setConfirmBulkOpen(true)}>
@@ -485,7 +485,7 @@ export default function CategoriesCard() {
       <AlertDialog open={confirmBulkOpen} onOpenChange={handleConfirmBulkOpenChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare {selectedIds.length} categoria/e di spesa?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminare {selectedIds.length} categoria/e di uscita?</AlertDialogTitle>
             <AlertDialogDescription>
               Questa azione non può essere annullata.
             </AlertDialogDescription>

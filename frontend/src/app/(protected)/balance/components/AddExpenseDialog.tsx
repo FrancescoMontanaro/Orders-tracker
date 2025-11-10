@@ -120,7 +120,7 @@ export function AddExpenseDialog({
         "
       >
         <DialogHeader>
-          <DialogTitle>Nuova spesa</DialogTitle>
+          <DialogTitle>Nuova uscita</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-3 min-w-0 max-w-full">

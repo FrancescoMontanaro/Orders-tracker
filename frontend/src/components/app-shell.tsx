@@ -45,7 +45,7 @@ const routes = [
   { href: '/customers', label: 'Clienti', Icon: Users },
   { href: '/orders', label: 'Ordini', Icon: ClipboardList },
   { href: '/lots', label: 'Lotti', Icon: Boxes },
-  { href: '/expenses', label: 'Spese', Icon: Receipt },
+  { href: '/balance', label: 'Bilancio', Icon: Receipt },
   { href: '/notes', label: 'Note', Icon: NotebookIcon },
   { href: '/reports', label: 'Report', Icon: BarChart3 },
 ] as const

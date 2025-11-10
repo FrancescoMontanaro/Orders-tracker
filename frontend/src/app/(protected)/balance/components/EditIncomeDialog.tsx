@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { api } from '@/lib/api-client';
-import type { Expense } from '../types/expense';
+import type { Income } from '../types/income';
 import { fmtDate } from '../utils/date';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,28 +15,28 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 
-type ExpenseCategory = { id: number; descr: string };
+type IncomeCategory = { id: number; descr: string };
 
 /**
- * Edit dialog for expenses
+ * Edit dialog for incomes
  * - Adds category select (category_id)
  * - Stable widths; y-scroll only
  * - Mobile footer keeps Delete aligned horizontally with Save/Cancel
  */
-export function EditExpenseDialog({
-  open, onOpenChange, expense, onSaved, onDeleted, onError,
+export function EditIncomeDialog({
+  open, onOpenChange, income, onSaved, onDeleted, onError,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  expense: Expense | null;
+  income: Income | null;
   onSaved: () => void;
   onDeleted: () => void;
   onError: (msg: string) => void;
 }) {
-  const [timestamp, setTimestamp] = React.useState(expense?.timestamp ?? '');
-  const [amount, setAmount] = React.useState<number>(expense?.amount ?? 0);
-  const [note, setNote] = React.useState<string>(expense?.note ?? '');
-  const [categoryId, setCategoryId] = React.useState<number | undefined>(expense?.category_id);
+  const [timestamp, setTimestamp] = React.useState(income?.timestamp ?? '');
+  const [amount, setAmount] = React.useState<number>(income?.amount ?? 0);
+  const [note, setNote] = React.useState<string>(income?.note ?? '');
+  const [categoryId, setCategoryId] = React.useState<number | undefined>(income?.category_id);
 
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
@@ -52,20 +52,20 @@ export function EditExpenseDialog({
   }, []);
 
   // Categories state
-  const [categories, setCategories] = React.useState<ExpenseCategory[]>([]);
+  const [categories, setCategories] = React.useState<IncomeCategory[]>([]);
   const [catLoading, setCatLoading] = React.useState(false);
   const [catError, setCatError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (open && expense) {
-      setTimestamp(expense.timestamp ?? '');
-      setAmount(expense.amount ?? 0);
-      setNote(expense.note ?? '');
-      setCategoryId(expense.category_id);
+    if (open && income) {
+      setTimestamp(income.timestamp ?? '');
+      setAmount(income.amount ?? 0);
+      setNote(income.note ?? '');
+      setCategoryId(income.category_id);
       setLocalError(null);
       setCatError(null);
     }
-  }, [open, expense]);
+  }, [open, income]);
 
   // Fetch categories when dialog opens
   React.useEffect(() => {
@@ -76,11 +76,11 @@ export function EditExpenseDialog({
       setCatError(null);
       try {
         const res = await api.post(
-          '/expenses/categories/list',
+          '/incomes/categories/list',
           { filters: {}, sort: [{ field: 'id', order: 'asc' as const }] },
           { params: { page: 1, size: -1 } }
         );
-        const items: ExpenseCategory[] = res?.data?.data?.items ?? [];
+        const items: IncomeCategory[] = res?.data?.data?.items ?? [];
         if (active) setCategories(items);
       } catch (e: any) {
         if (active) {
@@ -99,7 +99,7 @@ export function EditExpenseDialog({
   }, [open]);
 
   async function save() {
-    if (!expense) return;
+    if (!income) return;
     if (!timestamp) {
       setLocalError('La data è obbligatoria.');
       return;
@@ -111,7 +111,7 @@ export function EditExpenseDialog({
     setSaving(true);
     setLocalError(null);
     try {
-      await api.patch(`/expenses/${expense.id}`, {
+      await api.patch(`/incomes/${income.id}`, {
         category_id: categoryId,
         timestamp,
         amount: Number(amount),
@@ -130,7 +130,7 @@ export function EditExpenseDialog({
   }
 
   function requestDelete() {
-    if (!expense) return;
+    if (!income) return;
     setConfirmDeleteOpen(true);
   }
 
@@ -144,11 +144,11 @@ export function EditExpenseDialog({
           "
         >
           <DialogHeader>
-            <DialogTitle>Modifica spesa</DialogTitle>
+            <DialogTitle>Modifica entrata</DialogTitle>
           </DialogHeader>
 
-          {!expense ? (
-            <p className="text-sm text-muted-foreground">Nessuna spesa selezionata.</p>
+          {!income ? (
+            <p className="text-sm text-muted-foreground">Nessuna entrata selezionata.</p>
           ) : (
             <div className="grid gap-3 min-w-0 max-w-full">
               <div className="grid gap-1 min-w-0">
@@ -210,7 +210,7 @@ export function EditExpenseDialog({
 
           {/* Footer: Delete (left) + Cancel/Save (right) */}
           <DialogFooter className="mt-2 flex flex-row items-center justify-between gap-2">
-            {expense && (
+            {income && (
               <Button variant="destructive" onClick={requestDelete}>
                 Elimina
               </Button>
@@ -219,7 +219,7 @@ export function EditExpenseDialog({
               <DialogClose asChild>
                 <Button variant="outline">Annulla</Button>
               </DialogClose>
-              <Button onClick={save} disabled={saving || !expense}>
+              <Button onClick={save} disabled={saving || !income}>
                 {saving ? 'Salvataggio…' : 'Salva'}
               </Button>
             </div>
@@ -232,7 +232,7 @@ export function EditExpenseDialog({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Eliminare la spesa del {fmtDate(expense?.timestamp)}
+              Eliminare l&apos;entrata del {fmtDate(income?.timestamp)}
             </AlertDialogTitle>
             <AlertDialogDescription>
               Questa azione non può essere annullata.
@@ -242,9 +242,9 @@ export function EditExpenseDialog({
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
-                if (!expense) return;
+                if (!income) return;
                 try {
-                  await api.delete(`/expenses/${expense.id}`);
+                  await api.delete(`/incomes/${income.id}`);
                   handleConfirmDeleteOpenChange(false);
                   onOpenChange(false);
                   onDeleted();

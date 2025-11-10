@@ -26,10 +26,10 @@ export default function ReportPage() {
     <div className="space-y-6">
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
         <TabsList>
-          <TabsTrigger value="product">Per Prodotto</TabsTrigger>
-          <TabsTrigger value="customer">Per Cliente</TabsTrigger>
-          <TabsTrigger value="expenses">Per Uscita</TabsTrigger>
-          <TabsTrigger value="incomes">Per Entrata</TabsTrigger>
+          <TabsTrigger value="product">Prodotti</TabsTrigger>
+          <TabsTrigger value="customer">Clienti</TabsTrigger>
+          <TabsTrigger value="expenses">Uscite</TabsTrigger>
+          <TabsTrigger value="incomes">Entrate</TabsTrigger>
         </TabsList>
 
         <TabsContent value="product" className="space-y-6">

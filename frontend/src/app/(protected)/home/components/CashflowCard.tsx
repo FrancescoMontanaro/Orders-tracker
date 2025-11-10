@@ -8,6 +8,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import {
   ChartContainer,
   ChartTooltip,
@@ -122,6 +123,7 @@ export default function CashflowCardPro() {
   const [dateFrom, setDateFrom] = React.useState<string>(start);
   const [dateTo, setDateTo] = React.useState<string>(end);
   const [gran, setGran] = React.useState<Granularity>('daily');
+  const [includeIncomes, setIncludeIncomes] = React.useState(true);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -148,7 +150,7 @@ export default function CashflowCardPro() {
       // 1) Load current period
       const currentRes = await api.post<SuccessResponse<CashflowResponse>>(
         '/reports/cashflow',
-        { start_date: dateFrom, end_date: dateTo },
+        { start_date: dateFrom, end_date: dateTo, include_incomes: includeIncomes },
         { headers: { 'Content-Type': 'application/json' } }
       );
       const current = (currentRes.data as any)?.data ?? currentRes.data;
@@ -158,7 +160,11 @@ export default function CashflowCardPro() {
         gran === 'daily' ? isoDate : gran === 'monthly' ? isoDate.slice(0, 7) : isoDate.slice(0, 4);
 
       const agg: Record<string, { in: number; out: number }> = {};
-      (current.entries ?? []).forEach((e: { date: string; amount: number }) => {
+      const inflowEvents = [
+        ...(current.entries ?? []),
+        ...(includeIncomes ? current.incomes ?? [] : []),
+      ];
+      inflowEvents.forEach((e: { date: string; amount: number }) => {
         const k = keyOf(e.date);
         if (!agg[k]) agg[k] = { in: 0, out: 0 };
         agg[k].in += Number(e.amount || 0);
@@ -173,9 +179,9 @@ export default function CashflowCardPro() {
       const s = labels.map((k) => ({ label: k, in: agg[k].in, out: agg[k].out, net: agg[k].in - agg[k].out }));
 
       // Totals (fallback to sum if API doesn't return them)
-      const totalIn = Number(current.entries_total ?? s.reduce((a, r) => a + r.in, 0));
+      const totalIn = inflowEvents.reduce((a, evt) => a + Number(evt.amount || 0), 0);
       const totalOut = Number(current.expenses_total ?? s.reduce((a, r) => a + r.out, 0));
-      const totalNet = Number(current.net ?? (Number.isFinite(totalIn) && Number.isFinite(totalOut) ? totalIn - totalOut : 0));
+      const totalNet = Number.isFinite(totalIn) && Number.isFinite(totalOut) ? totalIn - totalOut : Number(current.net ?? 0);
 
       // 2) Previous period with same length, immediately preceding (UTC-safe, escluso il giorno di inizio corrente)
       const len = daysInclusive(dateFrom, dateTo);
@@ -184,13 +190,17 @@ export default function CashflowCardPro() {
 
       const prevRes = await api.post<SuccessResponse<CashflowResponse>>(
         '/reports/cashflow',
-        { start_date: prevStart, end_date: prevEnd },
+        { start_date: prevStart, end_date: prevEnd, include_incomes: includeIncomes },
         { headers: { 'Content-Type': 'application/json' } }
       );
       const prevData = (prevRes.data as any)?.data ?? prevRes.data;
-      const pin = Number(prevData.entries_total ?? 0);
+      const prevInflowEvents = [
+        ...(prevData.entries ?? []),
+        ...(includeIncomes ? prevData.incomes ?? [] : []),
+      ];
+      const pin = prevInflowEvents.reduce((a, evt) => a + Number(evt.amount || 0), 0);
       const pout = Number(prevData.expenses_total ?? 0);
-      const pnet = Number(prevData.net ?? (pin - pout));
+      const pnet = pin - pout;
 
       // 3) Analytics (current series)
       const bestInRow = s.reduce((best, r) => (r.in > (best?.value ?? -Infinity) ? { label: r.label, value: r.in } : best), null as any);
@@ -200,7 +210,7 @@ export default function CashflowCardPro() {
       // Weekday distribution (daily granularity)
       const weekdayAgg: Record<string, number> = {};
       if (gran === 'daily') {
-        (current.entries ?? []).forEach((e: { date: string; amount: number }) => {
+        inflowEvents.forEach((e: { date: string; amount: number }) => {
           const wd = weekdayLabel(e.date);
           weekdayAgg[wd] = (weekdayAgg[wd] ?? 0) + Number(e.amount || 0);
         });
@@ -237,7 +247,7 @@ export default function CashflowCardPro() {
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, gran]);
+  }, [dateFrom, dateTo, gran, includeIncomes]);
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -322,6 +332,21 @@ export default function CashflowCardPro() {
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium leading-tight">Includi entrate</div>
+            <p className="text-xs text-muted-foreground leading-tight">
+              Somma anche le entrate registrate fuori dagli ordini nelle statistiche.
+            </p>
+          </div>
+          <Switch
+            id="include-incomes-switch"
+            checked={includeIncomes}
+            onCheckedChange={(v) => setIncludeIncomes(!!v)}
+            aria-label="Includi entrate aggiuntive"
+          />
         </div>
 
         {/* ⬇️ AGGIUNTA: riga che indica il periodo di confronto (discreta e responsive) */}

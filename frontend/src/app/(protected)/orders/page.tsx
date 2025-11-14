@@ -22,7 +22,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
-import { X, ChevronDown, Filter } from 'lucide-react';
+import { X, ChevronDown } from 'lucide-react';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 import { useOrders } from './hooks/useOrders';
 import { useFixRadixInertLeak } from './hooks/useFixRadixInertLeak';
@@ -313,8 +314,23 @@ export default function OrdersPage() {
           </div>
         )}
 
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
+        </div>
+
         {/* ===== Desktop filters (md+) ===== */}
-        <div className="hidden md:flex flex-wrap items-end gap-3 min-w-0">
+        <div className={cn(
+          'hidden md:flex flex-wrap items-end gap-3 min-w-0',
+          mobileFiltersOpen ? '' : 'md:hidden',
+        )}
+        >
           <div className="min-w-[200px]">
             <div className="grid gap-1">
               <Label>Consegna da</Label>
@@ -355,32 +371,10 @@ export default function OrdersPage() {
               />
             </div>
           </div>
-
-          <div className="min-w-[160px]">
-            <div className="grid gap-1">
-              <Label className="opacity-0 select-none">Reset</Label>
-              <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
-                Reset filtri
-              </Button>
-            </div>
-          </div>
         </div>
 
         {/* ===== Mobile filters (<md) ===== */}
-        <div className="md:hidden space-y-3">
-          <Button
-            variant="outline"
-            onClick={() => setMobileFiltersOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between gap-2"
-          >
-            <span className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
-            </span>
-            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
-          </Button>
-
-          <div className={cn('space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
           {/* Row 1: search */}
           <div className="grid gap-1 min-w-0">
             <Label>Ricerca</Label>
@@ -404,28 +398,19 @@ export default function OrdersPage() {
             </div>
           </div>
 
-          {/* Row 3: stato + reset */}
-          <div className="grid grid-cols-2 gap-3 min-w-0">
-            <div className="grid gap-1 min-w-0">
-              <Label>Stato</Label>
-              <Select value={status} onValueChange={(v: 'all' | 'created' | 'delivered') => setStatus(v)}>
-                <SelectTrigger className="min-w-0 w-full max-w-full">
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="created">Da consegnare</SelectItem>
-                  <SelectItem value="delivered">Consegnato</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-1 min-w-0">
-              <Label className="opacity-0 select-none">Reset</Label>
-              <Button variant="outline" onClick={resetFilters} className="w-full">
-                Reset filtri
-              </Button>
-            </div>
+          {/* Row 3: stato */}
+          <div className="grid gap-1 min-w-0">
+            <Label>Stato</Label>
+            <Select value={status} onValueChange={(v: 'all' | 'created' | 'delivered') => setStatus(v)}>
+              <SelectTrigger className="min-w-0 w-full max-w-full">
+                <SelectValue placeholder="Tutti" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti</SelectItem>
+                <SelectItem value="created">Da consegnare</SelectItem>
+                <SelectItem value="delivered">Consegnato</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Divider */}
@@ -479,8 +464,6 @@ export default function OrdersPage() {
               </Select>
             </div>
           </div>
-        </div>
-        {/* NOTA: niente azioni bulk duplicate qui. Le bulk actions sono solo nel titolo. */}
         </div>
       </CardHeader>
 

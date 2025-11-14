@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { Filter, ChevronDown } from 'lucide-react';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 import {
   ChartContainer,
   ChartTooltip,
@@ -314,8 +314,21 @@ export default function CashflowCardPro() {
 
       {/* ===== Controls + KPIs ===== */}
       <CardContent className="space-y-5 min-w-0 max-w-full overflow-x-hidden">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+        </div>
+
         {/* Filters */}
-        <div className="hidden md:grid gap-3 md:grid-cols-3 min-w-0 max-w-full">
+        <div
+          className={cn(
+            'hidden md:grid gap-3 md:grid-cols-3 min-w-0 max-w-full',
+            mobileFiltersOpen ? '' : 'md:hidden',
+          )}
+        >
           <div className="grid gap-1 min-w-0">
             <Label>Dal</Label>
             <DatePicker value={dateFrom} onChange={setDateFrom} className="min-w-0 w-full" placeholder="Seleziona data" />
@@ -337,42 +350,26 @@ export default function CashflowCardPro() {
           </div>
         </div>
 
-        <div className="md:hidden space-y-3">
-          <Button
-            variant="outline"
-            onClick={() => setMobileFiltersOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between gap-2"
-          >
-            <span className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
-            </span>
-            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
-          </Button>
-
-          {mobileFiltersOpen && (
-            <div className="space-y-3">
-              <div className="grid gap-1 min-w-0">
-                <Label>Dal</Label>
-                <DatePicker value={dateFrom} onChange={setDateFrom} className="min-w-0 w-full" placeholder="Seleziona data" />
-              </div>
-              <div className="grid gap-1 min-w-0">
-                <Label>Al</Label>
-                <DatePicker value={dateTo} onChange={setDateTo} className="min-w-0 w-full" placeholder="Seleziona data" />
-              </div>
-              <div className="grid gap-1 min-w-0">
-                <Label>Granularità</Label>
-                <Select value={gran} onValueChange={(v: Granularity) => setGran(v)}>
-                  <SelectTrigger className="min-w-0 w-full"><SelectValue placeholder="Seleziona" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Giornaliera</SelectItem>
-                    <SelectItem value="monthly">Mensile</SelectItem>
-                    <SelectItem value="yearly">Annuale</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
+          <div className="grid gap-1 min-w-0">
+            <Label>Dal</Label>
+            <DatePicker value={dateFrom} onChange={setDateFrom} className="min-w-0 w-full" placeholder="Seleziona data" />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Al</Label>
+            <DatePicker value={dateTo} onChange={setDateTo} className="min-w-0 w-full" placeholder="Seleziona data" />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Granularità</Label>
+            <Select value={gran} onValueChange={(v: Granularity) => setGran(v)}>
+              <SelectTrigger className="min-w-0 w-full"><SelectValue placeholder="Seleziona" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Giornaliera</SelectItem>
+                <SelectItem value="monthly">Mensile</SelectItem>
+                <SelectItem value="yearly">Annuale</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">

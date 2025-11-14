@@ -25,7 +25,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { X, Filter, ChevronDown } from 'lucide-react';
+import { X } from 'lucide-react';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { IncomeRowActions } from './IncomeRowActions'; // Income row actions
@@ -342,8 +343,24 @@ export default function IncomesCard() {
           </div>
         )}
 
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
+        </div>
+
         {/* ===== Desktop filters (md+) ===== */}
-        <div className="hidden md:flex flex-wrap items-end gap-3 min-w-0">
+        <div
+          className={cn(
+            'hidden md:flex flex-wrap items-end gap-3 min-w-0',
+            mobileFiltersOpen ? '' : 'md:hidden',
+          )}
+        >
           {/* Date range */}
           <div className="min-w-[160px]">
             <div className="grid gap-1">
@@ -433,34 +450,10 @@ export default function IncomesCard() {
               </Select>
             </div>
           </div>
-
-          {/* Reset */}
-          <div className="min-w-[160px]">
-            <div className="grid gap-1">
-              <Label className="opacity-0 select-none">Reset</Label>
-              <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
-                Reset filtri
-              </Button>
-            </div>
-          </div>
         </div>
 
         {/* ===== Mobile filters (<md) ===== */}
-        <div className="md:hidden space-y-3">
-          <Button
-            variant="outline"
-            onClick={() => setMobileFiltersOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between gap-2"
-          >
-            <span className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
-            </span>
-            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
-          </Button>
-
-          {mobileFiltersOpen && (
-            <div className="space-y-3">
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
           {/* Row 1: note search full width */}
           <div className="grid gap-1 min-w-0">
             <Label>Nota</Label>
@@ -582,12 +575,6 @@ export default function IncomesCard() {
             </div>
           </div>
 
-          {/* Reset button full width */}
-          <Button variant="outline" onClick={resetFilters} className="w-full">
-            Reset filtri
-          </Button>
-        </div>
-          )}
         </div>
       </CardHeader>
 

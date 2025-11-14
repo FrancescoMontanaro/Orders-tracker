@@ -6,7 +6,6 @@ import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import type { SuccessResponse } from '@/types/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -27,7 +26,7 @@ import { addDays, toIsoDate, fmtDate } from '../utils/date';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { SearchCombobox } from './SearchCombobox';
 import type { Option } from '../hooks/useRemoteSearch';
-import { Filter, ChevronDown } from 'lucide-react';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
@@ -159,8 +158,21 @@ export function CustomerSalesCard() {
         <CardTitle>Vendite per Cliente</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 overflow-x-hidden">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+        </div>
+
         {/* Filters */}
-        <div className="hidden md:grid gap-3 md:grid-cols-5 min-w-0">
+        <div
+          className={cn(
+            'hidden md:grid gap-3 md:grid-cols-5 min-w-0',
+            mobileFiltersOpen ? '' : 'md:hidden',
+          )}
+        >
           <div className="grid gap-1 min-w-0">
             <Label>Da</Label>
             <DatePicker value={start} onChange={setStart} placeholder="Data da" className="min-w-0 w-full" />
@@ -202,56 +214,40 @@ export function CustomerSalesCard() {
         </div>
 
         {/* Mobile filters */}
-        <div className="md:hidden space-y-3">
-          <Button
-            variant="outline"
-            onClick={() => setMobileFiltersOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between gap-2"
-          >
-            <span className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
-            </span>
-            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
-          </Button>
-
-          {mobileFiltersOpen && (
-            <div className="space-y-3">
-              <div className="grid gap-1 min-w-0">
-                <Label>Da</Label>
-                <DatePicker value={start} onChange={setStart} placeholder="Data da" className="min-w-0 w-full" />
-              </div>
-              <div className="grid gap-1 min-w-0">
-                <Label>A</Label>
-                <DatePicker value={end} onChange={setEnd} placeholder="Data a" className="min-w-0 w-full" />
-              </div>
-              <div className="grid gap-1 min-w-0">
-                <Label>Cliente</Label>
-                <SearchCombobox
-                  value={customer}
-                  onChange={setCustomer}
-                  endpoint="/customers/list"
-                  placeholder="Seleziona cliente…"
-                  emptyText="Nessun cliente"
-                />
-              </div>
-              <div className="grid gap-1 min-w-0">
-                <Label>Mostra</Label>
-                <Select value={topWorst} onValueChange={(v: TWMode) => setTopWorst(v)}>
-                  <SelectTrigger className="min-w-0 w-full">
-                    <SelectValue placeholder="Nessun filtro" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nessun filtro</SelectItem>
-                    <SelectItem value="top5">Migliori 5 (ricavi)</SelectItem>
-                    <SelectItem value="top10">Migliori 10 (ricavi)</SelectItem>
-                    <SelectItem value="worst5">Peggiori 5 (ricavi)</SelectItem>
-                    <SelectItem value="worst10">Peggiori 10 (ricavi)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
+          <div className="grid gap-1 min-w-0">
+            <Label>Da</Label>
+            <DatePicker value={start} onChange={setStart} placeholder="Data da" className="min-w-0 w-full" />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>A</Label>
+            <DatePicker value={end} onChange={setEnd} placeholder="Data a" className="min-w-0 w-full" />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Cliente</Label>
+            <SearchCombobox
+              value={customer}
+              onChange={setCustomer}
+              endpoint="/customers/list"
+              placeholder="Seleziona cliente…"
+              emptyText="Nessun cliente"
+            />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Mostra</Label>
+            <Select value={topWorst} onValueChange={(v: TWMode) => setTopWorst(v)}>
+              <SelectTrigger className="min-w-0 w-full">
+                <SelectValue placeholder="Nessun filtro" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nessun filtro</SelectItem>
+                <SelectItem value="top5">Migliori 5 (ricavi)</SelectItem>
+                <SelectItem value="top10">Migliori 10 (ricavi)</SelectItem>
+                <SelectItem value="worst5">Peggiori 5 (ricavi)</SelectItem>
+                <SelectItem value="worst10">Peggiori 10 (ricavi)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* KPI + Charts */}

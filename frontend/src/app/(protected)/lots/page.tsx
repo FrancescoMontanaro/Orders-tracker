@@ -59,7 +59,8 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { PaginationControls } from '@/components/ui/pagination-controls';
-import { X, MapPin, Filter, ChevronDown } from 'lucide-react';
+import { X, MapPin } from 'lucide-react';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 /**
  * Lots management page.
@@ -339,8 +340,23 @@ export default function LotsPage() {
           </div>
         )}
 
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
+        </div>
+
         {/* Desktop filters */}
-        <div className="hidden md:grid md:grid-cols-6 md:gap-3 min-w-0">
+        <div className={cn(
+          'hidden md:grid md:grid-cols-6 md:gap-3 min-w-0',
+          mobileFiltersOpen ? 'md:grid' : 'md:hidden',
+        )}
+        >
           <div className="col-span-2 grid gap-1 min-w-0">
             <Label>Nome</Label>
             <Input
@@ -377,28 +393,10 @@ export default function LotsPage() {
               className="min-w-0 w-full max-w-full"
             />
           </div>
-          <div className="col-span-6 flex justify-end items-end min-w-0 pt-1">
-            <Button variant="outline" onClick={resetFilters}>
-              Reset filtri
-            </Button>
-          </div>
         </div>
 
         {/* Mobile filters */}
-        <div className="md:hidden space-y-3">
-          <Button
-            variant="outline"
-            onClick={() => setMobileFiltersOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between gap-2"
-          >
-            <span className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
-            </span>
-            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
-          </Button>
-
-          <div className={cn('space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
           <div className="grid gap-1 min-w-0">
             <Label>Nome</Label>
             <Input
@@ -434,12 +432,6 @@ export default function LotsPage() {
                 placeholder="Data raccolta a"
               />
             </div>
-          </div>
-          <div className="grid gap-1 min-w-0">
-            <Label className="opacity-0 select-none">Reset</Label>
-            <Button variant="outline" onClick={resetFilters} className="w-full">
-              Reset filtri
-            </Button>
           </div>
           <div className="h-px bg-border" />
           <div className="grid grid-cols-2 gap-3 min-w-0 items-end">
@@ -480,7 +472,6 @@ export default function LotsPage() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
           </div>
         </div>
       </CardHeader>

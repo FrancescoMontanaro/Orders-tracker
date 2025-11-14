@@ -23,7 +23,8 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { X, Filter, ChevronDown } from 'lucide-react';
+import { X } from 'lucide-react';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { RowActions } from './components/RowActions';
@@ -286,8 +287,24 @@ export default function CustomersPage() {
           </div>
         )}
 
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
+        </div>
+
         {/* ===== Desktop filters (md+) ===== */}
-        <div className="hidden md:flex flex-wrap items-end gap-3 min-w-0">
+        <div
+          className={cn(
+            'hidden md:flex flex-wrap items-end gap-3 min-w-0',
+            mobileFiltersOpen ? '' : 'md:hidden',
+          )}
+        >
           {/* Name search */}
           <div className="flex-1 min-w-[220px]">
             <div className="grid gap-1">
@@ -320,132 +337,99 @@ export default function CustomersPage() {
               </Select>
             </div>
           </div>
-
-          {/* Reset */}
-          <div className="min-w-[160px]">
-            <div className="grid gap-1">
-              <Label className="opacity-0 select-none">Reset</Label>
-              <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
-                Reset filtri
-              </Button>
-            </div>
-          </div>
         </div>
 
         {/* ===== Mobile filters (<md) ===== */}
-        <div className="md:hidden space-y-3">
-          <Button
-            variant="outline"
-            onClick={() => setMobileFiltersOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between gap-2"
-          >
-            <span className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
-            </span>
-            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
-          </Button>
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
+          {/* Row 1: search full width */}
+          <div className="grid gap-1 min-w-0">
+            <Label>Nome</Label>
+            <Input
+              placeholder="Cerca per nome…"
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
+              className="min-w-0 w-full max-w-full"
+            />
+          </div>
 
-          <div className={cn('space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
-            {/* Row 1: search full width */}
-            <div className="grid gap-1 min-w-0">
-              <Label>Nome</Label>
-              <Input
-                placeholder="Cerca per nome…"
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
-                className="min-w-0 w-full max-w-full"
+          {/* Row 2: status */}
+          <div className="grid gap-1 min-w-0">
+            <Label>Stato</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(v: 'all' | 'active' | 'inactive') => setStatusFilter(v)}
+            >
+              <SelectTrigger className="min-w-0 w-full max-w-full">
+                <SelectValue placeholder="Tutti" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti</SelectItem>
+                <SelectItem value="active">Attivi</SelectItem>
+                <SelectItem value="inactive">Non attivi</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-border" />
+
+          {/* Row 3: select all + sort */}
+          <div className="grid grid-cols-2 gap-3 min-w-0 items-end">
+            {/* Select all */}
+            <label className="inline-flex items-center gap-2 text-sm min-w-0">
+              <Checkbox
+                checked={
+                  rows.length > 0
+                    ? rows.every((r) => !!(rowSelection as any)[String(r.id)]) ||
+                      (rows.some((r) => !!(rowSelection as any)[String(r.id)]) && 'indeterminate')
+                    : false
+                }
+                onCheckedChange={(v) => {
+                  const ids = rows.map((r) => String(r.id));
+                  setRowSelection((prev) => {
+                    const nextSel = { ...prev };
+                    if (v) ids.forEach((id) => (nextSel[id] = true));
+                    else ids.forEach((id) => delete nextSel[id]);
+                    return nextSel;
+                  });
+                }}
+                aria-label="Seleziona tutti (pagina)"
               />
-            </div>
+              <span className="truncate">Seleziona tutti</span>
+            </label>
 
-            {/* Row 2: status + reset */}
-            <div className="grid grid-cols-2 gap-3 min-w-0">
-              <div className="grid gap-1 min-w-0">
-                <Label>Stato</Label>
-                <Select
-                  value={statusFilter}
-                  onValueChange={(v: 'all' | 'active' | 'inactive') => setStatusFilter(v)}
-                >
-                  <SelectTrigger className="min-w-0 w-full max-w-full">
-                    <SelectValue placeholder="Tutti" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tutti</SelectItem>
-                    <SelectItem value="active">Attivi</SelectItem>
-                    <SelectItem value="inactive">Non attivi</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-1 min-w-0">
-                <Label className="opacity-0 select-none">Reset</Label>
-                <Button variant="outline" onClick={resetFilters} className="w-full">
-                  Reset filtri
-                </Button>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="h-px bg-border" />
-
-            {/* Row 3: select all + sort */}
-            <div className="grid grid-cols-2 gap-3 min-w-0 items-end">
-              {/* Select all */}
-              <label className="inline-flex items-center gap-2 text-sm min-w-0">
-                <Checkbox
-                  checked={
-                    rows.length > 0
-                      ? rows.every((r) => !!(rowSelection as any)[String(r.id)]) ||
-                        (rows.some((r) => !!(rowSelection as any)[String(r.id)]) && 'indeterminate')
-                      : false
-                  }
-                  onCheckedChange={(v) => {
-                    const ids = rows.map((r) => String(r.id));
-                    setRowSelection((prev) => {
-                      const nextSel = { ...prev };
-                      if (v) ids.forEach((id) => (nextSel[id] = true));
-                      else ids.forEach((id) => delete nextSel[id]);
-                      return nextSel;
-                    });
-                  }}
-                  aria-label="Seleziona tutti (pagina)"
-                />
-                <span className="truncate">Seleziona tutti</span>
-              </label>
-
-              {/* Sort select */}
-              <div className="grid gap-1 min-w-0">
-                <Label>Ordina per</Label>
-                <Select
-                  value={
-                    sorting?.[0]?.id === 'name'
+            {/* Sort select */}
+            <div className="grid gap-1 min-w-0">
+              <Label>Ordina per</Label>
+              <Select
+                value={
+                  sorting?.[0]?.id === 'name'
+                    ? sorting?.[0]?.desc
+                      ? 'name-desc'
+                      : 'name-asc'
+                    : sorting?.[0]?.id === 'is_active'
                       ? sorting?.[0]?.desc
-                        ? 'name-desc'
-                        : 'name-asc'
-                      : sorting?.[0]?.id === 'is_active'
-                        ? sorting?.[0]?.desc
-                          ? 'active-desc'
-                          : 'active-asc'
-                        : 'name-asc'
-                  }
-                  onValueChange={(v) => {
-                    if (v === 'name-asc') setSorting([{ id: 'name', desc: false }]);
-                    else if (v === 'name-desc') setSorting([{ id: 'name', desc: true }]);
-                    else if (v === 'active-asc') setSorting([{ id: 'is_active', desc: false }]);
-                    else if (v === 'active-desc') setSorting([{ id: 'is_active', desc: true }]);
-                  }}
-                >
-                  <SelectTrigger className="min-w-0 w-full max-w-full">
-                    <SelectValue placeholder="Ordina per" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name-asc">Nome (A→Z)</SelectItem>
-                    <SelectItem value="name-desc">Nome (Z→A)</SelectItem>
-                    <SelectItem value="active-asc">Attivo (No→Sì)</SelectItem>
-                    <SelectItem value="active-desc">Attivo (Sì→No)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                        ? 'active-desc'
+                        : 'active-asc'
+                      : 'name-asc'
+                }
+                onValueChange={(v) => {
+                  if (v === 'name-asc') setSorting([{ id: 'name', desc: false }]);
+                  else if (v === 'name-desc') setSorting([{ id: 'name', desc: true }]);
+                  else if (v === 'active-asc') setSorting([{ id: 'is_active', desc: false }]);
+                  else if (v === 'active-desc') setSorting([{ id: 'is_active', desc: true }]);
+                }}
+              >
+                <SelectTrigger className="min-w-0 w-full max-w-full">
+                  <SelectValue placeholder="Ordina per" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">Nome (A→Z)</SelectItem>
+                  <SelectItem value="name-desc">Nome (Z→A)</SelectItem>
+                  <SelectItem value="active-asc">Attivo (No→Sì)</SelectItem>
+                  <SelectItem value="active-desc">Attivo (Sì→No)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>

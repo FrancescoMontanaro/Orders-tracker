@@ -19,6 +19,7 @@ import { LotItemsCell } from './components/LotItemsCell';
 import { RowActions } from './components/RowActions';
 import { AddLotDialog } from './components/AddLotDialog';
 import { EditLotDialog } from './components/EditLotDialog';
+import { ViewLotDialog } from './components/ViewLotDialog';
 
 import {
   AlertDialog,
@@ -100,6 +101,8 @@ export default function LotsPage() {
   const [addOpen, setAddOpen] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
   const [editLot, setEditLot] = React.useState<Lot | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewLot, setViewLot] = React.useState<Lot | null>(null);
 
   const cleanupInert = React.useCallback(() => {
     if (typeof document !== 'undefined') {
@@ -117,10 +120,18 @@ export default function LotsPage() {
     setEditOpen(o);
     if (!o) cleanupInert();
   }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => {
+    setViewOpen(o);
+    if (!o) cleanupInert();
+  }, [cleanupInert]);
 
   const onEdit = React.useCallback((lot: Lot) => {
     setEditLot(lot);
     setEditOpen(true);
+  }, []);
+  const onView = React.useCallback((lot: Lot) => {
+    setViewLot(lot);
+    setViewOpen(true);
   }, []);
 
   const columns = React.useMemo<ColumnDef<Lot>[]>(() => [
@@ -198,6 +209,7 @@ export default function LotsPage() {
       cell: ({ row }) => (
         <RowActions
           lot={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => {
             setGlobalError(null);
@@ -208,7 +220,7 @@ export default function LotsPage() {
       ),
       size: 56,
     },
-  ], [onEdit, refetch]);
+  ], [onEdit, onView, refetch]);
 
   const primarySortValue = React.useMemo(() => {
     const first = sorting?.[0];
@@ -550,6 +562,7 @@ export default function LotsPage() {
                       </div>
                       <RowActions
                         lot={lot}
+                        onView={onView}
                         onEdit={onEdit}
                         onChanged={() => {
                           setGlobalError(null);
@@ -616,6 +629,12 @@ export default function LotsPage() {
           refetch();
         }}
         onError={(msg) => setGlobalError(msg)}
+      />
+      <ViewLotDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        lot={viewLot}
+        onRequestEdit={onEdit}
       />
 
       <AlertDialog open={confirmBulkOpen} onOpenChange={handleConfirmBulkOpenChange}>

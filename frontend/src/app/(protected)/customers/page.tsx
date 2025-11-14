@@ -28,6 +28,7 @@ import { X } from 'lucide-react';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { RowActions } from './components/RowActions';
 import { EditCustomerDialog } from './components/EditCustomerDialog';
+import { ViewCustomerDialog } from './components/ViewCustomerDialog';
 import { AddCustomerDialog } from './components/AddCustomerDialog';
 
 import type { Customer } from './types/customer';
@@ -60,6 +61,8 @@ export default function CustomersPage() {
   // Edit & Add dialogs
   const [editOpen, setEditOpen] = React.useState(false);
   const [editCustomer, setEditCustomer] = React.useState<Customer | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewCustomer, setViewCustomer] = React.useState<Customer | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
 
   // Bulk delete confirm + inert cleanup
@@ -72,10 +75,14 @@ export default function CustomersPage() {
     }
   }, []);
 
-  const onEdit = (c: Customer) => {
+  const onEdit = React.useCallback((c: Customer) => {
     setEditCustomer(c);
     setEditOpen(true);
-  };
+  }, []);
+  const onView = React.useCallback((c: Customer) => {
+    setViewCustomer(c);
+    setViewOpen(true);
+  }, []);
 
   // Cleanup helper after dialogs close
   const cleanupInert = React.useCallback(() => {
@@ -87,6 +94,10 @@ export default function CustomersPage() {
 
   const handleEditOpenChange = React.useCallback((o: boolean) => {
     setEditOpen(o);
+    if (!o) cleanupInert();
+  }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => {
+    setViewOpen(o);
     if (!o) cleanupInert();
   }, [cleanupInert]);
 
@@ -155,6 +166,7 @@ export default function CustomersPage() {
       cell: ({ row }) => (
         <RowActions
           customer={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => refetch()}
           onError={(msg) => setGlobalError(msg)}
@@ -162,7 +174,7 @@ export default function CustomersPage() {
       ),
       size: 48,
     },
-  ], [refetch]);
+  ], [refetch, onEdit, onView]);
 
   const table = useReactTable({
     data: rows,
@@ -527,6 +539,7 @@ export default function CustomersPage() {
                         <div className="shrink-0">
                           <RowActions
                             customer={r}
+                            onView={onView}
                             onEdit={(c) => { onEdit(c); }}
                             onChanged={() => refetch()}
                             onError={(msg) => setGlobalError(msg)}
@@ -582,6 +595,13 @@ export default function CustomersPage() {
         onSaved={() => { setGlobalError(null); refetch(); }}
         onDeleted={() => { setGlobalError(null); refetch(); }}
         onError={(msg) => setGlobalError(msg)}
+      />
+
+      <ViewCustomerDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        customer={viewCustomer}
+        onRequestEdit={onEdit}
       />
 
       <AddCustomerDialog

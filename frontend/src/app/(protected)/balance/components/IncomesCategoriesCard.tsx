@@ -31,6 +31,7 @@ import { X } from 'lucide-react';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { IncomeRowActionsCategory } from './IncomeRowActionsCategory';
 import { EditIncomeCategoryDialog } from './EditIncomeCategoryDialog';
+import { ViewIncomeCategoryDialog } from './ViewIncomeCategoryDialog';
 import { AddIncomeCategoryDialog } from './AddIncomeCategoryDialog';
 import {
   Select,
@@ -65,6 +66,8 @@ export default function IncomesCategoriesCard() {
   // Edit & Add dialogs
   const [editOpen, setEditOpen] = React.useState(false);
   const [editCat, setEditCat] = React.useState<IncomeCategory | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewCat, setViewCat] = React.useState<IncomeCategory | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
 
   // Bulk delete confirm + inert cleanup
@@ -77,10 +80,14 @@ export default function IncomesCategoriesCard() {
     }
   }, []);
 
-  const onEdit = (c: IncomeCategory) => {
+  const onEdit = React.useCallback((c: IncomeCategory) => {
     setEditCat(c);
     setEditOpen(true);
-  };
+  }, []);
+  const onView = React.useCallback((c: IncomeCategory) => {
+    setViewCat(c);
+    setViewOpen(true);
+  }, []);
 
   // Cleanup after dialogs close (prevents stuck inert state)
   const cleanupInert = React.useCallback(() => {
@@ -91,6 +98,10 @@ export default function IncomesCategoriesCard() {
   }, []);
   const handleEditOpenChange = React.useCallback((o: boolean) => {
     setEditOpen(o);
+    if (!o) cleanupInert();
+  }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => {
+    setViewOpen(o);
     if (!o) cleanupInert();
   }, [cleanupInert]);
   const handleAddOpenChange = React.useCallback((o: boolean) => {
@@ -143,6 +154,7 @@ export default function IncomesCategoriesCard() {
       cell: ({ row }) => (
         <IncomeRowActionsCategory
           category={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => refetch()}
           onError={(msg) => setGlobalError(msg)}
@@ -150,7 +162,7 @@ export default function IncomesCategoriesCard() {
       ),
       size: 48,
     },
-  ], [refetch]);
+  ], [refetch, onEdit, onView]);
 
   const table = useReactTable({
     data: rows,
@@ -437,6 +449,7 @@ export default function IncomesCategoriesCard() {
                       <div className="shrink-0">
                         <IncomeRowActionsCategory
                           category={c}
+                          onView={onView}
                           onEdit={(cat) => onEdit(cat)}
                           onChanged={() => refetch()}
                           onError={(msg) => setGlobalError(msg)}
@@ -472,6 +485,12 @@ export default function IncomesCategoriesCard() {
         category={editCat}
         onSaved={() => { setGlobalError(null); refetch(); }}
         onError={(msg) => setGlobalError(msg)}
+      />
+      <ViewIncomeCategoryDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        category={viewCat}
+        onRequestEdit={onEdit}
       />
 
       <AddIncomeCategoryDialog

@@ -30,6 +30,7 @@ import { X } from 'lucide-react';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { IncomeRowActions } from './IncomeRowActions'; // Income row actions
 import { EditIncomeDialog } from './EditIncomeDialog';
+import { ViewIncomeDialog } from './ViewIncomeDialog';
 import { AddIncomeDialog } from './AddIncomeDialog';
 import type { Income } from '../types/income';
 import {
@@ -67,9 +68,11 @@ export default function IncomesCard() {
   // Row selection (used for bulk delete)
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
 
-  // Edit & Add dialogs
+  // Edit/View/Add dialogs
   const [editOpen, setEditOpen] = React.useState(false);
   const [editIncome, setEditIncome] = React.useState<Income | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewIncome, setViewIncome] = React.useState<Income | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
 
   // Bulk delete confirm + inert cleanup
@@ -82,10 +85,14 @@ export default function IncomesCard() {
     }
   }, []);
 
-  const onEdit = (e: Income) => {
+  const onEdit = React.useCallback((e: Income) => {
     setEditIncome(e);
     setEditOpen(true);
-  };
+  }, []);
+  const onView = React.useCallback((e: Income) => {
+    setViewIncome(e);
+    setViewOpen(true);
+  }, []);
 
   // Cleanup after dialogs close
   const cleanupInert = React.useCallback(() => {
@@ -96,6 +103,10 @@ export default function IncomesCard() {
   }, []);
   const handleEditOpenChange = React.useCallback((o: boolean) => {
     setEditOpen(o);
+    if (!o) cleanupInert();
+  }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => {
+    setViewOpen(o);
     if (!o) cleanupInert();
   }, [cleanupInert]);
   const handleAddOpenChange = React.useCallback((o: boolean) => {
@@ -210,6 +221,7 @@ export default function IncomesCard() {
       cell: ({ row }) => (
         <IncomeRowActions
           income={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => refetch()}
           onError={(msg) => setGlobalError(msg)}
@@ -217,7 +229,7 @@ export default function IncomesCard() {
       ),
       size: 48,
     },
-  ], [refetch]);
+  ], [refetch, onEdit, onView]);
 
   const table = useReactTable({
     data: rows,
@@ -670,6 +682,7 @@ export default function IncomesCard() {
                       <div className="shrink-0">
                         <IncomeRowActions
                           income={r}
+                          onView={onView}
                           onEdit={(e) => onEdit(e)}
                           onChanged={() => refetch()}
                           onError={(msg) => setGlobalError(msg)}
@@ -711,6 +724,12 @@ export default function IncomesCard() {
         onSaved={() => { setGlobalError(null); refetch(); }}
         onDeleted={() => { setGlobalError(null); refetch(); }}
         onError={(msg) => setGlobalError(msg)}
+      />
+      <ViewIncomeDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        income={viewIncome}
+        onRequestEdit={onEdit}
       />
 
       <AddIncomeDialog

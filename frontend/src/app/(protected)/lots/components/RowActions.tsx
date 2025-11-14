@@ -27,11 +27,13 @@ import { MoreHorizontal } from 'lucide-react';
  */
 export function RowActions({
   lot,
+  onView,
   onEdit,
   onChanged,
   onError,
 }: {
   lot: Lot;
+  onView: (lot: Lot) => void;
   onEdit: (lot: Lot) => void;
   onChanged: () => void;
   onError: (msg: string) => void;
@@ -70,6 +72,7 @@ export function RowActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" className="min-w-[10rem]">
+          <DropdownMenuItem onClick={() => onView(lot)}>Visualizza</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onEdit(lot)}>Modifica</DropdownMenuItem>
           <DropdownMenuItem className="text-red-600" onClick={() => setConfirmOpen(true)}>
             Elimina

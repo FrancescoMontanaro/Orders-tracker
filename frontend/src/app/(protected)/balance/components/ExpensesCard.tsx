@@ -30,6 +30,7 @@ import { X } from 'lucide-react';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { RowActions } from './RowActions'; // Expense row actions
 import { EditExpenseDialog } from './EditExpenseDialog';
+import { ViewExpenseDialog } from './ViewExpenseDialog';
 import { AddExpenseDialog } from './AddExpenseDialog';
 import type { Expense } from '../types/expense';
 import {
@@ -70,6 +71,8 @@ export default function ExpensesPage() {
   // Edit & Add dialogs
   const [editOpen, setEditOpen] = React.useState(false);
   const [editExpense, setEditExpense] = React.useState<Expense | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewExpense, setViewExpense] = React.useState<Expense | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
 
   // Bulk delete confirm + inert cleanup
@@ -82,10 +85,14 @@ export default function ExpensesPage() {
     }
   }, []);
 
-  const onEdit = (e: Expense) => {
+  const onEdit = React.useCallback((e: Expense) => {
     setEditExpense(e);
     setEditOpen(true);
-  };
+  }, []);
+  const onView = React.useCallback((e: Expense) => {
+    setViewExpense(e);
+    setViewOpen(true);
+  }, []);
 
   // Cleanup after dialogs close
   const cleanupInert = React.useCallback(() => {
@@ -96,6 +103,10 @@ export default function ExpensesPage() {
   }, []);
   const handleEditOpenChange = React.useCallback((o: boolean) => {
     setEditOpen(o);
+    if (!o) cleanupInert();
+  }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => {
+    setViewOpen(o);
     if (!o) cleanupInert();
   }, [cleanupInert]);
   const handleAddOpenChange = React.useCallback((o: boolean) => {
@@ -210,6 +221,7 @@ export default function ExpensesPage() {
       cell: ({ row }) => (
         <RowActions
           expense={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => refetch()}
           onError={(msg) => setGlobalError(msg)}
@@ -217,7 +229,7 @@ export default function ExpensesPage() {
       ),
       size: 48,
     },
-  ], [refetch]);
+  ], [refetch, onEdit, onView]);
 
   const table = useReactTable({
     data: rows,
@@ -670,6 +682,7 @@ export default function ExpensesPage() {
                       <div className="shrink-0">
                         <RowActions
                           expense={r}
+                          onView={onView}
                           onEdit={(e) => onEdit(e)}
                           onChanged={() => refetch()}
                           onError={(msg) => setGlobalError(msg)}
@@ -711,6 +724,12 @@ export default function ExpensesPage() {
         onSaved={() => { setGlobalError(null); refetch(); }}
         onDeleted={() => { setGlobalError(null); refetch(); }}
         onError={(msg) => setGlobalError(msg)}
+      />
+      <ViewExpenseDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        expense={viewExpense}
+        onRequestEdit={onEdit}
       />
 
       <AddExpenseDialog

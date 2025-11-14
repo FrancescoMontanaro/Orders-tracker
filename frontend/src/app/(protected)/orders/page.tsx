@@ -35,6 +35,7 @@ import { StatusQuickEdit } from './components/StatusQuickEdit';
 import { RowActions } from './components/RowActions';
 import { AddOrderDialog } from './components/AddOrderDialog';
 import { EditOrderDialog } from './components/EditOrderDialog';
+import { ViewOrderDialog } from './components/ViewOrderDialog';
 
 export default function OrdersPage() {
   useFixRadixInertLeak();
@@ -51,6 +52,8 @@ export default function OrdersPage() {
 
   const [editOpen, setEditOpen] = React.useState(false);
   const [editOrder, setEditOrder] = React.useState<Order | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewOrder, setViewOrder] = React.useState<Order | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
 
   const [confirmBulkOpen, setConfirmBulkOpen] = React.useState(false);
@@ -66,6 +69,10 @@ export default function OrdersPage() {
     setEditOrder(o);
     setEditOpen(true);
   }, []);
+  const onView = React.useCallback((o: Order) => {
+    setViewOrder(o);
+    setViewOpen(true);
+  }, []);
 
   const cleanupInert = React.useCallback(() => {
     if (typeof document !== 'undefined') {
@@ -74,6 +81,7 @@ export default function OrdersPage() {
     }
   }, []);
   const handleEditOpenChange = React.useCallback((o: boolean) => { setEditOpen(o); if (!o) cleanupInert(); }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => { setViewOpen(o); if (!o) cleanupInert(); }, [cleanupInert]);
   const handleAddOpenChange  = React.useCallback((o: boolean) => { setAddOpen(o);  if (!o) cleanupInert(); }, [cleanupInert]);
 
   const columns = React.useMemo<ColumnDef<Order>[]>(() => [
@@ -144,6 +152,7 @@ export default function OrdersPage() {
       cell: ({ row }) => (
         <RowActions
           order={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => refetch()}
           onError={(msg) => setGlobalError(msg)}
@@ -151,7 +160,7 @@ export default function OrdersPage() {
       ),
       size: 48,
     },
-  ], [refetch, onEdit]);
+  ], [refetch, onEdit, onView]);
 
   const table = useReactTable({
     data: rows,
@@ -555,6 +564,7 @@ export default function OrdersPage() {
                       <div className="shrink-0">
                         <RowActions
                           order={r}
+                          onView={onView}
                           onEdit={(o) => onEdit(o)}
                           onChanged={() => refetch()}
                           onError={(msg) => setGlobalError(msg)}
@@ -618,6 +628,12 @@ export default function OrdersPage() {
         onSaved={() => { setGlobalError(null); refetch(); }}
         onDeleted={() => { setGlobalError(null); refetch(); }}
         onError={(msg) => setGlobalError(msg)}
+      />
+      <ViewOrderDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        order={viewOrder}
+        onRequestEdit={onEdit}
       />
       <AddOrderDialog
         open={addOpen}

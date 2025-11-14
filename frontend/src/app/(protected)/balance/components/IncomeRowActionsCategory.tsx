@@ -17,9 +17,10 @@ type IncomeCategory = { id: number; descr: string };
  * Mirrors the expenses category actions but points to /incomes endpoints.
  */
 export function IncomeRowActionsCategory({
-  category, onEdit, onChanged, onError,
+  category, onView, onEdit, onChanged, onError,
 }: {
   category: IncomeCategory;
+  onView: (c: IncomeCategory) => void;
   onEdit: (c: IncomeCategory) => void;
   onChanged: () => void;
   onError: (msg: string) => void;
@@ -46,6 +47,7 @@ export function IncomeRowActionsCategory({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" className="min-w-[10rem]">
+          <DropdownMenuItem onClick={() => onView(category)}>Visualizza</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onEdit(category)}>Modifica</DropdownMenuItem>
           <DropdownMenuItem className="text-red-600" onClick={requestDeleteOne}>
             Elimina

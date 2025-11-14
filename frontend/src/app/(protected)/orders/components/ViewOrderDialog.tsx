@@ -92,7 +92,7 @@ export function ViewOrderDialog({
                 <h4 className="text-sm font-semibold">Prodotti</h4>
                 {order.items?.length ? (
                   <div className="rounded-md border">
-                    <div className="max-h-64 overflow-y-auto">
+                    <div className="overflow-x-auto md:max-h-64 md:overflow-y-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>

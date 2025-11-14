@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Skeleton } from '@/components/ui/skeleton';
-import { X } from 'lucide-react';
+import { X, Filter, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 import { AddNoteDialog } from './components/AddNoteDialog';
 import { EditNoteDialog } from './components/EditNoteDialog';
@@ -46,6 +47,7 @@ export default function NotesPage() {
   const [viewNote, setViewNote] = React.useState<Note | null>(null);
   const [editOpen, setEditOpen] = React.useState(false);
   const [editNote, setEditNote] = React.useState<Note | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   // Error banner
   const [globalError, setGlobalError] = React.useState<string | null>(null);
@@ -165,7 +167,7 @@ export default function NotesPage() {
         )}
 
         {/* Filtri (senza ordinamento) */}
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="hidden md:grid gap-3 md:grid-cols-3">
           <div className="grid gap-1 min-w-0">
             <Label>Ricerca</Label>
             <Input
@@ -186,8 +188,46 @@ export default function NotesPage() {
         </div>
 
         {/* Reset */}
-        <div className="flex justify-end">
+        <div className="hidden md:flex justify-end">
           <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">Reset filtri</Button>
+        </div>
+
+        {/* Mobile filters */}
+        <div className="md:hidden space-y-3">
+          <Button
+            variant="outline"
+            onClick={() => setMobileFiltersOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-2"
+          >
+            <span className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
+            </span>
+            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
+          </Button>
+
+          {mobileFiltersOpen && (
+            <div className="space-y-3">
+              <div className="grid gap-1 min-w-0">
+                <Label>Ricerca</Label>
+                <Input
+                  placeholder="Cerca nel testo…"
+                  value={searchText}
+                  onChange={(e) => { setSearchText(e.target.value); setPage(1); }}
+                  className="min-w-0 w-full max-w-full"
+                />
+              </div>
+              <div className="grid gap-1 min-w-0">
+                <Label>Creato dopo</Label>
+                <DatePicker value={createdAfter ?? ''} onChange={setCreatedAfter} placeholder="Creata da" />
+              </div>
+              <div className="grid gap-1 min-w-0">
+                <Label>Creato prima</Label>
+                <DatePicker value={createdBefore ?? ''} onChange={setCreatedBefore} placeholder="Creata fino a" />
+              </div>
+              <Button variant="outline" onClick={resetFilters} className="w-full">Reset filtri</Button>
+            </div>
+          )}
         </div>
       </CardHeader>
 

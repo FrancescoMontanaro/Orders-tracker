@@ -59,7 +59,7 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { PaginationControls } from '@/components/ui/pagination-controls';
-import { X, MapPin } from 'lucide-react';
+import { X, MapPin, Filter, ChevronDown } from 'lucide-react';
 
 /**
  * Lots management page.
@@ -103,6 +103,7 @@ export default function LotsPage() {
   const [editLot, setEditLot] = React.useState<Lot | null>(null);
   const [viewOpen, setViewOpen] = React.useState(false);
   const [viewLot, setViewLot] = React.useState<Lot | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   const cleanupInert = React.useCallback(() => {
     if (typeof document !== 'undefined') {
@@ -385,6 +386,19 @@ export default function LotsPage() {
 
         {/* Mobile filters */}
         <div className="md:hidden space-y-3">
+          <Button
+            variant="outline"
+            onClick={() => setMobileFiltersOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-2"
+          >
+            <span className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
+            </span>
+            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
+          </Button>
+
+          <div className={cn('space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
           <div className="grid gap-1 min-w-0">
             <Label>Nome</Label>
             <Input
@@ -466,6 +480,7 @@ export default function LotsPage() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
           </div>
         </div>
       </CardHeader>

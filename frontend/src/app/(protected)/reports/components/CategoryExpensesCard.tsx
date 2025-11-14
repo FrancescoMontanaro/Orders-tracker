@@ -2,8 +2,10 @@
 
 import * as React from 'react';
 import { api } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -22,6 +24,7 @@ import type { SuccessResponse } from '@/types/api';
 import type { Option } from '../hooks/useRemoteSearch';
 import { euro } from '@/app/(protected)/balance/utils/currency';
 import { addDays, toIsoDate } from '../utils/date';
+import { Filter, ChevronDown } from 'lucide-react';
 
 /* ---------- Types for this report ---------- */
 
@@ -95,6 +98,7 @@ export function CategoryExpensesCard() {
   const [error, setError] = React.useState<string | null>(null);
 
   const [topWorst, setTopWorst] = React.useState<TWMode>('none');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   const debouncedCats = useDebouncedValue(categories, 250);
   const debouncedStart = useDebouncedValue(start, 250);
@@ -160,7 +164,7 @@ export function CategoryExpensesCard() {
       </CardHeader>
       <CardContent className="space-y-4 overflow-x-hidden">
         {/* Filters */}
-        <div className="grid gap-3 md:grid-cols-5 min-w-0">
+        <div className="hidden md:grid gap-3 md:grid-cols-5 min-w-0">
           <div className="grid gap-1 min-w-0">
             <Label>Da</Label>
             <DatePicker value={start} onChange={setStart} placeholder="Data da" className="min-w-0 w-full" />
@@ -199,6 +203,59 @@ export function CategoryExpensesCard() {
               </Select>
             </div>
           </div>
+        </div>
+
+        {/* Mobile filters */}
+        <div className="md:hidden space-y-3">
+          <Button
+            variant="outline"
+            onClick={() => setMobileFiltersOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-2"
+          >
+            <span className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
+            </span>
+            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
+          </Button>
+
+          {mobileFiltersOpen && (
+            <div className="space-y-3">
+              <div className="grid gap-1 min-w-0">
+                <Label>Da</Label>
+                <DatePicker value={start} onChange={setStart} placeholder="Data da" className="min-w-0 w-full" />
+              </div>
+              <div className="grid gap-1 min-w-0">
+                <Label>A</Label>
+                <DatePicker value={end} onChange={setEnd} placeholder="Data a" className="min-w-0 w-full" />
+              </div>
+              <div className="grid gap-1 min-w-0">
+                <Label>Categorie</Label>
+                <MultiExpenseCategoryCombobox
+                  values={categories}
+                  onChange={setCategories}
+                  placeholder="Tutte le categorie…"
+                  emptyText="Nessuna categoria"
+                  clearLabel="Tutte le categorie"
+                />
+              </div>
+              <div className="grid gap-1 min-w-0">
+                <Label>Mostra</Label>
+                <Select value={topWorst} onValueChange={(v: TWMode) => setTopWorst(v)}>
+                  <SelectTrigger className="min-w-0 w-full">
+                    <SelectValue placeholder="Nessun filtro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nessun filtro</SelectItem>
+                    <SelectItem value="top5">5 più costose (totale €)</SelectItem>
+                    <SelectItem value="top10">10 più costose (totale €)</SelectItem>
+                    <SelectItem value="worst5">5 meno costose (totale €)</SelectItem>
+                    <SelectItem value="worst10">10 meno costose (totale €)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Chart + Table/Card */}

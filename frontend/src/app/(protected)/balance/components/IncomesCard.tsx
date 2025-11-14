@@ -25,7 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { X } from 'lucide-react';
+import { X, Filter, ChevronDown } from 'lucide-react';
 
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { IncomeRowActions } from './IncomeRowActions'; // Income row actions
@@ -74,6 +74,7 @@ export default function IncomesCard() {
   const [viewOpen, setViewOpen] = React.useState(false);
   const [viewIncome, setViewIncome] = React.useState<Income | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   // Bulk delete confirm + inert cleanup
   const [confirmBulkOpen, setConfirmBulkOpen] = React.useState(false);
@@ -446,6 +447,20 @@ export default function IncomesCard() {
 
         {/* ===== Mobile filters (<md) ===== */}
         <div className="md:hidden space-y-3">
+          <Button
+            variant="outline"
+            onClick={() => setMobileFiltersOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-2"
+          >
+            <span className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
+            </span>
+            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
+          </Button>
+
+          {mobileFiltersOpen && (
+            <div className="space-y-3">
           {/* Row 1: note search full width */}
           <div className="grid gap-1 min-w-0">
             <Label>Nota</Label>
@@ -571,6 +586,8 @@ export default function IncomesCard() {
           <Button variant="outline" onClick={resetFilters} className="w-full">
             Reset filtri
           </Button>
+        </div>
+          )}
         </div>
       </CardHeader>
 

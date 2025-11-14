@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { X } from 'lucide-react';
+import { X, Filter, ChevronDown } from 'lucide-react';
 
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { RowActions } from './components/RowActions';
@@ -64,6 +64,7 @@ export default function CustomersPage() {
   const [viewOpen, setViewOpen] = React.useState(false);
   const [viewCustomer, setViewCustomer] = React.useState<Customer | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   // Bulk delete confirm + inert cleanup
   const [confirmBulkOpen, setConfirmBulkOpen] = React.useState(false);
@@ -333,104 +334,118 @@ export default function CustomersPage() {
 
         {/* ===== Mobile filters (<md) ===== */}
         <div className="md:hidden space-y-3">
-          {/* Row 1: search full width */}
-          <div className="grid gap-1 min-w-0">
-            <Label>Nome</Label>
-            <Input
-              placeholder="Cerca per nome…"
-              value={searchName}
-              onChange={(e) => setSearchName(e.target.value)}
-              className="min-w-0 w-full max-w-full"
-            />
-          </div>
+          <Button
+            variant="outline"
+            onClick={() => setMobileFiltersOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-2"
+          >
+            <span className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              {mobileFiltersOpen ? 'Nascondi filtri' : 'Mostra filtri'}
+            </span>
+            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileFiltersOpen && 'rotate-180')} />
+          </Button>
 
-          {/* Row 2: status + reset */}
-          <div className="grid grid-cols-2 gap-3 min-w-0">
+          <div className={cn('space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
+            {/* Row 1: search full width */}
             <div className="grid gap-1 min-w-0">
-              <Label>Stato</Label>
-              <Select
-                value={statusFilter}
-                onValueChange={(v: 'all' | 'active' | 'inactive') => setStatusFilter(v)}
-              >
-                <SelectTrigger className="min-w-0 w-full max-w-full">
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="active">Attivi</SelectItem>
-                  <SelectItem value="inactive">Non attivi</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-1 min-w-0">
-              <Label className="opacity-0 select-none">Reset</Label>
-              <Button variant="outline" onClick={resetFilters} className="w-full">
-                Reset filtri
-              </Button>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="h-px bg-border" />
-
-          {/* Row 3: select all + sort */}
-          <div className="grid grid-cols-2 gap-3 min-w-0 items-end">
-            {/* Select all */}
-            <label className="inline-flex items-center gap-2 text-sm min-w-0">
-              <Checkbox
-                checked={
-                  rows.length > 0
-                    ? rows.every((r) => !!(rowSelection as any)[String(r.id)]) ||
-                      (rows.some((r) => !!(rowSelection as any)[String(r.id)]) && 'indeterminate')
-                    : false
-                }
-                onCheckedChange={(v) => {
-                  const ids = rows.map((r) => String(r.id));
-                  setRowSelection((prev) => {
-                    const nextSel = { ...prev };
-                    if (v) ids.forEach((id) => (nextSel[id] = true));
-                    else ids.forEach((id) => delete nextSel[id]);
-                    return nextSel;
-                  });
-                }}
-                aria-label="Seleziona tutti (pagina)"
+              <Label>Nome</Label>
+              <Input
+                placeholder="Cerca per nome…"
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                className="min-w-0 w-full max-w-full"
               />
-              <span className="truncate">Seleziona tutti</span>
-            </label>
+            </div>
 
-            {/* Sort select */}
-            <div className="grid gap-1 min-w-0">
-              <Label>Ordina per</Label>
-              <Select
-                value={
-                  sorting?.[0]?.id === 'name'
-                    ? sorting?.[0]?.desc
-                      ? 'name-desc'
-                      : 'name-asc'
-                    : sorting?.[0]?.id === 'is_active'
-                    ? sorting?.[0]?.desc
-                      ? 'active-desc'
-                      : 'active-asc'
-                    : 'name-asc'
-                }
-                onValueChange={(v) => {
-                  if (v === 'name-asc') setSorting([{ id: 'name', desc: false }]);
-                  else if (v === 'name-desc') setSorting([{ id: 'name', desc: true }]);
-                  else if (v === 'active-asc') setSorting([{ id: 'is_active', desc: false }]);
-                  else if (v === 'active-desc') setSorting([{ id: 'is_active', desc: true }]);
-                }}
-              >
-                <SelectTrigger className="min-w-0 w-full max-w-full">
-                  <SelectValue placeholder="Ordina per" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name-asc">Nome (A→Z)</SelectItem>
-                  <SelectItem value="name-desc">Nome (Z→A)</SelectItem>
-                  <SelectItem value="active-asc">Attivo (No→Sì)</SelectItem>
-                  <SelectItem value="active-desc">Attivo (Sì→No)</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Row 2: status + reset */}
+            <div className="grid grid-cols-2 gap-3 min-w-0">
+              <div className="grid gap-1 min-w-0">
+                <Label>Stato</Label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v: 'all' | 'active' | 'inactive') => setStatusFilter(v)}
+                >
+                  <SelectTrigger className="min-w-0 w-full max-w-full">
+                    <SelectValue placeholder="Tutti" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti</SelectItem>
+                    <SelectItem value="active">Attivi</SelectItem>
+                    <SelectItem value="inactive">Non attivi</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-1 min-w-0">
+                <Label className="opacity-0 select-none">Reset</Label>
+                <Button variant="outline" onClick={resetFilters} className="w-full">
+                  Reset filtri
+                </Button>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-border" />
+
+            {/* Row 3: select all + sort */}
+            <div className="grid grid-cols-2 gap-3 min-w-0 items-end">
+              {/* Select all */}
+              <label className="inline-flex items-center gap-2 text-sm min-w-0">
+                <Checkbox
+                  checked={
+                    rows.length > 0
+                      ? rows.every((r) => !!(rowSelection as any)[String(r.id)]) ||
+                        (rows.some((r) => !!(rowSelection as any)[String(r.id)]) && 'indeterminate')
+                      : false
+                  }
+                  onCheckedChange={(v) => {
+                    const ids = rows.map((r) => String(r.id));
+                    setRowSelection((prev) => {
+                      const nextSel = { ...prev };
+                      if (v) ids.forEach((id) => (nextSel[id] = true));
+                      else ids.forEach((id) => delete nextSel[id]);
+                      return nextSel;
+                    });
+                  }}
+                  aria-label="Seleziona tutti (pagina)"
+                />
+                <span className="truncate">Seleziona tutti</span>
+              </label>
+
+              {/* Sort select */}
+              <div className="grid gap-1 min-w-0">
+                <Label>Ordina per</Label>
+                <Select
+                  value={
+                    sorting?.[0]?.id === 'name'
+                      ? sorting?.[0]?.desc
+                        ? 'name-desc'
+                        : 'name-asc'
+                      : sorting?.[0]?.id === 'is_active'
+                        ? sorting?.[0]?.desc
+                          ? 'active-desc'
+                          : 'active-asc'
+                        : 'name-asc'
+                  }
+                  onValueChange={(v) => {
+                    if (v === 'name-asc') setSorting([{ id: 'name', desc: false }]);
+                    else if (v === 'name-desc') setSorting([{ id: 'name', desc: true }]);
+                    else if (v === 'active-asc') setSorting([{ id: 'is_active', desc: false }]);
+                    else if (v === 'active-desc') setSorting([{ id: 'is_active', desc: true }]);
+                  }}
+                >
+                  <SelectTrigger className="min-w-0 w-full max-w-full">
+                    <SelectValue placeholder="Ordina per" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name-asc">Nome (A→Z)</SelectItem>
+                    <SelectItem value="name-desc">Nome (Z→A)</SelectItem>
+                    <SelectItem value="active-asc">Attivo (No→Sì)</SelectItem>
+                    <SelectItem value="active-desc">Attivo (Sì→No)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </div>

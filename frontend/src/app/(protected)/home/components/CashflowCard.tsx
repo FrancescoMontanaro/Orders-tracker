@@ -257,12 +257,13 @@ export default function CashflowCardPro() {
   const hasData = series.length > 0 && series.some((r) => r.in || r.out || r.net);
   const netClass = totals.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
 
-  function resetMonth() {
+  const resetFilters = React.useCallback(() => {
     const d = firstLastDayOfCurrentMonth();
     setDateFrom(d.start);
     setDateTo(d.end);
     setGran('daily');
-  }
+    setIncludeIncomes(true);
+  }, []);
 
   // Cumulative series for the secondary chart
   const cumulative = React.useMemo(() => {
@@ -304,12 +305,7 @@ export default function CashflowCardPro() {
     <Card className="w-full max-w-full overflow-x-hidden">
       {/* ===== Header ===== */}
       <CardHeader className="space-y-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between min-w-0 max-w-full">
-          <CardTitle className="min-w-0">Cashflow</CardTitle>
-          <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
-            <Button variant="outline" onClick={resetMonth}>Reimposta mese corrente</Button>
-          </div>
-        </div>
+        <CardTitle className="min-w-0">Cashflow</CardTitle>
       </CardHeader>
 
       {/* ===== Controls + KPIs ===== */}
@@ -320,6 +316,9 @@ export default function CashflowCardPro() {
             onToggle={() => setMobileFiltersOpen((prev) => !prev)}
             className="w-full sm:w-auto"
           />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
         </div>
 
         {/* Filters */}
@@ -390,6 +389,7 @@ export default function CashflowCardPro() {
         {/* ⬇️ AGGIUNTA: riga che indica il periodo di confronto (discreta e responsive) */}
         {prevRange && (
           <div className="text-xs text-muted-foreground">
+            Periodo corrente: {fmtDateFullIT(dateFrom)} – {fmtDateFullIT(dateTo)} <br />
             Confronto con: {fmtDateFullIT(prevRange.start)} – {fmtDateFullIT(prevRange.end)}
           </div>
         )}

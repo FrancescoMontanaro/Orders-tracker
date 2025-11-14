@@ -35,7 +35,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Needed by sharp on Alpine (Next Image Optimization)
-RUN apk add --no-cache libc6-compat
+RUN apk update && apk add --no-cache gcompat
 
 # Copy Next standalone artifacts
 COPY --from=builder /app/.next/standalone ./

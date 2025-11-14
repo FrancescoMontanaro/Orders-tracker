@@ -497,7 +497,7 @@ export default function OrdersPage() {
             {/* Desktop table (md+) */}
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[64rem]">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (
@@ -557,7 +557,7 @@ export default function OrdersPage() {
             <div className="md:hidden space-y-2">
               {rows.length ? (
                 rows.map((r) => (
-                  <div key={r.id} className="rounded-md border p-3">
+                  <div key={r.id} className="rounded-md border p-2.5">
                     {/* Top row: checkbox + customer + actions */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2 min-w-0">
@@ -588,7 +588,7 @@ export default function OrdersPage() {
                     </div>
 
                     {/* Meta row: Consegna + Totale (visibile, etichettato) */}
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    <div className="mt-1.5 grid grid-cols-2 gap-2 text-sm">
                       <div className="text-muted-foreground">
                         <span className="block">Consegna</span>
                         <span className="tabular-nums">{fmtDate(r.delivery_date)}</span>
@@ -600,12 +600,12 @@ export default function OrdersPage() {
                     </div>
 
                     {/* Items summary */}
-                    <div className="mt-2">
+                    <div className="mt-1.5">
                       <ItemsSummaryCell items={r.items ?? []} />
                     </div>
 
                     {/* Status quick edit (a tutta larghezza) */}
-                    <div className="mt-2">
+                    <div className="mt-1.5">
                       <StatusQuickEdit
                         orderId={r.id}
                         value={(r.status ?? 'created')}

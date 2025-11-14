@@ -614,7 +614,7 @@ export default function IncomesCard() {
             {/* Desktop table (md+): classic table; inner min-width only on md+ */}
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[60rem]">{/* widened to fit the new column */}
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (
@@ -671,10 +671,10 @@ export default function IncomesCard() {
             </div>
 
             {/* Mobile list (<md): card layout to avoid horizontal overflow */}
-            <div className="md:hidden space-y-2">
+            <div className="md:hidden space-y-1.5">
               {rows.length ? (
                 rows.map((r) => (
-                  <div key={r.id} className="rounded-md border p-3">
+                  <div key={r.id} className="rounded-md border p-2.5">
                     {/* Top row: checkbox + date + actions */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2 min-w-0">
@@ -708,7 +708,7 @@ export default function IncomesCard() {
                     </div>
 
                     {/* Note */}
-                    <div className="mt-2 text-sm text-muted-foreground break-words whitespace-pre-wrap">
+                    <div className="mt-1.5 text-sm text-muted-foreground break-words whitespace-pre-wrap">
                       {r.note || '—'}
                     </div>
                   </div>

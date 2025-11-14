@@ -369,7 +369,7 @@ export default function CategoriesCard() {
             {/* Desktop table (md+): mirrors Expenses layout */}
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[44rem]">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (

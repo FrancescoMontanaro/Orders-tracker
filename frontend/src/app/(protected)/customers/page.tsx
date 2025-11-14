@@ -464,7 +464,7 @@ export default function CustomersPage() {
             {/* Desktop table (md+): classic table; inner min-width only on md+ */}
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[52rem]">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (
@@ -521,12 +521,12 @@ export default function CustomersPage() {
             </div>
 
             {/* Mobile list (<md): toolbar + card list to avoid horizontal overflow */}
-            <div className="md:hidden space-y-3">
+            <div className="md:hidden space-y-2.5">
               {/* Card list */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {rows.length ? (
                   rows.map((r) => (
-                    <div key={r.id} className="rounded-md border p-3">
+                    <div key={r.id} className="rounded-md border p-2.5">
                       {/* Top row: checkbox + name (link) + actions */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-2 min-w-0">
@@ -563,7 +563,7 @@ export default function CustomersPage() {
                       </div>
 
                       {/* Bottom row: status pill */}
-                      <div className="mt-2 flex items-center justify-between">
+                      <div className="mt-1.5 flex items-center justify-between">
                         <span
                           className={cn(
                             'text-xs rounded px-2 py-0.5 border',

@@ -324,7 +324,7 @@ export function CategoryExpensesCard() {
               </div>
             ) : (
               <div className="w-full overflow-x-auto rounded-md border">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Categoria</TableHead>

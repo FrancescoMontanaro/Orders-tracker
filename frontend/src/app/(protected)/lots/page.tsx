@@ -497,7 +497,7 @@ export default function LotsPage() {
           <>
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[60rem]">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (
@@ -553,7 +553,7 @@ export default function LotsPage() {
             <div className="md:hidden space-y-2">
               {rows.length ? (
                 rows.map((lot) => (
-                  <div key={lot.id} className="rounded-md border p-3 space-y-3">
+                  <div key={lot.id} className="rounded-md border p-2.5 space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2 min-w-0">
                         <Checkbox

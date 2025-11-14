@@ -503,7 +503,7 @@ export default function ProductsPage() {
             {/* Desktop table (md+) */}
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[56rem]">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (
@@ -563,7 +563,7 @@ export default function ProductsPage() {
             <div className="md:hidden space-y-2">
               {rows.length ? (
                 rows.map((r) => (
-                  <div key={r.id} className="rounded-md border p-3">
+                  <div key={r.id} className="rounded-md border p-2.5">
                     {/* Top row: checkbox + name + actions */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2 min-w-0">
@@ -601,7 +601,7 @@ export default function ProductsPage() {
                     </div>
 
                     {/* Bottom row: status pill */}
-                    <div className="mt-2 flex items-center justify-between">
+                    <div className="mt-1.5 flex items-center justify-between">
                       <span
                         className={cn(
                           'text-xs rounded px-2 py-0.5 border',

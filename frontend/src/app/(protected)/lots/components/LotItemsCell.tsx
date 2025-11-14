@@ -4,6 +4,8 @@ import * as React from 'react';
 import { LotOrderItem } from '../types/lot';
 import { Badge } from '@/components/ui/badge';
 import { formatLotDate } from '../utils/date';
+import { cn } from '@/lib/utils';
+import { ChevronDown } from 'lucide-react';
 
 type CustomerGroup = {
   customerId: number | null;
@@ -54,53 +56,73 @@ export function LotItemsCell({ items }: { items: LotOrderItem[] }) {
     }));
   }, [items]);
 
+  const [open, setOpen] = React.useState(false);
+
   if (!items?.length) return <span className="text-muted-foreground">—</span>;
 
   return (
-    <div className="flex flex-col gap-2 min-w-0">
-      {groups.map((group) => (
-        <div
-          key={group.customerId ?? 'nc'}
-          className="rounded-lg border border-muted bg-muted/30 p-2 space-y-1.5"
-        >
-          <div className="text-xs font-semibold uppercase text-muted-foreground">
-            {group.customerName}
-          </div>
+    <div className="flex flex-col gap-1.5 min-w-[12rem] max-w-[18rem]">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center justify-between gap-2 rounded-sm border px-2 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition"
+      >
+        <span className="truncate">
+          {open ? 'Nascondi' : 'Mostra'} prodotti ({items.length})
+        </span>
+        <ChevronDown
+          className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')}
+          aria-hidden
+        />
+      </button>
 
-          {group.orders.map((order) => (
+      {open && (
+        <div className="space-y-2 rounded-md border bg-muted/40 p-2 max-h-56 overflow-y-auto">
+          {groups.map((group) => (
             <div
-              key={order.orderId}
-              className="rounded-md border border-dashed bg-background/80 p-2 space-y-1"
+              key={group.customerId ?? 'nc'}
+              className="rounded-md border border-muted/60 bg-background/70 p-2 space-y-1.5"
             >
-              <div className="flex items-center justify-between gap-2 text-sm font-medium">
-                <span>Ordine #{order.orderId} · {formatLotDate(order.order_date)}</span>
-                <span className="text-xs text-muted-foreground">
-                  {order.items.length} prodotti
-                </span>
+              <div className="text-[11px] font-semibold uppercase text-muted-foreground">
+                {group.customerName}
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {order.items.map((item) => (
-                  <span
-                    key={item.id}
-                    className="inline-flex items-center gap-1 rounded-md border bg-muted px-2 py-0.5 text-xs leading-tight"
-                  >
-                    <span className="truncate max-w-[160px]">
-                      {item.product_name ?? `Prodotto #${item.product_id}`}
-                      {item.product_unit ? ` (${item.product_unit})` : ''}
+
+              {group.orders.map((order) => (
+                <div
+                  key={order.orderId}
+                  className="rounded-md border border-dashed bg-background/80 p-2 space-y-1"
+                >
+                  <div className="flex items-center justify-between gap-2 text-xs font-medium">
+                    <span>Ordine #{order.orderId} · {formatLotDate(order.order_date)}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {order.items.length} prodotti
                     </span>
-                    <Badge
-                      variant="secondary"
-                      className="shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold"
-                    >
-                      ×{item.quantity}
-                    </Badge>
-                  </span>
-                ))}
-              </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {order.items.map((item) => (
+                      <span
+                        key={item.id}
+                        className="inline-flex items-center gap-1 rounded-md border bg-muted px-2 py-0.5 text-[11px] leading-tight"
+                      >
+                        <span className="truncate max-w-[160px]">
+                          {item.product_name ?? `Prodotto #${item.product_id}`}
+                          {item.product_unit ? ` (${item.product_unit})` : ''}
+                        </span>
+                        <Badge
+                          variant="secondary"
+                          className="shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold"
+                        >
+                          ×{item.quantity}
+                        </Badge>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

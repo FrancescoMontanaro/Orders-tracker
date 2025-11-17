@@ -17,9 +17,10 @@ type ExpenseCategory = { id: number; descr: string };
  * Mirrors the Expenses row actions but adapted to categories endpoints and labels.
  */
 export function RowActionsCategory({
-  category, onEdit, onChanged, onError,
+  category, onView, onEdit, onChanged, onError,
 }: {
   category: ExpenseCategory;
+  onView: (c: ExpenseCategory) => void;
   onEdit: (c: ExpenseCategory) => void;
   onChanged: () => void;
   onError: (msg: string) => void;
@@ -46,6 +47,7 @@ export function RowActionsCategory({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" className="min-w-[10rem]">
+          <DropdownMenuItem onClick={() => onView(category)}>Visualizza</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onEdit(category)}>Modifica</DropdownMenuItem>
           <DropdownMenuItem className="text-red-600" onClick={requestDeleteOne}>
             Elimina

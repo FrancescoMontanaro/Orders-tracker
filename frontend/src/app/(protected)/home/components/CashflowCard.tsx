@@ -9,6 +9,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 import {
   ChartContainer,
   ChartTooltip,
@@ -124,6 +126,7 @@ export default function CashflowCardPro() {
   const [dateTo, setDateTo] = React.useState<string>(end);
   const [gran, setGran] = React.useState<Granularity>('daily');
   const [includeIncomes, setIncludeIncomes] = React.useState(true);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -254,12 +257,13 @@ export default function CashflowCardPro() {
   const hasData = series.length > 0 && series.some((r) => r.in || r.out || r.net);
   const netClass = totals.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
 
-  function resetMonth() {
+  const resetFilters = React.useCallback(() => {
     const d = firstLastDayOfCurrentMonth();
     setDateFrom(d.start);
     setDateTo(d.end);
     setGran('daily');
-  }
+    setIncludeIncomes(true);
+  }, []);
 
   // Cumulative series for the secondary chart
   const cumulative = React.useMemo(() => {
@@ -301,18 +305,51 @@ export default function CashflowCardPro() {
     <Card className="w-full max-w-full overflow-x-hidden">
       {/* ===== Header ===== */}
       <CardHeader className="space-y-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between min-w-0 max-w-full">
-          <CardTitle className="min-w-0">Cashflow</CardTitle>
-          <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
-            <Button variant="outline" onClick={resetMonth}>Reimposta mese corrente</Button>
-          </div>
-        </div>
+        <CardTitle className="min-w-0">Cashflow</CardTitle>
       </CardHeader>
 
       {/* ===== Controls + KPIs ===== */}
       <CardContent className="space-y-5 min-w-0 max-w-full overflow-x-hidden">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
+        </div>
+
         {/* Filters */}
-        <div className="grid gap-3 sm:grid-cols-3 min-w-0 max-w-full">
+        <div
+          className={cn(
+            'hidden md:grid gap-3 md:grid-cols-3 min-w-0 max-w-full',
+            mobileFiltersOpen ? '' : 'md:hidden',
+          )}
+        >
+          <div className="grid gap-1 min-w-0">
+            <Label>Dal</Label>
+            <DatePicker value={dateFrom} onChange={setDateFrom} className="min-w-0 w-full" placeholder="Seleziona data" />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Al</Label>
+            <DatePicker value={dateTo} onChange={setDateTo} className="min-w-0 w-full" placeholder="Seleziona data" />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Granularità</Label>
+            <Select value={gran} onValueChange={(v: Granularity) => setGran(v)}>
+              <SelectTrigger className="min-w-0 w-full"><SelectValue placeholder="Seleziona" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Giornaliera</SelectItem>
+                <SelectItem value="monthly">Mensile</SelectItem>
+                <SelectItem value="yearly">Annuale</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
           <div className="grid gap-1 min-w-0">
             <Label>Dal</Label>
             <DatePicker value={dateFrom} onChange={setDateFrom} className="min-w-0 w-full" placeholder="Seleziona data" />
@@ -352,6 +389,7 @@ export default function CashflowCardPro() {
         {/* ⬇️ AGGIUNTA: riga che indica il periodo di confronto (discreta e responsive) */}
         {prevRange && (
           <div className="text-xs text-muted-foreground">
+            Periodo corrente: {fmtDateFullIT(dateFrom)} – {fmtDateFullIT(dateTo)} <br />
             Confronto con: {fmtDateFullIT(prevRange.start)} – {fmtDateFullIT(prevRange.end)}
           </div>
         )}

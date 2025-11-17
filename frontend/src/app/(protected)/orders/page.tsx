@@ -23,6 +23,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
 import { X, ChevronDown } from 'lucide-react';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 import { useOrders } from './hooks/useOrders';
 import { useFixRadixInertLeak } from './hooks/useFixRadixInertLeak';
@@ -35,6 +36,7 @@ import { StatusQuickEdit } from './components/StatusQuickEdit';
 import { RowActions } from './components/RowActions';
 import { AddOrderDialog } from './components/AddOrderDialog';
 import { EditOrderDialog } from './components/EditOrderDialog';
+import { ViewOrderDialog } from './components/ViewOrderDialog';
 
 export default function OrdersPage() {
   useFixRadixInertLeak();
@@ -51,7 +53,10 @@ export default function OrdersPage() {
 
   const [editOpen, setEditOpen] = React.useState(false);
   const [editOrder, setEditOrder] = React.useState<Order | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewOrder, setViewOrder] = React.useState<Order | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   const [confirmBulkOpen, setConfirmBulkOpen] = React.useState(false);
   const handleConfirmBulkOpenChange = React.useCallback((o: boolean) => {
@@ -66,6 +71,10 @@ export default function OrdersPage() {
     setEditOrder(o);
     setEditOpen(true);
   }, []);
+  const onView = React.useCallback((o: Order) => {
+    setViewOrder(o);
+    setViewOpen(true);
+  }, []);
 
   const cleanupInert = React.useCallback(() => {
     if (typeof document !== 'undefined') {
@@ -74,6 +83,7 @@ export default function OrdersPage() {
     }
   }, []);
   const handleEditOpenChange = React.useCallback((o: boolean) => { setEditOpen(o); if (!o) cleanupInert(); }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => { setViewOpen(o); if (!o) cleanupInert(); }, [cleanupInert]);
   const handleAddOpenChange  = React.useCallback((o: boolean) => { setAddOpen(o);  if (!o) cleanupInert(); }, [cleanupInert]);
 
   const columns = React.useMemo<ColumnDef<Order>[]>(() => [
@@ -144,6 +154,7 @@ export default function OrdersPage() {
       cell: ({ row }) => (
         <RowActions
           order={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => refetch()}
           onError={(msg) => setGlobalError(msg)}
@@ -151,7 +162,7 @@ export default function OrdersPage() {
       ),
       size: 48,
     },
-  ], [refetch, onEdit]);
+  ], [refetch, onEdit, onView]);
 
   const table = useReactTable({
     data: rows,
@@ -303,8 +314,23 @@ export default function OrdersPage() {
           </div>
         )}
 
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
+        </div>
+
         {/* ===== Desktop filters (md+) ===== */}
-        <div className="hidden md:flex flex-wrap items-end gap-3 min-w-0">
+        <div className={cn(
+          'hidden md:flex flex-wrap items-end gap-3 min-w-0',
+          mobileFiltersOpen ? '' : 'md:hidden',
+        )}
+        >
           <div className="min-w-[200px]">
             <div className="grid gap-1">
               <Label>Consegna da</Label>
@@ -345,19 +371,10 @@ export default function OrdersPage() {
               />
             </div>
           </div>
-
-          <div className="min-w-[160px]">
-            <div className="grid gap-1">
-              <Label className="opacity-0 select-none">Reset</Label>
-              <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
-                Reset filtri
-              </Button>
-            </div>
-          </div>
         </div>
 
         {/* ===== Mobile filters (<md) ===== */}
-        <div className="md:hidden space-y-3">
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
           {/* Row 1: search */}
           <div className="grid gap-1 min-w-0">
             <Label>Ricerca</Label>
@@ -381,28 +398,19 @@ export default function OrdersPage() {
             </div>
           </div>
 
-          {/* Row 3: stato + reset */}
-          <div className="grid grid-cols-2 gap-3 min-w-0">
-            <div className="grid gap-1 min-w-0">
-              <Label>Stato</Label>
-              <Select value={status} onValueChange={(v: 'all' | 'created' | 'delivered') => setStatus(v)}>
-                <SelectTrigger className="min-w-0 w-full max-w-full">
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="created">Da consegnare</SelectItem>
-                  <SelectItem value="delivered">Consegnato</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-1 min-w-0">
-              <Label className="opacity-0 select-none">Reset</Label>
-              <Button variant="outline" onClick={resetFilters} className="w-full">
-                Reset filtri
-              </Button>
-            </div>
+          {/* Row 3: stato */}
+          <div className="grid gap-1 min-w-0">
+            <Label>Stato</Label>
+            <Select value={status} onValueChange={(v: 'all' | 'created' | 'delivered') => setStatus(v)}>
+              <SelectTrigger className="min-w-0 w-full max-w-full">
+                <SelectValue placeholder="Tutti" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti</SelectItem>
+                <SelectItem value="created">Da consegnare</SelectItem>
+                <SelectItem value="delivered">Consegnato</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Divider */}
@@ -456,7 +464,6 @@ export default function OrdersPage() {
               </Select>
             </div>
           </div>
-          {/* NOTA: niente azioni bulk duplicate qui. Le bulk actions sono solo nel titolo. */}
         </div>
       </CardHeader>
 
@@ -473,7 +480,7 @@ export default function OrdersPage() {
             {/* Desktop table (md+) */}
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[64rem]">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (
@@ -533,7 +540,7 @@ export default function OrdersPage() {
             <div className="md:hidden space-y-2">
               {rows.length ? (
                 rows.map((r) => (
-                  <div key={r.id} className="rounded-md border p-3">
+                  <div key={r.id} className="rounded-md border p-2.5">
                     {/* Top row: checkbox + customer + actions */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2 min-w-0">
@@ -555,6 +562,7 @@ export default function OrdersPage() {
                       <div className="shrink-0">
                         <RowActions
                           order={r}
+                          onView={onView}
                           onEdit={(o) => onEdit(o)}
                           onChanged={() => refetch()}
                           onError={(msg) => setGlobalError(msg)}
@@ -563,7 +571,7 @@ export default function OrdersPage() {
                     </div>
 
                     {/* Meta row: Consegna + Totale (visibile, etichettato) */}
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    <div className="mt-1.5 grid grid-cols-2 gap-2 text-sm">
                       <div className="text-muted-foreground">
                         <span className="block">Consegna</span>
                         <span className="tabular-nums">{fmtDate(r.delivery_date)}</span>
@@ -575,12 +583,12 @@ export default function OrdersPage() {
                     </div>
 
                     {/* Items summary */}
-                    <div className="mt-2">
+                    <div className="mt-1.5">
                       <ItemsSummaryCell items={r.items ?? []} />
                     </div>
 
                     {/* Status quick edit (a tutta larghezza) */}
-                    <div className="mt-2">
+                    <div className="mt-1.5">
                       <StatusQuickEdit
                         orderId={r.id}
                         value={(r.status ?? 'created')}
@@ -618,6 +626,12 @@ export default function OrdersPage() {
         onSaved={() => { setGlobalError(null); refetch(); }}
         onDeleted={() => { setGlobalError(null); refetch(); }}
         onError={(msg) => setGlobalError(msg)}
+      />
+      <ViewOrderDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        order={viewOrder}
+        onRequestEdit={onEdit}
       />
       <AddOrderDialog
         open={addOpen}

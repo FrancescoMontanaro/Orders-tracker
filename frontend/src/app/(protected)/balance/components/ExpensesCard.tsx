@@ -26,10 +26,12 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { X } from 'lucide-react';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { RowActions } from './RowActions'; // Expense row actions
 import { EditExpenseDialog } from './EditExpenseDialog';
+import { ViewExpenseDialog } from './ViewExpenseDialog';
 import { AddExpenseDialog } from './AddExpenseDialog';
 import type { Expense } from '../types/expense';
 import {
@@ -70,7 +72,10 @@ export default function ExpensesPage() {
   // Edit & Add dialogs
   const [editOpen, setEditOpen] = React.useState(false);
   const [editExpense, setEditExpense] = React.useState<Expense | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewExpense, setViewExpense] = React.useState<Expense | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   // Bulk delete confirm + inert cleanup
   const [confirmBulkOpen, setConfirmBulkOpen] = React.useState(false);
@@ -82,10 +87,14 @@ export default function ExpensesPage() {
     }
   }, []);
 
-  const onEdit = (e: Expense) => {
+  const onEdit = React.useCallback((e: Expense) => {
     setEditExpense(e);
     setEditOpen(true);
-  };
+  }, []);
+  const onView = React.useCallback((e: Expense) => {
+    setViewExpense(e);
+    setViewOpen(true);
+  }, []);
 
   // Cleanup after dialogs close
   const cleanupInert = React.useCallback(() => {
@@ -96,6 +105,10 @@ export default function ExpensesPage() {
   }, []);
   const handleEditOpenChange = React.useCallback((o: boolean) => {
     setEditOpen(o);
+    if (!o) cleanupInert();
+  }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => {
+    setViewOpen(o);
     if (!o) cleanupInert();
   }, [cleanupInert]);
   const handleAddOpenChange = React.useCallback((o: boolean) => {
@@ -210,6 +223,7 @@ export default function ExpensesPage() {
       cell: ({ row }) => (
         <RowActions
           expense={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => refetch()}
           onError={(msg) => setGlobalError(msg)}
@@ -217,7 +231,7 @@ export default function ExpensesPage() {
       ),
       size: 48,
     },
-  ], [refetch]);
+  ], [refetch, onEdit, onView]);
 
   const table = useReactTable({
     data: rows,
@@ -329,8 +343,24 @@ export default function ExpensesPage() {
           </div>
         )}
 
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
+        </div>
+
         {/* ===== Desktop filters (md+) ===== */}
-        <div className="hidden md:flex flex-wrap items-end gap-3 min-w-0">
+        <div
+          className={cn(
+            'hidden md:flex flex-wrap items-end gap-3 min-w-0',
+            mobileFiltersOpen ? '' : 'md:hidden',
+          )}
+        >
           {/* Date range */}
           <div className="min-w-[160px]">
             <div className="grid gap-1">
@@ -420,20 +450,10 @@ export default function ExpensesPage() {
               </Select>
             </div>
           </div>
-
-          {/* Reset */}
-          <div className="min-w-[160px]">
-            <div className="grid gap-1">
-              <Label className="opacity-0 select-none">Reset</Label>
-              <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
-                Reset filtri
-              </Button>
-            </div>
-          </div>
         </div>
 
         {/* ===== Mobile filters (<md) ===== */}
-        <div className="md:hidden space-y-3">
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
           {/* Row 1: note search full width */}
           <div className="grid gap-1 min-w-0">
             <Label>Nota</Label>
@@ -555,10 +575,6 @@ export default function ExpensesPage() {
             </div>
           </div>
 
-          {/* Reset button full width */}
-          <Button variant="outline" onClick={resetFilters} className="w-full">
-            Reset filtri
-          </Button>
         </div>
       </CardHeader>
 
@@ -585,7 +601,7 @@ export default function ExpensesPage() {
             {/* Desktop table (md+): classic table; inner min-width only on md+ */}
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[60rem]">{/* widened to fit the new column */}
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (
@@ -642,10 +658,10 @@ export default function ExpensesPage() {
             </div>
 
             {/* Mobile list (<md): card layout to avoid horizontal overflow */}
-            <div className="md:hidden space-y-2">
+            <div className="md:hidden space-y-1.5">
               {rows.length ? (
                 rows.map((r) => (
-                  <div key={r.id} className="rounded-md border p-3">
+                  <div key={r.id} className="rounded-md border p-2.5">
                     {/* Top row: checkbox + date + actions */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2 min-w-0">
@@ -670,6 +686,7 @@ export default function ExpensesPage() {
                       <div className="shrink-0">
                         <RowActions
                           expense={r}
+                          onView={onView}
                           onEdit={(e) => onEdit(e)}
                           onChanged={() => refetch()}
                           onError={(msg) => setGlobalError(msg)}
@@ -678,7 +695,7 @@ export default function ExpensesPage() {
                     </div>
 
                     {/* Note */}
-                    <div className="mt-2 text-sm text-muted-foreground break-words whitespace-pre-wrap">
+                    <div className="mt-1.5 text-sm text-muted-foreground break-words whitespace-pre-wrap">
                       {r.note || '—'}
                     </div>
                   </div>
@@ -711,6 +728,12 @@ export default function ExpensesPage() {
         onSaved={() => { setGlobalError(null); refetch(); }}
         onDeleted={() => { setGlobalError(null); refetch(); }}
         onError={(msg) => setGlobalError(msg)}
+      />
+      <ViewExpenseDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        expense={viewExpense}
+        onRequestEdit={onEdit}
       />
 
       <AddExpenseDialog

@@ -19,9 +19,10 @@ import { MoreHorizontal } from 'lucide-react';
  * Keeps the inert cleanup after closing the AlertDialog.
  */
 export function RowActions({
-  customer, onEdit, onChanged, onError,
+  customer, onView, onEdit, onChanged, onError,
 }: {
   customer: Customer;
+  onView: (c: Customer) => void;
   onEdit: (c: Customer) => void;
   onChanged: () => void;
   onError: (msg: string) => void;
@@ -62,6 +63,7 @@ export function RowActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" className="min-w-[10rem]">
+          <DropdownMenuItem onClick={() => onView(customer)}>Visualizza</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onEdit(customer)}>Modifica</DropdownMenuItem>
           <DropdownMenuItem onClick={toggleArchive}>
             {customer.is_active ? 'Archivia' : 'Ripristina'}

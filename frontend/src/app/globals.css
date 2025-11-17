@@ -126,3 +126,24 @@ body {
   padding-top: env(safe-area-inset-top);   /* iOS notch/area superiore */
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+@layer components {
+  @media (max-width: 768px) {
+    .compact-table [data-slot='table-head'] {
+      padding: 0.28rem 0.3rem !important;
+      height: auto !important;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-size: 0.68rem;
+      line-height: 1.1;
+    }
+    .compact-table [data-slot='table-cell'] {
+      padding: 0.26rem 0.3rem !important;
+      font-size: 0.74rem;
+      line-height: 1.2;
+    }
+    .compact-table [data-slot='table-row'] {
+      border-bottom-width: 1px;
+    }
+  }
+}

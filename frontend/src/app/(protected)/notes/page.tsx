@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Skeleton } from '@/components/ui/skeleton';
 import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 import { AddNoteDialog } from './components/AddNoteDialog';
 import { EditNoteDialog } from './components/EditNoteDialog';
@@ -46,6 +48,7 @@ export default function NotesPage() {
   const [viewNote, setViewNote] = React.useState<Note | null>(null);
   const [editOpen, setEditOpen] = React.useState(false);
   const [editNote, setEditNote] = React.useState<Note | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   // Error banner
   const [globalError, setGlobalError] = React.useState<string | null>(null);
@@ -164,8 +167,24 @@ export default function NotesPage() {
           </div>
         )}
 
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
+        </div>
+
         {/* Filtri (senza ordinamento) */}
-        <div className="grid gap-3 md:grid-cols-3">
+        <div
+          className={cn(
+            'hidden md:grid gap-3 md:grid-cols-3',
+            mobileFiltersOpen ? '' : 'md:hidden',
+          )}
+        >
           <div className="grid gap-1 min-w-0">
             <Label>Ricerca</Label>
             <Input
@@ -185,9 +204,25 @@ export default function NotesPage() {
           </div>
         </div>
 
-        {/* Reset */}
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">Reset filtri</Button>
+        {/* Mobile filters */}
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
+          <div className="grid gap-1 min-w-0">
+            <Label>Ricerca</Label>
+            <Input
+              placeholder="Cerca nel testo…"
+              value={searchText}
+              onChange={(e) => { setSearchText(e.target.value); setPage(1); }}
+              className="min-w-0 w-full max-w-full"
+            />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Creato dopo</Label>
+            <DatePicker value={createdAfter ?? ''} onChange={setCreatedAfter} placeholder="Creata da" />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Creato prima</Label>
+            <DatePicker value={createdBefore ?? ''} onChange={setCreatedBefore} placeholder="Creata fino a" />
+          </div>
         </div>
       </CardHeader>
 

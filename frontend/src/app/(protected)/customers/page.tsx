@@ -24,10 +24,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X } from 'lucide-react';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { RowActions } from './components/RowActions';
 import { EditCustomerDialog } from './components/EditCustomerDialog';
+import { ViewCustomerDialog } from './components/ViewCustomerDialog';
 import { AddCustomerDialog } from './components/AddCustomerDialog';
 
 import type { Customer } from './types/customer';
@@ -60,7 +62,10 @@ export default function CustomersPage() {
   // Edit & Add dialogs
   const [editOpen, setEditOpen] = React.useState(false);
   const [editCustomer, setEditCustomer] = React.useState<Customer | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewCustomer, setViewCustomer] = React.useState<Customer | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   // Bulk delete confirm + inert cleanup
   const [confirmBulkOpen, setConfirmBulkOpen] = React.useState(false);
@@ -72,10 +77,14 @@ export default function CustomersPage() {
     }
   }, []);
 
-  const onEdit = (c: Customer) => {
+  const onEdit = React.useCallback((c: Customer) => {
     setEditCustomer(c);
     setEditOpen(true);
-  };
+  }, []);
+  const onView = React.useCallback((c: Customer) => {
+    setViewCustomer(c);
+    setViewOpen(true);
+  }, []);
 
   // Cleanup helper after dialogs close
   const cleanupInert = React.useCallback(() => {
@@ -87,6 +96,10 @@ export default function CustomersPage() {
 
   const handleEditOpenChange = React.useCallback((o: boolean) => {
     setEditOpen(o);
+    if (!o) cleanupInert();
+  }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => {
+    setViewOpen(o);
     if (!o) cleanupInert();
   }, [cleanupInert]);
 
@@ -155,6 +168,7 @@ export default function CustomersPage() {
       cell: ({ row }) => (
         <RowActions
           customer={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => refetch()}
           onError={(msg) => setGlobalError(msg)}
@@ -162,7 +176,7 @@ export default function CustomersPage() {
       ),
       size: 48,
     },
-  ], [refetch]);
+  ], [refetch, onEdit, onView]);
 
   const table = useReactTable({
     data: rows,
@@ -273,8 +287,24 @@ export default function CustomersPage() {
           </div>
         )}
 
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
+        </div>
+
         {/* ===== Desktop filters (md+) ===== */}
-        <div className="hidden md:flex flex-wrap items-end gap-3 min-w-0">
+        <div
+          className={cn(
+            'hidden md:flex flex-wrap items-end gap-3 min-w-0',
+            mobileFiltersOpen ? '' : 'md:hidden',
+          )}
+        >
           {/* Name search */}
           <div className="flex-1 min-w-[220px]">
             <div className="grid gap-1">
@@ -307,20 +337,10 @@ export default function CustomersPage() {
               </Select>
             </div>
           </div>
-
-          {/* Reset */}
-          <div className="min-w-[160px]">
-            <div className="grid gap-1">
-              <Label className="opacity-0 select-none">Reset</Label>
-              <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
-                Reset filtri
-              </Button>
-            </div>
-          </div>
         </div>
 
         {/* ===== Mobile filters (<md) ===== */}
-        <div className="md:hidden space-y-3">
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
           {/* Row 1: search full width */}
           <div className="grid gap-1 min-w-0">
             <Label>Nome</Label>
@@ -332,31 +352,22 @@ export default function CustomersPage() {
             />
           </div>
 
-          {/* Row 2: status + reset */}
-          <div className="grid grid-cols-2 gap-3 min-w-0">
-            <div className="grid gap-1 min-w-0">
-              <Label>Stato</Label>
-              <Select
-                value={statusFilter}
-                onValueChange={(v: 'all' | 'active' | 'inactive') => setStatusFilter(v)}
-              >
-                <SelectTrigger className="min-w-0 w-full max-w-full">
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="active">Attivi</SelectItem>
-                  <SelectItem value="inactive">Non attivi</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-1 min-w-0">
-              <Label className="opacity-0 select-none">Reset</Label>
-              <Button variant="outline" onClick={resetFilters} className="w-full">
-                Reset filtri
-              </Button>
-            </div>
+          {/* Row 2: status */}
+          <div className="grid gap-1 min-w-0">
+            <Label>Stato</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(v: 'all' | 'active' | 'inactive') => setStatusFilter(v)}
+            >
+              <SelectTrigger className="min-w-0 w-full max-w-full">
+                <SelectValue placeholder="Tutti" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti</SelectItem>
+                <SelectItem value="active">Attivi</SelectItem>
+                <SelectItem value="inactive">Non attivi</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Divider */}
@@ -397,10 +408,10 @@ export default function CustomersPage() {
                       ? 'name-desc'
                       : 'name-asc'
                     : sorting?.[0]?.id === 'is_active'
-                    ? sorting?.[0]?.desc
-                      ? 'active-desc'
-                      : 'active-asc'
-                    : 'name-asc'
+                      ? sorting?.[0]?.desc
+                        ? 'active-desc'
+                        : 'active-asc'
+                      : 'name-asc'
                 }
                 onValueChange={(v) => {
                   if (v === 'name-asc') setSorting([{ id: 'name', desc: false }]);
@@ -437,7 +448,7 @@ export default function CustomersPage() {
             {/* Desktop table (md+): classic table; inner min-width only on md+ */}
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[52rem]">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (
@@ -494,12 +505,12 @@ export default function CustomersPage() {
             </div>
 
             {/* Mobile list (<md): toolbar + card list to avoid horizontal overflow */}
-            <div className="md:hidden space-y-3">
+            <div className="md:hidden space-y-2.5">
               {/* Card list */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {rows.length ? (
                   rows.map((r) => (
-                    <div key={r.id} className="rounded-md border p-3">
+                    <div key={r.id} className="rounded-md border p-2.5">
                       {/* Top row: checkbox + name (link) + actions */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-2 min-w-0">
@@ -527,6 +538,7 @@ export default function CustomersPage() {
                         <div className="shrink-0">
                           <RowActions
                             customer={r}
+                            onView={onView}
                             onEdit={(c) => { onEdit(c); }}
                             onChanged={() => refetch()}
                             onError={(msg) => setGlobalError(msg)}
@@ -535,7 +547,7 @@ export default function CustomersPage() {
                       </div>
 
                       {/* Bottom row: status pill */}
-                      <div className="mt-2 flex items-center justify-between">
+                      <div className="mt-1.5 flex items-center justify-between">
                         <span
                           className={cn(
                             'text-xs rounded px-2 py-0.5 border',
@@ -582,6 +594,13 @@ export default function CustomersPage() {
         onSaved={() => { setGlobalError(null); refetch(); }}
         onDeleted={() => { setGlobalError(null); refetch(); }}
         onError={(msg) => setGlobalError(msg)}
+      />
+
+      <ViewCustomerDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        customer={viewCustomer}
+        onRequestEdit={onEdit}
       />
 
       <AddCustomerDialog

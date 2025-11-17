@@ -20,9 +20,10 @@ import { Order } from '../types/order';
  * Delete is gated by an AlertDialog confirmation.
  */
 export function RowActions({
-  order, onEdit, onChanged, onError,
+  order, onView, onEdit, onChanged, onError,
 }: {
   order: Order;
+  onView: (o: Order) => void;
   onEdit: (o: Order) => void;
   onChanged: () => void;
   onError: (msg: string) => void;
@@ -49,6 +50,7 @@ export function RowActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" className="min-w-[10rem]">
+          <DropdownMenuItem onClick={() => onView(order)}>Visualizza</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onEdit(order)}>Modifica</DropdownMenuItem>
           <DropdownMenuItem className="text-red-600" onClick={requestDeleteOne}>
             Elimina

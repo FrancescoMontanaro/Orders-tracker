@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { api } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -22,6 +23,7 @@ import type { SuccessResponse } from '@/types/api';
 import type { Option } from '../hooks/useRemoteSearch';
 import { euro } from '@/app/(protected)/balance/utils/currency';
 import { addDays, toIsoDate } from '../utils/date';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 /* ---------- Types for this report ---------- */
 
@@ -95,6 +97,7 @@ export function CategoryExpensesCard() {
   const [error, setError] = React.useState<string | null>(null);
 
   const [topWorst, setTopWorst] = React.useState<TWMode>('none');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   const debouncedCats = useDebouncedValue(categories, 250);
   const debouncedStart = useDebouncedValue(start, 250);
@@ -159,8 +162,21 @@ export function CategoryExpensesCard() {
         <CardTitle>Uscite per Categoria</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 overflow-x-hidden">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+        </div>
+
         {/* Filters */}
-        <div className="grid gap-3 md:grid-cols-5 min-w-0">
+        <div
+          className={cn(
+            'hidden md:grid gap-3 md:grid-cols-5 min-w-0',
+            mobileFiltersOpen ? '' : 'md:hidden',
+          )}
+        >
           <div className="grid gap-1 min-w-0">
             <Label>Da</Label>
             <DatePicker value={start} onChange={setStart} placeholder="Data da" className="min-w-0 w-full" />
@@ -198,6 +214,43 @@ export function CategoryExpensesCard() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+        </div>
+
+        {/* Mobile filters */}
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
+          <div className="grid gap-1 min-w-0">
+            <Label>Da</Label>
+            <DatePicker value={start} onChange={setStart} placeholder="Data da" className="min-w-0 w-full" />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>A</Label>
+            <DatePicker value={end} onChange={setEnd} placeholder="Data a" className="min-w-0 w-full" />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Categorie</Label>
+            <MultiExpenseCategoryCombobox
+              values={categories}
+              onChange={setCategories}
+              placeholder="Tutte le categorie…"
+              emptyText="Nessuna categoria"
+              clearLabel="Tutte le categorie"
+            />
+          </div>
+          <div className="grid gap-1 min-w-0">
+            <Label>Mostra</Label>
+            <Select value={topWorst} onValueChange={(v: TWMode) => setTopWorst(v)}>
+              <SelectTrigger className="min-w-0 w-full">
+                <SelectValue placeholder="Nessun filtro" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nessun filtro</SelectItem>
+                <SelectItem value="top5">5 più costose (totale €)</SelectItem>
+                <SelectItem value="top10">10 più costose (totale €)</SelectItem>
+                <SelectItem value="worst5">5 meno costose (totale €)</SelectItem>
+                <SelectItem value="worst10">10 meno costose (totale €)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -267,7 +320,7 @@ export function CategoryExpensesCard() {
               </div>
             ) : (
               <div className="w-full overflow-x-auto rounded-md border">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Categoria</TableHead>

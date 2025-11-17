@@ -31,6 +31,7 @@ import { X } from 'lucide-react';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { RowActionsCategory } from './RowActionsCategory';
 import { EditCategoryDialog } from './EditCategoryDialog';
+import { ViewExpenseCategoryDialog } from './ViewExpenseCategoryDialog';
 import { AddCategoryDialog } from './AddCategoryDialog';
 import {
   Select,
@@ -65,6 +66,8 @@ export default function CategoriesCard() {
   // Edit & Add dialogs
   const [editOpen, setEditOpen] = React.useState(false);
   const [editCat, setEditCat] = React.useState<ExpenseCategory | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewCat, setViewCat] = React.useState<ExpenseCategory | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
 
   // Bulk delete confirm + inert cleanup
@@ -77,10 +80,14 @@ export default function CategoriesCard() {
     }
   }, []);
 
-  const onEdit = (c: ExpenseCategory) => {
+  const onEdit = React.useCallback((c: ExpenseCategory) => {
     setEditCat(c);
     setEditOpen(true);
-  };
+  }, []);
+  const onView = React.useCallback((c: ExpenseCategory) => {
+    setViewCat(c);
+    setViewOpen(true);
+  }, []);
 
   // Cleanup after dialogs close (prevents stuck inert state)
   const cleanupInert = React.useCallback(() => {
@@ -91,6 +98,10 @@ export default function CategoriesCard() {
   }, []);
   const handleEditOpenChange = React.useCallback((o: boolean) => {
     setEditOpen(o);
+    if (!o) cleanupInert();
+  }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => {
+    setViewOpen(o);
     if (!o) cleanupInert();
   }, [cleanupInert]);
   const handleAddOpenChange = React.useCallback((o: boolean) => {
@@ -143,6 +154,7 @@ export default function CategoriesCard() {
       cell: ({ row }) => (
         <RowActionsCategory
           category={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => refetch()}
           onError={(msg) => setGlobalError(msg)}
@@ -150,7 +162,7 @@ export default function CategoriesCard() {
       ),
       size: 48,
     },
-  ], [refetch]);
+  ], [refetch, onEdit, onView]);
 
   const table = useReactTable({
     data: rows,
@@ -357,7 +369,7 @@ export default function CategoriesCard() {
             {/* Desktop table (md+): mirrors Expenses layout */}
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[44rem]">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (
@@ -437,6 +449,7 @@ export default function CategoriesCard() {
                       <div className="shrink-0">
                         <RowActionsCategory
                           category={c}
+                          onView={onView}
                           onEdit={(cat) => onEdit(cat)}
                           onChanged={() => refetch()}
                           onError={(msg) => setGlobalError(msg)}
@@ -472,6 +485,12 @@ export default function CategoriesCard() {
         category={editCat}
         onSaved={() => { setGlobalError(null); refetch(); }}
         onError={(msg) => setGlobalError(msg)}
+      />
+      <ViewExpenseCategoryDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        category={viewCat}
+        onRequestEdit={onEdit}
       />
 
       <AddCategoryDialog

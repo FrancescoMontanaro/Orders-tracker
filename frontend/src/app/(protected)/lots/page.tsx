@@ -19,6 +19,7 @@ import { LotItemsCell } from './components/LotItemsCell';
 import { RowActions } from './components/RowActions';
 import { AddLotDialog } from './components/AddLotDialog';
 import { EditLotDialog } from './components/EditLotDialog';
+import { ViewLotDialog } from './components/ViewLotDialog';
 
 import {
   AlertDialog,
@@ -59,6 +60,7 @@ import {
 } from '@/components/ui/table';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { X, MapPin } from 'lucide-react';
+import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 /**
  * Lots management page.
@@ -100,6 +102,9 @@ export default function LotsPage() {
   const [addOpen, setAddOpen] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
   const [editLot, setEditLot] = React.useState<Lot | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const [viewLot, setViewLot] = React.useState<Lot | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   const cleanupInert = React.useCallback(() => {
     if (typeof document !== 'undefined') {
@@ -117,10 +122,18 @@ export default function LotsPage() {
     setEditOpen(o);
     if (!o) cleanupInert();
   }, [cleanupInert]);
+  const handleViewOpenChange = React.useCallback((o: boolean) => {
+    setViewOpen(o);
+    if (!o) cleanupInert();
+  }, [cleanupInert]);
 
   const onEdit = React.useCallback((lot: Lot) => {
     setEditLot(lot);
     setEditOpen(true);
+  }, []);
+  const onView = React.useCallback((lot: Lot) => {
+    setViewLot(lot);
+    setViewOpen(true);
   }, []);
 
   const columns = React.useMemo<ColumnDef<Lot>[]>(() => [
@@ -198,6 +211,7 @@ export default function LotsPage() {
       cell: ({ row }) => (
         <RowActions
           lot={row.original}
+          onView={onView}
           onEdit={onEdit}
           onChanged={() => {
             setGlobalError(null);
@@ -208,7 +222,7 @@ export default function LotsPage() {
       ),
       size: 56,
     },
-  ], [onEdit, refetch]);
+  ], [onEdit, onView, refetch]);
 
   const primarySortValue = React.useMemo(() => {
     const first = sorting?.[0];
@@ -326,8 +340,23 @@ export default function LotsPage() {
           </div>
         )}
 
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <FilterToggleButton
+            open={mobileFiltersOpen}
+            onToggle={() => setMobileFiltersOpen((prev) => !prev)}
+            className="w-full sm:w-auto"
+          />
+          <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">
+            Reset filtri
+          </Button>
+        </div>
+
         {/* Desktop filters */}
-        <div className="hidden md:grid md:grid-cols-6 md:gap-3 min-w-0">
+        <div className={cn(
+          'hidden md:grid md:grid-cols-6 md:gap-3 min-w-0',
+          mobileFiltersOpen ? 'md:grid' : 'md:hidden',
+        )}
+        >
           <div className="col-span-2 grid gap-1 min-w-0">
             <Label>Nome</Label>
             <Input
@@ -364,15 +393,10 @@ export default function LotsPage() {
               className="min-w-0 w-full max-w-full"
             />
           </div>
-          <div className="col-span-6 flex justify-end items-end min-w-0 pt-1">
-            <Button variant="outline" onClick={resetFilters}>
-              Reset filtri
-            </Button>
-          </div>
         </div>
 
         {/* Mobile filters */}
-        <div className="md:hidden space-y-3">
+        <div className={cn('md:hidden space-y-3', mobileFiltersOpen ? 'block' : 'hidden')}>
           <div className="grid gap-1 min-w-0">
             <Label>Nome</Label>
             <Input
@@ -408,12 +432,6 @@ export default function LotsPage() {
                 placeholder="Data raccolta a"
               />
             </div>
-          </div>
-          <div className="grid gap-1 min-w-0">
-            <Label className="opacity-0 select-none">Reset</Label>
-            <Button variant="outline" onClick={resetFilters} className="w-full">
-              Reset filtri
-            </Button>
           </div>
           <div className="h-px bg-border" />
           <div className="grid grid-cols-2 gap-3 min-w-0 items-end">
@@ -470,7 +488,7 @@ export default function LotsPage() {
           <>
             <div className="hidden md:block w-full overflow-x-auto rounded-md border">
               <div className="md:min-w-[60rem]">
-                <Table>
+                <Table className="compact-table">
                   <TableHeader>
                     {rows.length > 0 ? (
                       table.getHeaderGroups().map((hg) => (
@@ -526,7 +544,7 @@ export default function LotsPage() {
             <div className="md:hidden space-y-2">
               {rows.length ? (
                 rows.map((lot) => (
-                  <div key={lot.id} className="rounded-md border p-3 space-y-3">
+                  <div key={lot.id} className="rounded-md border p-2.5 space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2 min-w-0">
                         <Checkbox
@@ -550,6 +568,7 @@ export default function LotsPage() {
                       </div>
                       <RowActions
                         lot={lot}
+                        onView={onView}
                         onEdit={onEdit}
                         onChanged={() => {
                           setGlobalError(null);
@@ -616,6 +635,12 @@ export default function LotsPage() {
           refetch();
         }}
         onError={(msg) => setGlobalError(msg)}
+      />
+      <ViewLotDialog
+        open={viewOpen}
+        onOpenChange={handleViewOpenChange}
+        lot={viewLot}
+        onRequestEdit={onEdit}
       />
 
       <AlertDialog open={confirmBulkOpen} onOpenChange={handleConfirmBulkOpenChange}>

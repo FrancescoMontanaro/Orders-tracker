@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Home,
   Package,
@@ -34,6 +34,7 @@ import {
   NavigationMenuLink,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
+import Snowfall from 'react-snowfall';
 
 // Company name from env (client-safe)
 const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME ?? 'Tracker Ordini'
@@ -62,6 +63,27 @@ function Brand() {
       {COMPANY_NAME}
     </Link>
   )
+}
+
+
+function isSnowPeriod(now: Date): boolean {
+  const y = now.getFullYear()
+
+  // Dec 8 of the current year
+  const start = new Date(y, 11, 8, 0, 0, 0, 0)
+
+  // Jan 7 of the next year
+  const end = new Date(y + 1, 0, 7, 23, 59, 59, 999)
+
+  // If we're in Jan (up to 7), the active window started Dec 8 of the previous year
+  if (now.getMonth() === 0) {
+    const startPrev = new Date(y - 1, 11, 8, 0, 0, 0, 0)
+    const endThis = new Date(y, 0, 7, 23, 59, 59, 999)
+    return now >= startPrev && now <= endThis
+  }
+
+  // Otherwise, for Feb..Dec, window is Dec 8 (this year) -> Jan 7 (next year)
+  return now >= start && now <= end
 }
 
 /** Desktop nav */
@@ -119,9 +141,44 @@ function MobileDrawerNav() {
 /** AppShell */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [snowflakeCount, setSnowflakeCount] = useState(60)
+
+  const showSnow = isSnowPeriod(new Date())
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 768px)')
+    const updateSnowflakes = () => {
+      setSnowflakeCount(mediaQuery.matches ? 60 : 25)
+    }
+
+    updateSnowflakes()
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', updateSnowflakes)
+      return () => mediaQuery.removeEventListener('change', updateSnowflakes)
+    }
+
+    mediaQuery.addListener(updateSnowflakes)
+    return () => mediaQuery.removeListener(updateSnowflakes)
+  }, [])
 
   return (
     <div className="min-h-dvh grid grid-rows-[auto_1fr]">
+      {showSnow ? (
+        <Snowfall
+          snowflakeCount={snowflakeCount}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 60,
+          }}
+        />
+      ) : null}
+      
       {/* Sticky header with blur, no x-overflow */}
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">

@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { OrderItem } from '../types/order';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { formatUnit } from '@/lib/utils';
 
 /**
  * Small, legible summary of ordered items as wrapped pills.
@@ -20,11 +21,11 @@ export function ItemsSummaryCell({ items }: { items: OrderItem[] }) {
     return (
       <span
         className="inline-flex max-w-full items-center gap-1 rounded-md border bg-muted/40 px-2 py-1 text-xs leading-tight shadow-sm"
-        title={`${it.product_name ?? `#${it.product_id}`}${it.unit ? ` (${it.unit})` : ''} × ${it.quantity}`}
+        title={`${it.product_name ?? `#${it.product_id}`}${it.unit ? ` (${formatUnit(it.unit)})` : ''} × ${it.quantity}`}
       >
         <span className="flex-1 min-w-0 max-w-[180px] whitespace-normal break-words leading-tight">
           {it.product_name ?? `#${it.product_id}`}
-          {it.unit ? ` (${it.unit})` : ''}
+          {it.unit ? ` (${formatUnit(it.unit)})` : ''}
         </span>
         <span className="shrink-0 inline-flex items-center rounded-sm border bg-background/60 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap">
           ×{it.quantity}
@@ -37,11 +38,11 @@ export function ItemsSummaryCell({ items }: { items: OrderItem[] }) {
     return (
       <span
         className="inline-flex w-full max-w-full items-center justify-between gap-2 rounded-md border bg-muted/40 px-2 py-1 text-xs leading-tight shadow-sm"
-        title={`${it.product_name ?? `#${it.product_id}`}${it.unit ? ` (${it.unit})` : ''} × ${it.quantity}`}
+        title={`${it.product_name ?? `#${it.product_id}`}${it.unit ? ` (${formatUnit(it.unit)})` : ''} × ${it.quantity}`}
       >
         <span className="flex-1 min-w-0 break-words leading-tight">
           {it.product_name ?? `#${it.product_id}`}
-          {it.unit ? ` (${it.unit})` : ''}
+          {it.unit ? ` (${formatUnit(it.unit)})` : ''}
         </span>
         <span className="shrink-0 inline-flex items-center rounded-sm border bg-background/60 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap">
           ×{it.quantity}

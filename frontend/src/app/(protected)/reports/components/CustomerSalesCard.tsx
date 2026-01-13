@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
+import { cn, formatUnit } from '@/lib/utils';
 import type { SuccessResponse } from '@/types/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -297,7 +297,7 @@ export function CustomerSalesCard() {
                             <ChartTooltipContent
                               labelFormatter={(label, payload) => {
                                 const row = (payload?.[0]?.payload || {}) as (typeof filteredPerProd)[number];
-                                return row.unit ? `${row.product_name} (${row.unit})` : row.product_name;
+                                return row.unit ? `${row.product_name} (${formatUnit(row.unit)})` : row.product_name;
                               }}
                             />
                           }
@@ -309,7 +309,7 @@ export function CustomerSalesCard() {
                           nameKey="product_name"
                           outerRadius={isSmall ? 90 : 110}
                           label={isSmall ? false : (entry: any) =>
-                            `${entry.product_name}${entry.unit ? ` (${entry.unit})` : ''}`
+                            `${entry.product_name}${entry.unit ? ` (${formatUnit(entry.unit)})` : ''}`
                           }
                         >
                           {filteredPerProd.map((_, idx) => (
@@ -338,7 +338,7 @@ export function CustomerSalesCard() {
                             tickMargin={10}
                             axisLine={false}
                             tickFormatter={(name: string, idx: number) => {
-                              const base = filteredPerProd[idx]?.unit ? `${name} (${filteredPerProd[idx].unit})` : name;
+                              const base = filteredPerProd[idx]?.unit ? `${name} (${formatUnit(filteredPerProd[idx].unit)})` : name;
                               return isSmall ? truncateLabel(base) : base;
                             }}
                           />
@@ -349,7 +349,7 @@ export function CustomerSalesCard() {
                                 indicator="dashed"
                                 labelFormatter={(_, payload) => {
                                   const row = (payload?.[0]?.payload || {}) as (typeof filteredPerProd)[number];
-                                  return row.unit ? `${row.product_name} (${row.unit})` : row.product_name;
+                                  return row.unit ? `${row.product_name} (${formatUnit(row.unit)})` : row.product_name;
                                 }}
                               />
                             }
@@ -375,7 +375,7 @@ export function CustomerSalesCard() {
                       </div>
                       <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                         <div className="text-muted-foreground">Quantità</div>
-                        <div className="text-right tabular-nums">{p.total_qty}{p.unit ? ` ${p.unit}` : ''}</div>
+                        <div className="text-right tabular-nums">{p.total_qty}{p.unit ? ` ${formatUnit(p.unit)}` : ''}</div>
                         <div className="text-muted-foreground">Sconto medio</div>
                         <div className="text-right tabular-nums">{p.avg_discount}%</div>
                         <div className="text-muted-foreground">Ricavi</div>
@@ -402,7 +402,7 @@ export function CustomerSalesCard() {
                             {p.product_name}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {p.total_qty}{p.unit ? ` ${p.unit}` : ''}
+                            {p.total_qty}{p.unit ? ` ${formatUnit(p.unit)}` : ''}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{p.avg_discount}%</TableCell>
                           <TableCell className="text-right tabular-nums">{euro(p.revenue)}</TableCell>

@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { api } from '@/lib/api-client';
+import { formatUnit } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -444,7 +445,7 @@ export default function DailySummaryCard() {
                                           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                                             <span className="inline-flex items-center gap-1">
                                               <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 font-medium">
-                                                {it.quantity} {it.unit}
+                                                {it.quantity} {formatUnit(it.unit)}
                                               </span>
                                               <span className="hidden sm:inline">×</span>
                                               <span className="hidden sm:inline">{euro(it.unit_price)}/unità</span>
@@ -505,7 +506,7 @@ export default function DailySummaryCard() {
                       <div className="text-sm text-muted-foreground">
                         Da consegnare:&nbsp;
                         <span className="font-semibold whitespace-nowrap">
-                          {round2(p.remaining_qty)} / {round2(p.total_qty)} {p.unit}
+                          {round2(p.remaining_qty)} / {round2(p.total_qty)} {formatUnit(p.unit)}
                         </span>
                       </div>
                     </div>
@@ -536,7 +537,7 @@ export default function DailySummaryCard() {
                               {/* Quantity pill */}
                               <div className="flex items-center justify-start sm:justify-end">
                                 <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap">
-                                  {c.quantity} {p.unit}
+                                  {c.quantity} {formatUnit(p.unit)}
                                 </span>
                               </div>
                             </li>

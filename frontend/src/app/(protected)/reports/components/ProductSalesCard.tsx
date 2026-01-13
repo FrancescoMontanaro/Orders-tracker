@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { formatUnit } from '@/lib/utils';
 import { api } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -269,7 +270,7 @@ export function ProductSalesCard() {
                         tickMargin={10}
                         axisLine={false}
                         tickFormatter={(name: string, idx: number) => {
-                          const base = filteredRows[idx]?.unit ? `${name} (${filteredRows[idx].unit})` : name;
+                          const base = filteredRows[idx]?.unit ? `${name} (${formatUnit(filteredRows[idx].unit)})` : name;
                           return isSmall ? truncateLabel(base) : base;
                         }}
                       />
@@ -280,7 +281,7 @@ export function ProductSalesCard() {
                             indicator="dashed"
                             labelFormatter={(_, payload) => {
                               const row = (payload?.[0]?.payload || {}) as ProductSalesRow;
-                              return row.unit ? `${row.product_name} (${row.unit})` : row.product_name;
+                              return row.unit ? `${row.product_name} (${formatUnit(row.unit)})` : row.product_name;
                             }}
                           />
                         }
@@ -304,7 +305,7 @@ export function ProductSalesCard() {
                     <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                       <div className="text-muted-foreground">Quantità</div>
                       <div className="text-right tabular-nums">
-                        {r.total_qty}{r.unit ? ` ${r.unit}` : ''}
+                        {r.total_qty}{r.unit ? ` ${formatUnit(r.unit)}` : ''}
                       </div>
                       <div className="text-muted-foreground">Ricavi</div>
                       <div className="text-right tabular-nums font-medium">{euro(r.revenue)}</div>
@@ -329,7 +330,7 @@ export function ProductSalesCard() {
                           {r.product_name}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {r.total_qty}{r.unit ? ` ${r.unit}` : ''}
+                          {r.total_qty}{r.unit ? ` ${formatUnit(r.unit)}` : ''}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{euro(r.revenue)}</TableCell>
                       </TableRow>

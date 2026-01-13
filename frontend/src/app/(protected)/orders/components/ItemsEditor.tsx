@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatUnit } from '@/lib/utils';
 import { OrderItem } from '../types/order';
 import { SearchCombobox } from './SearchCombobox';
 
@@ -211,7 +212,7 @@ export function ItemsEditor({
                 className="min-w-0 w-full max-w-full"
               />
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {it?.unit ? `/${it.unit}` : ''}
+                {it?.unit ? `/${formatUnit(it.unit)}` : ''}
               </span>
             </div>
           </div>
@@ -219,7 +220,7 @@ export function ItemsEditor({
           {/* Quantity + remove */}
           <div className="grid grid-cols-[1fr_auto] items-end gap-2 sm:col-span-2 sm:grid-cols-2">
             <div className="col-span-1 sm:col-span-1 min-w-0">
-              <div className="sm:hidden mb-2"><Label>Quantità{it?.unit ? ` (${it.unit})` : ''}</Label></div>
+              <div className="sm:hidden mb-2"><Label>Quantità{it?.unit ? ` (${formatUnit(it.unit)})` : ''}</Label></div>
               <Input
                 type="number"
                 min={1}

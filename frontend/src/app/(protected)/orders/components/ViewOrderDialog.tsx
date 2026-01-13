@@ -4,6 +4,7 @@ import * as React from 'react';
 import type { Order } from '../types/order';
 import { euro } from '../utils/currency';
 import { fmtDate } from '../utils/date';
+import { formatUnit } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -108,7 +109,7 @@ export function ViewOrderDialog({
                               <TableCell>
                                 <div className="text-sm font-medium leading-tight break-words">{item.product_name ?? `#${item.product_id}`}</div>
                                 {item.unit && (
-                                  <div className="text-xs text-muted-foreground">Unità: {item.unit}</div>
+                                  <div className="text-xs text-muted-foreground">Unità: {formatUnit(item.unit)}</div>
                                 )}
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-sm">

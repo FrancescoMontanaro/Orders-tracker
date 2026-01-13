@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { formatUnit } from '@/lib/utils';
 import {
   Dialog,
   DialogTrigger,
@@ -271,7 +272,7 @@ export function OrderItemsPicker({
                               {item.product_name ?? `Prodotto #${item.product_id}`}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              Articolo ordine: #{item.id} · Quantità: {item.quantity} {item.unit}
+                              Articolo ordine: #{item.id} · Quantità: {item.quantity} {formatUnit(item.unit)}
                             </div>
                             {item.lot_id ? (
                               <div className="text-xs text-muted-foreground">
@@ -334,7 +335,7 @@ export function OrderItemsPicker({
                     className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-0.5 text-xs"
                   >
                     <span className="truncate max-w-[160px]">
-                      {item.product_name ?? `Prodotto #${item.product_id}`} ({item.unit})
+                      {item.product_name ?? `Prodotto #${item.product_id}`} ({formatUnit(item.unit)})
                     </span>
                     <span className="rounded-sm border px-1 py-[1px] text-[11px]">
                       ×{item.quantity}

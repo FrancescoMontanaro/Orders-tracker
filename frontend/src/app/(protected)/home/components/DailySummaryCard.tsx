@@ -75,7 +75,7 @@ type CustomerOrderRow = {
   id: number;
   status: 'created' | 'delivered';
   total_amount: number; // from API (fallback to computed if missing)
-  items: Array<{ product_name: string; quantity: number; unit?: string }>;
+  items: Array<{ product_name: string; quantity: number; unit?: string; unit_price: number; subtotal: number }>;
 };
 
 type CustomerGroup = {
@@ -243,11 +243,17 @@ export default function DailySummaryCard() {
         id: o.id,
         status: o.status,
         total_amount: Number(total_amount || 0),
-        items: (o.items || []).map((it) => ({
-          product_name: it.product_name,
-          quantity: Number(it.quantity || 0),
-          unit: (it.unit ?? undefined) as any,
-        })),
+        items: (o.items || []).map((it) => {
+          const qty = Number(it.quantity || 0);
+          const price = Number(it.unit_price ?? 0);
+          return {
+            product_name: it.product_name,
+            quantity: qty,
+            unit: (it.unit ?? undefined) as any,
+            unit_price: price,
+            subtotal: round2(qty * price),
+          };
+        }),
       });
 
       entry.total_amount_sum += Number(total_amount || 0);
@@ -423,13 +429,31 @@ export default function DailySummaryCard() {
                                 {ord.items.length === 0 ? (
                                   <p className="text-sm text-muted-foreground">Nessun prodotto.</p>
                                 ) : (
-                                  <ul className="space-y-1 text-sm">
+                                  <ul className="divide-y divide-border">
                                     {ord.items.map((it, idx) => (
-                                      <li key={idx} className="flex items-center gap-2">
-                                        <span className="truncate">{it.product_name}</span>
-                                        <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">
-                                          {it.quantity} {it.unit}
-                                        </span>
+                                      <li key={idx} className="py-2 first:pt-0 last:pb-0">
+                                        <div className="flex flex-col gap-1">
+                                          {/* Product name row */}
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className="font-medium text-sm truncate">{it.product_name}</span>
+                                            <span className="text-sm font-semibold text-primary whitespace-nowrap">
+                                              {euro(it.subtotal)}
+                                            </span>
+                                          </div>
+                                          {/* Details row: quantity x price */}
+                                          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                                            <span className="inline-flex items-center gap-1">
+                                              <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 font-medium">
+                                                {it.quantity} {it.unit}
+                                              </span>
+                                              <span className="hidden sm:inline">×</span>
+                                              <span className="hidden sm:inline">{euro(it.unit_price)}/unità</span>
+                                            </span>
+                                            <span className="sm:hidden">
+                                              {euro(it.unit_price)} × {it.quantity}
+                                            </span>
+                                          </div>
+                                        </div>
                                       </li>
                                     ))}
                                   </ul>

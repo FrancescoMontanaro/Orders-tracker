@@ -4,3 +4,4 @@ database
 .vscode/
 restic
 restore_out
+status/

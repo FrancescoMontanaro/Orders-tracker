@@ -1,5 +1,8 @@
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Every day at 3AM and 3PM
+# Backup: Every day at 3AM and 3PM
 0 3,15 * * * /usr/local/bin/backup.sh
+
+# Full verification: Every Sunday at 5AM
+0 5 * * 0 /usr/local/bin/verify.sh

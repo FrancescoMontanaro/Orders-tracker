@@ -42,7 +42,7 @@ services:
         condition: service_healthy
     volumes:
       - ./restic/restic_cache:/restic-cache
-      - status:/status 
+      - ./status:/status 
     networks: [app-net]
     restart: unless-stopped
 
@@ -57,7 +57,7 @@ services:
       SENTINEL_BOOT_GRACE_SECONDS: "86400"  # 24 hours of grace on first start
       SENTINEL_HEARTBEAT_PATH: "/status/last_ok"
     volumes:
-      - status:/status:ro
+      - ./status:/status:ro
     expose:
       - "8080"
     healthcheck:
@@ -183,7 +183,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  status: {}
   letsencrypt: {}
 
 networks:

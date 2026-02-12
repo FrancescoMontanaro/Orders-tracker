@@ -13,6 +13,13 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 
+function parseUnitPrice(value: string): number | null {
+  const normalized = value.trim().replace(',', '.');
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /**
  * Edit dialog – stable widths; y-scroll only; footer aligned horizontally
  */
@@ -27,7 +34,7 @@ export function EditProductDialog({
   onError: (msg: string) => void;
 }) {
   const [name, setName] = React.useState(product?.name ?? '');
-  const [unitPrice, setUnitPrice] = React.useState<number>(product?.unit_price ?? 0);
+  const [unitPrice, setUnitPrice] = React.useState<string>(String(product?.unit_price ?? 0));
   const [unit, setUnit] = React.useState<'Kg' | 'Px'>(product?.unit ?? 'Kg');
   const [isActive, setIsActive] = React.useState<boolean>(product?.is_active ?? true);
   const [saving, setSaving] = React.useState(false);
@@ -46,7 +53,7 @@ export function EditProductDialog({
   React.useEffect(() => {
     if (open && product) {
       setName(product.name);
-      setUnitPrice(product.unit_price);
+      setUnitPrice(String(product.unit_price));
       setUnit(product.unit);
       setIsActive(product.is_active);
       setLocalError(null);
@@ -55,12 +62,18 @@ export function EditProductDialog({
 
   async function save() {
     if (!product) return;
+    const parsedUnitPrice = parseUnitPrice(unitPrice);
+    if (parsedUnitPrice === null || parsedUnitPrice < 0) {
+      setLocalError('Il prezzo deve essere un numero ≥ 0.');
+      return;
+    }
+
     setSaving(true);
     setLocalError(null);
     try {
       await api.patch(`/products/${product.id}`, {
         name,
-        unit_price: Number(unitPrice),
+        unit_price: parsedUnitPrice,
         unit,
         is_active: isActive,
       });
@@ -108,10 +121,10 @@ export function EditProductDialog({
               <div className="grid gap-1 min-w-0">
                 <Label>Prezzo unitario (€)</Label>
                 <Input
-                  type="number"
-                  step="0.01"
-                  value={String(unitPrice)}
-                  onChange={(e) => setUnitPrice(Number(e.target.value))}
+                  type="text"
+                  inputMode="decimal"
+                  value={unitPrice}
+                  onChange={(e) => setUnitPrice(e.target.value)}
                   className="min-w-0 w-full max-w-full"
                 />
               </div>

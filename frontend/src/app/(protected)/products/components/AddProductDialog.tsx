@@ -8,6 +8,13 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 
+function parseUnitPrice(value: string): number | null {
+  const normalized = value.trim().replace(',', '.');
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /**
  * Add dialog – responsive & stable width, y-scroll only
  */
@@ -20,7 +27,7 @@ export function AddProductDialog({
   onError: (msg: string) => void;
 }) {
   const [name, setName] = React.useState('');
-  const [unitPrice, setUnitPrice] = React.useState<number>(0);
+  const [unitPrice, setUnitPrice] = React.useState('0');
   const [unit, setUnit] = React.useState<'Kg' | 'Px'>('Kg');
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
@@ -28,18 +35,20 @@ export function AddProductDialog({
   React.useEffect(() => {
     if (open) {
       setName('');
-      setUnitPrice(0);
+      setUnitPrice('0');
       setUnit('Kg');
       setLocalError(null);
     }
   }, [open]);
 
   async function create() {
+    const parsedUnitPrice = parseUnitPrice(unitPrice);
+
     if (!name.trim()) {
       setLocalError('Il nome è obbligatorio.');
       return;
     }
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+    if (parsedUnitPrice === null || parsedUnitPrice < 0) {
       setLocalError('Il prezzo deve essere un numero ≥ 0.');
       return;
     }
@@ -49,7 +58,7 @@ export function AddProductDialog({
     try {
       await api.post(
         '/products/',
-        { name: name.trim(), unit_price: Number(unitPrice), unit },
+        { name: name.trim(), unit_price: parsedUnitPrice, unit },
         { headers: { 'Content-Type': 'application/json' } }
       );
       onOpenChange(false);
@@ -93,11 +102,11 @@ export function AddProductDialog({
           <div className="grid gap-1 min-w-0">
             <Label>Prezzo unitario (€)</Label>
             <Input
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              value={String(unitPrice)}
-              onChange={(e) => setUnitPrice(Number(e.target.value))}
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
+              value={unitPrice}
+              onChange={(e) => setUnitPrice(e.target.value)}
               className="min-w-0 w-full max-w-full"
             />
           </div>

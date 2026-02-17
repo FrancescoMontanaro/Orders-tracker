@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -39,6 +40,7 @@ export function AddOrderDialog({
   const [appliedDiscount, setAppliedDiscount] = React.useState<number | ''>('');
   const [status, setStatus] = React.useState<'created' | 'delivered'>('created');
   const [items, setItems] = React.useState<OrderItem[]>([]);
+  const [note, setNote] = React.useState<string>('');
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
   const [orderLot, setOrderLot] = React.useState<LotOption | null>(null);
@@ -50,6 +52,7 @@ export function AddOrderDialog({
       setCustomer(null);
       setAppliedDiscount('');
       setStatus('created');
+      setNote('');
       setItems([]);
       setLocalError(null);
       setOrderLot(null);
@@ -122,6 +125,9 @@ export function AddOrderDialog({
 
     if (appliedDiscount !== '' && appliedDiscount != null) {
       payload.applied_discount = Number(appliedDiscount);
+    }
+    if (note.trim()) {
+      payload.note = note.trim();
     }
 
     setSaving(true);
@@ -205,6 +211,18 @@ export function AddOrderDialog({
                 <SelectItem value="delivered">Consegnato</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Note */}
+          <div className="grid gap-1 min-w-0">
+            <Label>Note (opzionale)</Label>
+            <Textarea
+              placeholder="Aggiungi una nota all'ordine…"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="min-w-0 w-full max-w-full resize-none"
+              rows={2}
+            />
           </div>
 
           {/* Default lot selector */}

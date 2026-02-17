@@ -43,6 +43,7 @@ type OrderRow = {
   customer_name: string;
   delivery_date: string; // YYYY-MM-DD
   status: 'created' | 'delivered';
+  note?: string | null;
   items: OrderItemRow[];
 };
 
@@ -107,6 +108,7 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
         order_status: o.status,
         unit_price: unitPrice,
         amount: unitPrice * qty,
+        order_note: o.note ?? null,
       } as any);
     }
   }
@@ -128,6 +130,7 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
       deliveredCount: number;
       totalCount: number;
       total_amount: number;
+      notes: string[];
     }
   >();
 
@@ -142,6 +145,7 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
           deliveredCount: 0,
           totalCount: 0,
           total_amount: 0,
+          notes: [],
         };
       entry.items.push({
         product_id: p.product_id,
@@ -153,6 +157,11 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
       });
       entry.total_amount += Number((c as any).amount ?? 0);
       entry.totalCount += 1;
+      // Collect order note if present (avoid duplicates)
+      const orderNote = (c as any).order_note;
+      if (orderNote && !entry.notes.includes(orderNote)) {
+        entry.notes.push(orderNote);
+      }
       if (isDelivered(c.order_status)) entry.deliveredCount += 1;
       map.set(c.customer_id, entry);
     }
@@ -164,8 +173,9 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
       customer_name: e.customer_name,
       delivered: e.totalCount > 0 && e.deliveredCount === e.totalCount,
       items: e.items,
-      // extra field (non-breaking for consumers that ignore it)
+      // extra fields (non-breaking for consumers that ignore them)
       total_amount: e.total_amount,
+      note: e.notes.length ? e.notes.join(' | ') : null,
     }))
     .sort((a, b) => Number(a.delivered) - Number(b.delivered)); // pending first
 }

@@ -22,6 +22,8 @@ export type DayOrdersGrouped = Array<{
   delivered: boolean;
   /** Monetary total for this order as returned by the API */
   total_amount: number;
+  /** Optional note attached to the order */
+  note?: string | null;
   items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
 }>;
 
@@ -128,6 +130,13 @@ export default function DayOrdersDialog({
                     </li>
                   ))}
                 </ul>
+
+                {/* Note (shown only when present) */}
+                {g.note && (
+                  <p className="mt-1.5 text-xs text-muted-foreground italic whitespace-pre-wrap break-words">
+                    📝 {g.note}
+                  </p>
+                )}
 
                 {/* Per-order monetary total (from API) */}
                 <div className="mt-3 border-t border-muted/40 pt-2 flex justify-end">

@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -84,6 +85,7 @@ export function EditOrderDialog({
   const [items, setItems] = React.useState<OrderItem[]>(
     order?.items ? order.items.map(mapOrderItemFromApi) : []
   );
+  const [note, setNote] = React.useState<string>(order?.note ?? '');
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
   const [orderLot, setOrderLot] = React.useState<LotOption | null>(null);
@@ -115,6 +117,7 @@ export function EditOrderDialog({
         );
         setAppliedDiscount(full.applied_discount ?? '');
         setStatus(full.status ?? 'created');
+        setNote(full.note ?? '');
         const its = Array.isArray(full.items) ? full.items : [];
         const mapped: OrderItem[] = its.map((item: OrderItem | any) => mapOrderItemFromApi(item));
         setItems(mapped);
@@ -227,6 +230,7 @@ export function EditOrderDialog({
         ...(lot_id != null ? { lot_id: Number(lot_id) } : {}),
       })),
       status,
+      note: note.trim() || '',
     };
 
     // ---------- IMPORTANT FIX ----------
@@ -336,6 +340,18 @@ export function EditOrderDialog({
                 </SelectContent>
               </Select>
             </div>
+
+              {/* Note */}
+              <div className="grid gap-1 min-w-0">
+                <Label>Note (opzionale)</Label>
+                <Textarea
+                  placeholder="Aggiungi una nota all'ordine…"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="min-w-0 w-full max-w-full resize-none"
+                  rows={2}
+                />
+              </div>
 
               {/* Default lot selector */}
               <div className="grid gap-2 min-w-0">

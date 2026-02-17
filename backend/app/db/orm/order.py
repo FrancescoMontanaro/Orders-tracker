@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 from datetime import date, datetime, timezone
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Numeric, Date, DateTime, String, ForeignKey, Index, CheckConstraint
+from sqlalchemy import Numeric, Date, DateTime, String, Text, ForeignKey, Index, CheckConstraint
 
 from .base import BaseORM
 from .customer import CustomerORM
@@ -28,6 +28,7 @@ class OrderORM(BaseORM):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
     applied_discount: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
     status: Mapped[str] = mapped_column(String(16), default="created", nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
 
     # Relationships
     customer: Mapped[CustomerORM] = relationship(back_populates="orders")

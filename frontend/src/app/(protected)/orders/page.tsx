@@ -22,7 +22,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { cn } from '@/lib/utils';
-import { X, ChevronDown } from 'lucide-react';
+import { X, ChevronDown, StickyNote } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { FilterToggleButton } from '@/components/ui/filter-toggle-button';
 
 import { useOrders } from './hooks/useOrders';
@@ -117,7 +123,23 @@ export default function OrdersPage() {
       accessorKey: 'customer_name',
       header: 'Cliente',
       enableSorting: true,
-      cell: ({ row }) => <span className="break-words">{row.original.customer_name ?? `#${row.original.customer_id}`}</span>,
+      cell: ({ row }) => (
+        <span className="inline-flex items-center gap-1.5 break-words">
+          {row.original.customer_name ?? `#${row.original.customer_id}`}
+          {row.original.note && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <StickyNote className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap text-xs">
+                  {row.original.note}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </span>
+      ),
     },
     {
       id: 'items',
@@ -553,9 +575,15 @@ export default function OrdersPage() {
                           className="mt-0.5 shrink-0"
                         />
                         <div className="min-w-0">
-                          <div className="font-medium break-words">
+                          <div className="font-medium break-words inline-flex items-center gap-1.5">
                             {r.customer_name ?? `#${r.customer_id}`}
+                            {r.note && <StickyNote className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                           </div>
+                          {r.note && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                              {r.note.length > 60 ? `${r.note.slice(0, 60)}…` : r.note}
+                            </p>
+                          )}
                         </div>
                       </div>
 

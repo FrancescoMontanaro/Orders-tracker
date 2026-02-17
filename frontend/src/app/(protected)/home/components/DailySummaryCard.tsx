@@ -50,6 +50,7 @@ type OrderRow = {
   status: 'created' | 'delivered';
   total_amount?: number | null;
   applied_discount?: number | null;
+  note?: string | null;
   items: OrderItemRow[];
 };
 
@@ -76,6 +77,7 @@ type CustomerOrderRow = {
   id: number;
   status: 'created' | 'delivered';
   total_amount: number; // from API (fallback to computed if missing)
+  note?: string | null;
   items: Array<{ product_name: string; quantity: number; unit?: string; unit_price: number; subtotal: number }>;
 };
 
@@ -244,6 +246,7 @@ export default function DailySummaryCard() {
         id: o.id,
         status: o.status,
         total_amount: Number(total_amount || 0),
+        note: o.note ?? null,
         items: (o.items || []).map((it) => {
           const qty = Number(it.quantity || 0);
           const price = Number(it.unit_price ?? 0);
@@ -422,6 +425,13 @@ export default function DailySummaryCard() {
                               <div className="text-xs text-muted-foreground">Ordine #{ord.id}</div>
                               <div className="font-semibold whitespace-nowrap">Totale: {euro(ord.total_amount)}</div>
                             </div>
+
+                            {/* Note (shown only when present) */}
+                            {ord.note && (
+                              <p className="text-xs text-muted-foreground italic whitespace-pre-wrap break-words">
+                                📝 {ord.note}
+                              </p>
+                            )}
 
                             {/* Body: mobile stacks, desktop shows two columns (items | status) */}
                             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">

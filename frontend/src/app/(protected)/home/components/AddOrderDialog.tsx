@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import ItemsEditor from './ItemsEditor';
 import SearchCombobox from './SearchCombobox';
@@ -40,6 +41,7 @@ export default function AddOrderDialog({
   const [customer, setCustomer] = React.useState<Option | null>(null);
   const [appliedDiscount, setAppliedDiscount] = React.useState<number | ''>('');
   const [status, setStatus] = React.useState<'created' | 'delivered'>('created');
+  const [note, setNote] = React.useState<string>('');
   const [items, setItems] = React.useState<OrderItem[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
@@ -52,6 +54,7 @@ export default function AddOrderDialog({
       setCustomer(null);
       setAppliedDiscount('');
       setStatus('created');
+      setNote('');
       setItems([]);
       setLocalError(null);
       setOrderLot(null);
@@ -152,6 +155,7 @@ export default function AddOrderDialog({
       status,
     };
     if (normalizedDiscount != null) payload.applied_discount = normalizedDiscount;
+    if (note.trim()) payload.note = note.trim();
 
     setSaving(true);
     setLocalError(null);
@@ -234,6 +238,18 @@ export default function AddOrderDialog({
                 <SelectItem value="delivered">Consegnato</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Note */}
+          <div className="grid gap-1 min-w-0">
+            <Label>Note (opzionale)</Label>
+            <Textarea
+              placeholder="Aggiungi una nota all'ordine…"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="min-w-0 w-full max-w-full resize-none"
+              rows={2}
+            />
           </div>
 
           {/* Default lot selector */}

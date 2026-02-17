@@ -89,6 +89,14 @@ export function ViewOrderDialog({
                 <Field label="Totale" value={<span className="font-semibold tabular-nums">{euro(totalAmount)}</span>} />
               </section>
 
+              {/* Note (shown only when present) */}
+              {order.note && (
+                <section className="space-y-1">
+                  <h4 className="text-xs uppercase tracking-wide text-muted-foreground">Note</h4>
+                  <p className="text-sm whitespace-pre-wrap break-words">{order.note}</p>
+                </section>
+              )}
+
               <section className="space-y-2">
                 <h4 className="text-sm font-semibold">Prodotti</h4>
                 {order.items?.length ? (

@@ -36,6 +36,7 @@ class Order(BaseModel):
     total_amount: float
     applied_discount: float
     status: str
+    note: Optional[str] = None
     items: List[OrderItem] = []
     customer_name: Optional[str] = None
 
@@ -63,6 +64,7 @@ class OrderCreate(BaseModel):
     customer_id: int
     delivery_date: date
     applied_discount: float = Field(default=0, ge=0, le=100)
+    note: Optional[str] = None
     items: List[OrderItemCreate]
 
 
@@ -87,3 +89,4 @@ class OrderUpdate(BaseModel):
     customer_id: Optional[int] = None
     applied_discount: Optional[float] = Field(default=None, ge=0, le=100)
     status: Optional[str] = None
+    note: Optional[str] = None

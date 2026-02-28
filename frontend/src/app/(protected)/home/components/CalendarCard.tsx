@@ -569,8 +569,8 @@ export default function CalendarCard() {
               </div>
 
               {/* Mobile list view */}
-              <div ref={mobileRef} className="md:hidden space-y-2">
-                {gridCells.map((d, idx) => {
+              <div ref={mobileRef} className="md:hidden grid grid-cols-1 gap-2">
+                {gridCells.map((d) => {
                   const inCurrentMonth = d.getMonth() === month.getMonth();
                   const iso = toISO(d);
                   const grouped = groupByCustomer(days[iso]);
@@ -580,13 +580,13 @@ export default function CalendarCard() {
 
                   return (
                     <button
-                      key={idx}
+                      key={iso}
                       type="button"
                       onClick={() => onDayClick(d)}
                       data-today={today ? 'true' : undefined}
                       data-iso={iso}
                       className={cn(
-                        'w-full rounded-lg border p-3 text-left transition-colors',
+                        'block w-full rounded-lg border p-3 text-left transition-colors',
                         'hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2',
                         inCurrentMonth ? 'bg-card' : 'bg-muted/30 text-muted-foreground',
                         today && 'ring-1 ring-inset ring-primary/40 bg-primary/5'

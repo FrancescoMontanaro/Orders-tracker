@@ -43,6 +43,7 @@ class ExportEntityEnum(str, Enum):
     - CUSTOMERS: Export customer data.
     - PRODUCTS: Export product data.
     - ORDERS: Export order data.
+    - ORDER_ITEMS: Export order item data.
     - EXPENSES: Export expense data.
     - INCOMES: Export income data.
     - LOTS: Export lot data.
@@ -53,6 +54,7 @@ class ExportEntityEnum(str, Enum):
     CUSTOMERS = "customers"
     PRODUCTS = "products"
     ORDERS = "orders"
+    ORDER_ITEMS = "order_items"
     EXPENSES = "expenses"
     INCOMES = "incomes"
     LOTS = "lots"

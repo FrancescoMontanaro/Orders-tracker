@@ -7,12 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ....db.orm.lot import LotORM
 from ....core.config import settings
 from ....db.orm import (
-    NoteORM, 
-    OrderORM, 
-    IncomeORM, 
-    ExpenseORM, 
-    ProductORM, 
-    CustomerORM, 
+    NoteORM,
+    OrderORM,
+    IncomeORM,
+    ExpenseORM,
+    ProductORM,
+    CustomerORM,
+    OrderItemORM,
     IncomesCategoryORM,
     ExpenseCategoryORM
 )
@@ -118,6 +119,60 @@ async def iter_orders(
                 r.OrderORM.applied_discount,
                 r.OrderORM.status,
                 r.OrderORM.note
+            ]
+            for r in rows
+        ]
+        if len(rows) < settings.export_batch_size:
+            break
+        offset += settings.export_batch_size
+
+
+async def iter_order_items(
+    session: AsyncSession,
+    start_date: Optional[date],
+    end_date: Optional[date],
+) -> AsyncGenerator[list[list], None]:
+    """
+    Yield order items in batches, ordered by id.
+    Joins with OrderORM to apply the same date filters used for orders,
+    and with ProductORM to include the product name instead of a bare id.
+
+    Parameters:
+    - session (AsyncSession): The database session.
+    - start_date (Optional[date]): Optional lower bound on the parent order's delivery_date.
+    - end_date (Optional[date]): Optional upper bound on the parent order's delivery_date.
+
+    Returns:
+    - AsyncGenerator[list[list], None]: An async generator yielding batches of rows.
+    """
+
+    # Build the base statement for order items joined with orders and products
+    stmt = (
+        select(OrderItemORM, ProductORM.name.label("product_name"))
+        .join(ProductORM, ProductORM.id == OrderItemORM.product_id)
+        .join(OrderORM, OrderORM.id == OrderItemORM.order_id)
+        .order_by(OrderItemORM.id)
+    )
+    if start_date:
+        stmt = stmt.where(OrderORM.delivery_date >= start_date)
+    if end_date:
+        stmt = stmt.where(OrderORM.delivery_date <= end_date)
+
+    # Fetch order items in batches
+    offset = 0
+    while True:
+        result = await session.execute(stmt.offset(offset).limit(settings.export_batch_size))
+        rows = result.all()
+        if not rows:
+            break
+        yield [
+            [
+                r.OrderItemORM.id,
+                r.OrderItemORM.order_id,
+                r.product_name,
+                r.OrderItemORM.quantity,
+                r.OrderItemORM.unit_price,
+                r.OrderItemORM.lot_id,
             ]
             for r in rows
         ]

@@ -22,6 +22,7 @@ from .utils import (
     iter_customers,
     iter_products,
     iter_orders,
+    iter_order_items,
     iter_expenses,
     iter_incomes,
     iter_lots,
@@ -180,7 +181,8 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
                           → FAILED (exception message stored)
 
     Notes:
-        - entity_type ALL always produces a multi-sheet XLSX regardless of the requested format.
+        - entity_type ALL and entity_type ORDERS both expand to multiple entities and therefore
+          always produce either a ZIP (CSV) or a multi-sheet XLSX, never a bare CSV.
         - Synchronous file I/O (csv / openpyxl) is offloaded to a thread via asyncio.to_thread so the event loop is never blocked.
 
     Parameters:
@@ -213,25 +215,28 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
         try:
             # Run the export with a timeout to prevent runaway jobs
             async with asyncio.timeout(settings.export_job_timeout_seconds):
-                # Determine the entities to export (ALL expands to every individual entity)
-                entities = (
-                    [e for e in ExportEntityEnum if e != ExportEntityEnum.ALL]
-                    if job.entity_type == ExportEntityEnum.ALL
-                    else [job.entity_type]
-                )
+                # Determine the entities to export:
+                # - ALL expands to every individual entity (ORDER_ITEMS is included after ORDERS)
+                # - ORDERS also expands to [ORDERS, ORDER_ITEMS] since the two tables are tightly coupled
+                # - any other single entity remains as-is
+                if job.entity_type == ExportEntityEnum.ALL:
+                    entities = [e for e in ExportEntityEnum if e != ExportEntityEnum.ALL]
+                elif job.entity_type == ExportEntityEnum.ORDERS:
+                    entities = [ExportEntityEnum.ORDERS, ExportEntityEnum.ORDER_ITEMS]
+                else:
+                    entities = [job.entity_type]
 
                 # Build the output file path and ensure the directory exists
                 out_dir = Path(exports_dir)
                 out_dir.mkdir(parents=True, exist_ok=True)
 
-                # entity_type ALL + CSV  → ZIP archive (one CSV per entity)
-                # entity_type ALL + XLSX → multi-sheet XLSX
-                # single entity          → CSV or XLSX as requested
-                is_all = job.entity_type == ExportEntityEnum.ALL
-                if is_all and job.format == ExportFormatEnum.CSV:
+                # Multiple entities → ZIP (CSV) or multi-sheet XLSX
+                # Single entity    → CSV or XLSX as requested
+                is_multi = len(entities) > 1
+                if is_multi and job.format == ExportFormatEnum.CSV:
                     file_path = str(out_dir / f"{job_id}.zip")
                     await _build_zip_csv(file_path, entities, job.start_date, job.end_date, session)
-                elif is_all or job.format == ExportFormatEnum.XLSX:
+                elif is_multi or job.format == ExportFormatEnum.XLSX:
                     file_path = str(out_dir / f"{job_id}.xlsx")
                     await _build_xlsx(file_path, entities, job.start_date, job.end_date, session)
                 else:
@@ -357,6 +362,9 @@ async def _iter_entity(
                 yield batch
         case ExportEntityEnum.ORDERS:
             async for batch in iter_orders(session, start_date, end_date):
+                yield batch
+        case ExportEntityEnum.ORDER_ITEMS:
+            async for batch in iter_order_items(session, start_date, end_date):
                 yield batch
         case ExportEntityEnum.EXPENSES:
             async for batch in iter_expenses(session, start_date, end_date):

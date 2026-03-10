@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { ChevronDownIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 
 // --- Helpers for ISO conversion (safe, no timezone shift) ---
@@ -62,11 +63,13 @@ export function DatePicker({
           <ChevronDownIcon className="shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
+      {/* No Portal: content stays inside the Dialog DOM tree so the
+          Dialog's DismissableLayer does not intercept calendar clicks. */}
+      <PopoverPrimitive.Content
         align="start"
         side="bottom"
         sideOffset={4}
-        className="w-auto p-0 max-w-[calc(100vw-1rem)]"
+        className="z-50 w-auto origin-(--radix-popover-content-transform-origin) rounded-md border bg-popover p-0 text-popover-foreground shadow-md outline-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2"
       >
         <Calendar
           mode="single"
@@ -79,7 +82,7 @@ export function DatePicker({
             setOpen(false);
           }}
         />
-      </PopoverContent>
+      </PopoverPrimitive.Content>
     </Popover>
   );
 }

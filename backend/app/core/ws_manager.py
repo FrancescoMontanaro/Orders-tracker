@@ -2,7 +2,7 @@ from fastapi import WebSocket
 from collections import defaultdict
 
 
-class ConnectionManager:
+class WSConnectionManager:
     """
     In-process WebSocket connection manager.
 
@@ -79,5 +79,6 @@ class ConnectionManager:
             self.disconnect(user_id, ws)
 
 
-# Module-level singleton shared by the whole application process
-manager = ConnectionManager()
+# Module-level singletons, one per WebSocket channel.
+notifications_ws_manager = WSConnectionManager()
+export_ws_manager = WSConnectionManager()

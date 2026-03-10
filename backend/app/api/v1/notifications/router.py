@@ -1,21 +1,18 @@
 from sqlalchemy import select
 from typing import Optional, Dict, List, Any
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, status
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 
 from .models import Notification
 from ....db.orm.user import UserORM
-from ....db.session import db_session
-from ....core.security import decode_token
-from .ws_manager import manager as ws_manager
-from ....core.dependencies import get_current_user
 from ....core.response_models import SuccessResponse
+from ....core.dependencies import get_current_user, get_ws_user
 from ....models import Pagination, SortParam, ListingQueryParams
+from ....core.ws_manager import notifications_ws_manager as ws_manager
 from .service import (
     list_notifications as list_notifications_service,
     mark_as_read as mark_as_read_service,
     mark_all_as_read as mark_all_as_read_service
 )
-
 
 # REST router — protected by the global require_active_user dependency in main.py
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
@@ -119,7 +116,7 @@ async def mark_all_notifications_as_read(
 @ws_router.websocket(path="/ws")
 async def notifications_ws(
     websocket: WebSocket,
-    token: str = Query(..., description="JWT access token")
+    user: UserORM = Depends(get_ws_user),
 ) -> None:
     """
     WebSocket endpoint for real-time notification delivery.
@@ -135,45 +132,15 @@ async def notifications_ws(
     Connection URL: ws://<host>/api/notifications/ws?token=<access_token>
     """
 
-    try:
-        # Decode the token and resolve the user before accepting the connection
-        payload = decode_token(token)
-
-        # Basic validation of the token payload (you can expand this as needed)
-        if payload.get("scope") != "access_token":
-            raise ValueError("Invalid scope")
-        
-        # Extract the user's email from the token payload (assuming it's in the 'sub' claim)
-        email = payload.get("sub")
-
-        # If email is missing, reject the connection
-        if not email:
-            raise ValueError("Missing subject")
-        
-    except Exception:
-        # Close with a custom code to indicate authentication failure
-        await websocket.close(code=4001)
-        return
-
-    # Resolve user_id from the database
-    async with db_session() as session:
-        user = await session.scalar(select(UserORM).where(UserORM.email == email))
-
-    # If user not found or inactive, reject the connection
-    if not user or not user.is_active:
-        # Close with a custom code to indicate authentication failure
-        await websocket.close(code=4001)
-        return
-
     # Register the connection and wait for disconnect
     await ws_manager.connect(user.id, websocket)
 
     try:
-        # Keep the connection alive
+        # Keep the connection alive; we only push from server to client
         while True:
-            # Keep the connection alive; we only push from server to client
             await websocket.receive_text()
 
+    # Handle client disconnect
     except WebSocketDisconnect:
         pass
 

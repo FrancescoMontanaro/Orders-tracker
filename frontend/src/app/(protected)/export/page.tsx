@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { DownloadIcon, RefreshCwIcon, PlusIcon, X } from 'lucide-react';
+import { DownloadIcon, PlusIcon, X } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,6 @@ import {
   TooltipContent,
   TooltipProvider,
 } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
 import { useExportJobs } from './hooks/useExportJobs';
 import {
   type ExportEntity,
@@ -214,19 +213,6 @@ export default function ExportPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <CardTitle className="text-lg">Export dati</CardTitle>
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setGlobalError(null);
-                  refetch();
-                }}
-                aria-label="Aggiorna lista"
-              >
-                <RefreshCwIcon
-                  className={cn('h-4 w-4', loading && 'animate-spin')}
-                />
-              </Button>
               <Button onClick={() => { setFormError(null); setDialogOpen(true); }}>
                 <PlusIcon className="h-4 w-4 mr-1" />
                 Nuovo export
@@ -387,7 +373,7 @@ export default function ExportPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">#</TableHead>
-                    <TableHead>Entità</TableHead>
+                    <TableHead className="max-w-[180px]">Entità</TableHead>
                     <TableHead>Formato</TableHead>
                     <TableHead>Periodo</TableHead>
                     <TableHead>Stato</TableHead>
@@ -409,11 +395,16 @@ export default function ExportPage() {
                         <TableCell className="text-muted-foreground text-xs">
                           {job.id}
                         </TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium max-w-[180px]">
+                          <span className="block truncate" title={job.entity_types
+                            .filter((e) => e !== 'order_items')
+                            .map((e) => ENTITY_LABELS[e] ?? e)
+                            .join(', ')}>
                           {job.entity_types
                             .filter((e) => e !== 'order_items')
                             .map((e) => ENTITY_LABELS[e] ?? e)
                             .join(', ')}
+                          </span>
                         </TableCell>
                         <TableCell>{FORMAT_LABELS[job.format]}</TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">

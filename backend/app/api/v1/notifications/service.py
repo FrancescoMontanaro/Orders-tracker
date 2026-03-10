@@ -3,11 +3,10 @@ from sqlalchemy import select, func, asc, desc
 
 from .models import Notification
 from ....db.session import db_session
-from .ws_manager import manager as ws_manager
 from ....models import Pagination, ListingQueryParams
 from .constants import ALLOWED_NOTIFICATIONS_SORTING_FIELDS
+from ....core.ws_manager import notifications_ws_manager as ws_manager
 from ....db.orm.notification import NotificationORM, NotificationTypeEnum
-
 
 # ====================== #
 # ===== Public API ===== #

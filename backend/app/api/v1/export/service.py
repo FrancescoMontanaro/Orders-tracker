@@ -13,11 +13,12 @@ from ....core.config import settings
 from ....db.session import db_session
 from .models import ExportJobStart, ExportJob
 from .exceptions import JobAlreadyExistsException
+from ....core.ws_manager import export_ws_manager
 from ....models import Pagination, ListingQueryParams
 from ....db.orm.notification import NotificationTypeEnum
-from .constants import ALLOWED_EXPORT_JOBS_SORTING_FIELDS, ENTITY_HEADERS, ENTITY_LABELS, ENTITY_SHEET_NAMES
 from ..notifications.service import create_notification as create_notification_service
 from ....db.orm.export_job import ExportJobORM, ExportStatusEnum, ExportFormatEnum, ExportEntityEnum
+from .constants import ALLOWED_EXPORT_JOBS_SORTING_FIELDS, ENTITY_HEADERS, ENTITY_LABELS, ENTITY_SHEET_NAMES
 from .utils import (
     iter_customers,
     iter_products,
@@ -28,7 +29,6 @@ from .utils import (
     iter_lots,
     iter_notes
 )
-
 
 # ====================== #
 # ===== Public API ===== #
@@ -86,6 +86,10 @@ async def create_export_job(payload: ExportJobStart, user_id: int) -> ExportJobO
         # Commit the transaction to generate the job ID and make it available for the background task
         await session.commit()
         await session.refresh(job)
+
+        # Notify connected tabs in real time that a new job is pending
+        job_data = ExportJob.model_validate(job).model_dump(mode='json')
+        await export_ws_manager.broadcast(user_id, job_data)
 
         # Return the newly created job
         return job
@@ -223,6 +227,10 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
         # Build a human-readable label summarising all selected entities
         job_entity_label = ", ".join(ENTITY_LABELS.get(e, e.value) for e in job_entities)
 
+        # Broadcast RUNNING status to connected tabs
+        job_data = ExportJob.model_validate(job).model_dump(mode='json')
+        await export_ws_manager.broadcast(job_user_id, job_data)
+
         try:
             # Run the export with a timeout to prevent runaway jobs
             async with asyncio.timeout(settings.export_job_timeout_seconds):
@@ -258,6 +266,11 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
             job.completed_at = now
             job.file_path = file_path
             await session.commit()
+            await session.refresh(job)
+
+            # Broadcast COMPLETED status to connected tabs
+            job_data = ExportJob.model_validate(job).model_dump(mode='json')
+            await export_ws_manager.broadcast(job_user_id, job_data)
 
             # Notify the user that the export is ready
             await create_notification_service(
@@ -273,6 +286,11 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
             job.status = ExportStatusEnum.FAILED
             job.error_message = f"Job exceeded the maximum allowed duration of {settings.export_job_timeout_seconds}s"
             await session.commit()
+            await session.refresh(job)
+
+            # Broadcast FAILED status to connected tabs
+            job_data = ExportJob.model_validate(job).model_dump(mode='json')
+            await export_ws_manager.broadcast(job_user_id, job_data)
 
             # Notify the user that the export failed
             await create_notification_service(
@@ -290,6 +308,11 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
 
             # Commit the transaction to persist the failure status and error message before sending the notification
             await session.commit()
+            await session.refresh(job)
+
+            # Broadcast FAILED status to connected tabs
+            job_data = ExportJob.model_validate(job).model_dump(mode='json')
+            await export_ws_manager.broadcast(job_user_id, job_data)
 
             # Notify the user that the export failed
             await create_notification_service(

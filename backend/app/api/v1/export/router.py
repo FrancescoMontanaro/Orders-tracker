@@ -1,15 +1,16 @@
 from pathlib import Path
 from fastapi.responses import FileResponse
 from typing import Optional, Dict, List, Any
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect, status
 
 from ....db.orm.user import UserORM
 from ....core.config import settings
 from .models import ExportJobStart, ExportJob
 from .exceptions import JobAlreadyExistsException
-from ....core.dependencies import get_current_user
 from ....db.orm.export_job import ExportStatusEnum
 from ....core.response_models import SuccessResponse
+from ....core.dependencies import get_current_user, get_ws_user
+from ....core.ws_manager import export_ws_manager as ws_manager
 from ....models import Pagination, SortParam, ListingQueryParams
 from .service import (
     create_export_job as create_export_job_service,
@@ -19,8 +20,11 @@ from .service import (
 )
 
 
-# Create the router
+# REST router — protected by the global require_active_user dependency in main.py
 router = APIRouter(prefix="/export", tags=["Export"])
+
+# WebSocket router — no dependencies, authentication is handled inside the endpoint function
+ws_router = APIRouter(prefix="/export", tags=["Export"])
 
 
 # ==================== #
@@ -153,3 +157,40 @@ async def download_export(
 
     # Return the file response
     return FileResponse(path=job.file_path, media_type=media_type, filename=filename)
+
+
+# ======================== #
+# ===== WebSocket ======== #
+# ======================== #
+
+@ws_router.websocket(path="/ws")
+async def export_jobs_ws(
+    websocket: WebSocket,
+    user: UserORM = Depends(get_ws_user),
+) -> None:
+    """
+    WebSocket endpoint for real-time export job status updates.
+
+    Authentication is performed via the `token` query parameter.
+    The server pushes a JSON payload (matching the ExportJob schema) every time
+    a job belonging to the authenticated user changes status.  The client does
+    not need to send any messages.
+
+    Connection URL: ws://<host>/api/export/ws?token=<access_token>
+    """
+
+    # Register the WebSocket connection for the user
+    await ws_manager.connect(user.id, websocket)
+
+    try:
+        # Keep the connection alive until the client disconnects (no messages expected from the client)
+        while True:
+            await websocket.receive_text()
+
+    # Handle client disconnect
+    except WebSocketDisconnect:
+        pass
+
+    finally:
+        # Unregister the WebSocket connection when the client disconnects
+        ws_manager.disconnect(user.id, websocket)

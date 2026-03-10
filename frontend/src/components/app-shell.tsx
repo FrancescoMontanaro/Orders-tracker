@@ -14,6 +14,7 @@ import {
   BarChart3,
   Menu,
   Boxes,
+  FileDown,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,8 @@ import {
 } from '@/components/ui/sheet'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { LogoutButton } from '@/components/logout-button'
+import { NotificationBell } from '@/components/notification-bell'
+import { NotificationsProvider } from '@/contexts/notifications-context'
 import {
   NavigationMenu,
   NavigationMenuList,
@@ -51,6 +54,7 @@ const routes = [
   { href: '/balance', label: 'Bilancio', Icon: Receipt },
   { href: '/notes', label: 'Note', Icon: NotebookIcon },
   { href: '/reports', label: 'Report', Icon: BarChart3 },
+  { href: '/export', label: 'Export', Icon: FileDown },
 ] as const
 
 const desktopMenuGroups = [
@@ -101,6 +105,11 @@ const desktopMenuGroups = [
         href: '/notes',
         label: 'Note',
         description: 'Appunti operativi e archivio interno.',
+      },
+      {
+        href: '/export',
+        label: 'Export',
+        description: 'Esporta dati in CSV o Excel.',
       },
     ],
   },
@@ -262,6 +271,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
+    <NotificationsProvider>
     <div className="min-h-dvh grid grid-rows-[auto_1fr]">
       {showSnow ? (
         <Snowfall
@@ -282,7 +292,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           {/* Left: mobile trigger + brand */}
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex flex-1 items-center gap-2 min-w-0">
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
                 <Button
@@ -327,7 +337,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <DesktopNav />
 
           {/* Right: actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-1 items-center justify-end gap-2">
+            <NotificationBell />
             <ThemeToggle />
             <LogoutButton />
           </div>
@@ -339,5 +350,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
     </div>
+    </NotificationsProvider>
   )
 }

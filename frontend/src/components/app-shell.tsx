@@ -31,6 +31,8 @@ import {
   NavigationMenu,
   NavigationMenuList,
   NavigationMenuItem,
+  NavigationMenuContent,
+  NavigationMenuTrigger,
   NavigationMenuLink,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
@@ -49,6 +51,59 @@ const routes = [
   { href: '/balance', label: 'Bilancio', Icon: Receipt },
   { href: '/notes', label: 'Note', Icon: NotebookIcon },
   { href: '/reports', label: 'Report', Icon: BarChart3 },
+] as const
+
+const desktopMenuGroups = [
+  {
+    label: 'Gestione',
+    items: [
+      {
+        href: '/products',
+        label: 'Prodotti',
+        description: 'Catalogo, prezzi e stato dei prodotti.',
+      },
+      {
+        href: '/customers',
+        label: 'Clienti',
+        description: 'Anagrafiche clienti e consultazione rapida.',
+      },
+      {
+        href: '/orders',
+        label: 'Ordini',
+        description: 'Ordini, stati di avanzamento e dettagli.',
+      },
+      {
+        href: '/lots',
+        label: 'Lotti',
+        description: 'Raccolte, locazioni e prodotti collegati.',
+      },
+    ],
+  },
+  {
+    label: 'Analisi',
+    items: [
+      {
+        href: '/balance',
+        label: 'Bilancio',
+        description: 'Entrate, uscite e categorie economiche.',
+      },
+      {
+        href: '/reports',
+        label: 'Report',
+        description: 'Analisi per prodotti, clienti e categorie.',
+      },
+    ],
+  },
+  {
+    label: 'Strumenti',
+    items: [
+      {
+        href: '/notes',
+        label: 'Note',
+        description: 'Appunti operativi e archivio interno.',
+      },
+    ],
+  },
 ] as const
 
 /** Brand (text only, no badge/initials) */
@@ -92,20 +147,64 @@ function DesktopNav() {
   return (
     <NavigationMenu className="hidden md:block">
       <NavigationMenuList>
-        {routes.map(({ href, label }) => {
-          const active = pathname?.startsWith(href)
+        <NavigationMenuItem>
+          <NavigationMenuLink
+            asChild
+            active={pathname?.startsWith('/home')}
+            className={`${navigationMenuTriggerStyle()} ${
+              pathname?.startsWith('/home')
+                ? 'relative bg-transparent text-foreground hover:bg-transparent hover:text-foreground focus:bg-transparent focus:text-foreground after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:rounded-full after:bg-primary'
+                : 'hover:bg-accent/60'
+            }`}
+          >
+            <Link href="/home" aria-current={pathname?.startsWith('/home') ? 'page' : undefined}>
+              Home
+            </Link>
+          </NavigationMenuLink>
+        </NavigationMenuItem>
+
+        {desktopMenuGroups.map(({ label, items }) => {
+          const groupActive = items.some(({ href }) => pathname?.startsWith(href))
+
           return (
-            <NavigationMenuItem key={href}>
-              <NavigationMenuLink
-                asChild
-                className={`${navigationMenuTriggerStyle()} ${
-                  active ? 'bg-primary text-primary-foreground' : 'hover:bg-accent/60'
-                }`}
+            <NavigationMenuItem key={label}>
+              <NavigationMenuTrigger
+                className={
+                  groupActive
+                    ? 'relative bg-transparent text-foreground hover:bg-transparent hover:text-foreground focus:bg-transparent focus:text-foreground data-[state=open]:bg-transparent data-[state=open]:text-foreground after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:rounded-full after:bg-primary'
+                    : undefined
+                }
               >
-                <Link href={href} aria-current={active ? 'page' : undefined}>
-                  {label}
-                </Link>
-              </NavigationMenuLink>
+                {label}
+              </NavigationMenuTrigger>
+              <NavigationMenuContent>
+                <ul
+                  className={`grid gap-2 p-1 ${
+                    items.length > 2 ? 'w-[420px] grid-cols-2' : 'w-[320px] grid-cols-1'
+                  }`}
+                >
+                  {items.map(({ href, label: itemLabel, description }) => {
+                    const active = pathname?.startsWith(href)
+
+                    return (
+                      <li key={href}>
+                        <NavigationMenuLink
+                          asChild
+                          active={active}
+                          className={active ? 'bg-accent/70' : undefined}
+                        >
+                          <Link href={href} aria-current={active ? 'page' : undefined}>
+                            <span className="font-medium leading-none">{itemLabel}</span>
+                            <span className="line-clamp-2 text-sm leading-snug text-muted-foreground">
+                              {description}
+                            </span>
+                          </Link>
+                        </NavigationMenuLink>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </NavigationMenuContent>
             </NavigationMenuItem>
           )
         })}

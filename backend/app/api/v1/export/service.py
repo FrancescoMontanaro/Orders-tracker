@@ -15,7 +15,7 @@ from .models import ExportJobStart, ExportJob
 from .exceptions import JobAlreadyExistsException
 from ....models import Pagination, ListingQueryParams
 from ....db.orm.notification import NotificationTypeEnum
-from .constants import ALLOWED_EXPORT_JOBS_SORTING_FIELDS, ENTITY_HEADERS, ENTITY_LABELS
+from .constants import ALLOWED_EXPORT_JOBS_SORTING_FIELDS, ENTITY_HEADERS, ENTITY_LABELS, ENTITY_SHEET_NAMES
 from ..notifications.service import create_notification as create_notification_service
 from ....db.orm.export_job import ExportJobORM, ExportStatusEnum, ExportFormatEnum, ExportEntityEnum
 from .utils import (
@@ -450,7 +450,7 @@ async def _build_zip_csv(
         def _write_zip() -> None:
             with zipfile.ZipFile(file_path, "w", zipfile.ZIP_DEFLATED) as zf:
                 for entity, tmp_path in tmp_files:
-                    zf.write(tmp_path, arcname=f"{entity.value}.csv")
+                    zf.write(tmp_path, arcname=f"{ENTITY_SHEET_NAMES[entity]}.csv")
 
         await asyncio.to_thread(_write_zip)
 
@@ -489,7 +489,7 @@ async def _build_xlsx(
     # For each entity, create a new sheet and write rows in batches to avoid loading all data into memory at once
     for entity in entities:
         # Create a new sheet for this entity (openpyxl automatically handles sheet naming conflicts by appending a number)
-        ws = wb.create_sheet(title=entity.value)
+        ws = wb.create_sheet(title=ENTITY_SHEET_NAMES[entity])
 
         # Write the header row for this sheet
         ws.append(ENTITY_HEADERS[entity])

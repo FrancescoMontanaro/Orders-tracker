@@ -15,7 +15,7 @@ from .models import ExportJobStart, ExportJob
 from .exceptions import JobAlreadyExistsException
 from ....models import Pagination, ListingQueryParams
 from ....db.orm.notification import NotificationTypeEnum
-from .constants import ALLOWED_EXPORT_JOBS_SORTING_FIELDS, ENTITY_HEADERS
+from .constants import ALLOWED_EXPORT_JOBS_SORTING_FIELDS, ENTITY_HEADERS, ENTITY_LABELS
 from ..notifications.service import create_notification as create_notification_service
 from ....db.orm.export_job import ExportJobORM, ExportStatusEnum, ExportFormatEnum, ExportEntityEnum
 from .utils import (
@@ -208,7 +208,7 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
         # Capture scalar values before any further commit expires the object again
         job_user_id = job.user_id
         job_id_val = job.id
-        job_entity_name = job.entity_type.value
+        job_entity_label = ENTITY_LABELS.get(job.entity_type, job.entity_type.value)
 
         try:
             # Run the export with a timeout to prevent runaway jobs
@@ -239,19 +239,19 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
                     await _build_csv(file_path, entities[0], job.start_date, job.end_date, session)
 
             # Mark the job as completed
-            now              = datetime.now(timezone.utc)
-            job.status       = ExportStatusEnum.COMPLETED
+            now = datetime.now(timezone.utc)
+            job.status = ExportStatusEnum.COMPLETED
             job.completed_at = now
-            job.file_path    = file_path
+            job.file_path = file_path
             await session.commit()
 
             # Notify the user that the export is ready
             await create_notification_service(
-                user_id = job_user_id,
-                type = NotificationTypeEnum.EXPORT_COMPLETED,
-                title = "Export completato",
-                message = f"L'export di '{job_entity_name}' è pronto per il download.",
-                entity_id = job_id_val
+                user_id   = job_user_id,
+                type      = NotificationTypeEnum.EXPORT_COMPLETED,
+                title     = "Export completato",
+                message   = f"{job_entity_label}: il file è pronto, puoi scaricarlo dalla pagina Export.",
+                entity_id = job_id_val,
             )
 
         except TimeoutError:
@@ -265,7 +265,7 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
                 user_id   = job_user_id,
                 type      = NotificationTypeEnum.EXPORT_FAILED,
                 title     = "Export fallito",
-                message   = f"L'export di '{job_entity_name}' ha superato il tempo massimo consentito ({settings.export_job_timeout_seconds}s).",
+                message   = f"{job_entity_label}: l'elaborazione ha impiegato troppo tempo ed è stata interrotta automaticamente.",
                 entity_id = job_id_val,
             )
 
@@ -282,7 +282,7 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
                 user_id   = job_user_id,
                 type      = NotificationTypeEnum.EXPORT_FAILED,
                 title     = "Export fallito",
-                message   = f"L'export di '{job_entity_name}' è fallito: {exc}",
+                message   = f"{job_entity_label}: si è verificato un errore durante l'elaborazione. Riprova o contatta l'assistenza.",
                 entity_id = job_id_val,
             )
 

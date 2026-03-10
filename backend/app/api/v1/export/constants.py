@@ -10,6 +10,19 @@ ALLOWED_EXPORT_JOBS_SORTING_FIELDS = {
 }
 
 
+# Human-readable label for each entity type (used in notifications)
+ENTITY_LABELS: dict[ExportEntityEnum, str] = {
+    ExportEntityEnum.ALL: "Tutti i dati",
+    ExportEntityEnum.CUSTOMERS: "Clienti",
+    ExportEntityEnum.PRODUCTS: "Prodotti",
+    ExportEntityEnum.ORDERS: "Ordini",
+    ExportEntityEnum.EXPENSES: "Spese",
+    ExportEntityEnum.INCOMES: "Entrate",
+    ExportEntityEnum.LOTS: "Lotti",
+    ExportEntityEnum.NOTES: "Note"
+}
+
+
 # Column headers exported for each entity type
 ENTITY_HEADERS: dict[ExportEntityEnum, list[str]] = {
     ExportEntityEnum.CUSTOMERS: ["id", "name", "is_active"],

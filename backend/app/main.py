@@ -9,6 +9,7 @@ from .core.dependencies import require_active_user
 from .api.v1.auth.router import router as auth_router
 from .api.v1.lots.router import router as lots_router
 from .api.v1.notes.router import router as notes_router
+from .api.v1.export.router import router as export_router
 from .api.v1.health.router import router as health_router
 from .api.v1.orders.router import router as orders_router
 from .api.v1.incomes.router import router as incomes_router
@@ -16,6 +17,7 @@ from .api.v1.reports.router import router as reports_router
 from .api.v1.products.router import router as products_router
 from .api.v1.expenses.router import router as expenses_router
 from .api.v1.customers.router import router as customers_router
+from .api.v1.notifications.router import router as notifications_router, ws_router as notifications_ws_router
 
 # Create FastAPI app with lifespan
 app = FastAPI(
@@ -44,3 +46,6 @@ app.include_router(incomes_router, dependencies=[Depends(require_active_user)])
 app.include_router(lots_router, dependencies=[Depends(require_active_user)])
 app.include_router(notes_router, dependencies=[Depends(require_active_user)])
 app.include_router(reports_router, dependencies=[Depends(require_active_user)])
+app.include_router(export_router, dependencies=[Depends(require_active_user)])
+app.include_router(notifications_router, dependencies=[Depends(require_active_user)])
+app.include_router(notifications_ws_router)

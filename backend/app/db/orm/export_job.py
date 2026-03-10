@@ -1,7 +1,8 @@
 from enum import Enum
+from typing import List
 from datetime import date, datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, Text, Date, DateTime, Enum as SAEnum, String, ForeignKey, func
+from sqlalchemy import Integer, Text, Date, DateTime, JSON, Enum as SAEnum, String, ForeignKey, func
 
 from .base import BaseORM
 from .user import UserORM
@@ -38,8 +39,7 @@ class ExportFormatEnum(str, Enum):
 class ExportEntityEnum(str, Enum):
     """
     Enum for types of entities that can be exported.
-    
-    - ALL: Export all entities at once.
+
     - CUSTOMERS: Export customer data.
     - PRODUCTS: Export product data.
     - ORDERS: Export order data.
@@ -50,7 +50,6 @@ class ExportEntityEnum(str, Enum):
     - NOTES: Export note data.
     """
 
-    ALL = "all"
     CUSTOMERS = "customers"
     PRODUCTS = "products"
     ORDERS = "orders"
@@ -73,7 +72,7 @@ class ExportJobORM(BaseORM):
     # Columns
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey(UserORM.id, ondelete="CASCADE"), index=True, nullable=False)
-    entity_type: Mapped[ExportEntityEnum] = mapped_column(SAEnum(ExportEntityEnum), nullable=False)
+    entity_types: Mapped[List[str]] = mapped_column(JSON, nullable=False)
     format: Mapped[ExportFormatEnum] = mapped_column(SAEnum(ExportFormatEnum), nullable=False)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     end_date: Mapped[date | None]   = mapped_column(Date, nullable=True)

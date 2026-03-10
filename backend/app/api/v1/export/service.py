@@ -38,8 +38,8 @@ async def create_export_job(payload: ExportJobStart, user_id: int) -> ExportJobO
     """
     Persist a new export job (status = PENDING) and return it.
 
-    Raises HTTP 409 if a job for the same entity_type is already pending or running
-    for this user.
+    Raises HTTP 409 if any of the requested entity_types already has a pending or
+    running job for this user, to avoid duplicate concurrent exports.
 
     Parameters:
     - payload (ExportJobStart): The export job parameters.
@@ -49,25 +49,32 @@ async def create_export_job(payload: ExportJobStart, user_id: int) -> ExportJobO
     - ExportJobORM: The newly created export job.
     """
 
+    # Serialise entity_types to a plain list of strings for JSON storage
+    entity_types_values = [e.value for e in payload.entity_types]
+
     # Create a new database session for this operation
     async with db_session() as session:
-        # Reject if an active job of the same type already exists for this user
-        existing = await session.scalar(
-            select(ExportJobORM).where(
-                ExportJobORM.user_id == user_id,
-                ExportJobORM.entity_type == payload.entity_type,
-                ExportJobORM.status.in_([ExportStatusEnum.PENDING, ExportStatusEnum.RUNNING])
+        # Reject if any active job belonging to this user already covers one or
+        # more of the requested entities, to prevent duplicate concurrent exports
+        active_jobs = (
+            await session.execute(
+                select(ExportJobORM).where(
+                    ExportJobORM.user_id == user_id,
+                    ExportJobORM.status.in_([ExportStatusEnum.PENDING, ExportStatusEnum.RUNNING])
+                )
             )
-        )
+        ).scalars().all()
 
-        # If an existing job is found, raise a custom exception that will be translated to a 409 Conflict in the router
-        if existing:
-            raise JobAlreadyExistsException()
+        # Check for overlap between requested entities and active jobs' entities.
+        for active in active_jobs:
+            overlap = set(active.entity_types) & set(entity_types_values)
+            if overlap:
+                raise JobAlreadyExistsException()
 
         # Create and persist the new job
         job = ExportJobORM(
             user_id = user_id,
-            entity_type = payload.entity_type,
+            entity_types = entity_types_values,
             format = payload.format,
             start_date = payload.start_date,
             end_date = payload.end_date
@@ -181,8 +188,9 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
                           → FAILED (exception message stored)
 
     Notes:
-        - entity_type ALL and entity_type ORDERS both expand to multiple entities and therefore
-          always produce either a ZIP (CSV) or a multi-sheet XLSX, never a bare CSV.
+        - The list of entities to export is stored as a JSON array of strings in the database.
+        - When ORDERS is selected, ORDER_ITEMS is automatically appended (the two tables are always exported together).
+        - Multiple entities always produce either a ZIP (CSV) or a multi-sheet XLSX, never a bare CSV.
         - Synchronous file I/O (csv / openpyxl) is offloaded to a thread via asyncio.to_thread so the event loop is never blocked.
 
     Parameters:
@@ -210,21 +218,22 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
         # Capture scalar values before any further commit expires the object again
         job_user_id = job.user_id
         job_id_val = job.id
-        job_entity_label = ENTITY_LABELS.get(job.entity_type, job.entity_type.value)
+        # Resolve entity enums from the stored JSON strings
+        job_entities = [ExportEntityEnum(v) for v in job.entity_types]
+        # Build a human-readable label summarising all selected entities
+        job_entity_label = ", ".join(ENTITY_LABELS.get(e, e.value) for e in job_entities)
 
         try:
             # Run the export with a timeout to prevent runaway jobs
             async with asyncio.timeout(settings.export_job_timeout_seconds):
-                # Determine the entities to export:
-                # - ALL expands to every individual entity (ORDER_ITEMS is included after ORDERS)
-                # - ORDERS also expands to [ORDERS, ORDER_ITEMS] since the two tables are tightly coupled
-                # - any other single entity remains as-is
-                if job.entity_type == ExportEntityEnum.ALL:
-                    entities = [e for e in ExportEntityEnum if e != ExportEntityEnum.ALL]
-                elif job.entity_type == ExportEntityEnum.ORDERS:
-                    entities = [ExportEntityEnum.ORDERS, ExportEntityEnum.ORDER_ITEMS]
-                else:
-                    entities = [job.entity_type]
+                # Determine the entities to export directly from the stored list.
+                # ORDER_ITEMS is automatically appended when ORDERS is selected,
+                # since the two tables are tightly coupled and always exported together.
+                entities: list[ExportEntityEnum] = []
+                for e in job_entities:
+                    entities.append(e)
+                    if e == ExportEntityEnum.ORDERS and ExportEntityEnum.ORDER_ITEMS not in job_entities:
+                        entities.append(ExportEntityEnum.ORDER_ITEMS)
 
                 # Build the output file path and ensure the directory exists
                 out_dir = Path(exports_dir)

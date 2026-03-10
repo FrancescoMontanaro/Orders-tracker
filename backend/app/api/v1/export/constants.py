@@ -4,15 +4,13 @@ from ....db.orm.export_job import ExportJobORM, ExportEntityEnum
 # Define allowed fields for filtering and sorting
 ALLOWED_EXPORT_JOBS_SORTING_FIELDS = {
     "status": ExportJobORM.status,
-    "entity_type": ExportJobORM.entity_type,
     "format": ExportJobORM.format,
-    "created_at":  ExportJobORM.created_at
+    "created_at": ExportJobORM.created_at
 }
 
 
-# Human-readable label for each entity type (used in notifications)
+# Human-readable label for each entity type (used in notifications and the UI)
 ENTITY_LABELS: dict[ExportEntityEnum, str] = {
-    ExportEntityEnum.ALL: "Tutti i dati",
     ExportEntityEnum.CUSTOMERS: "Clienti",
     ExportEntityEnum.PRODUCTS: "Prodotti",
     ExportEntityEnum.ORDERS: "Ordini",

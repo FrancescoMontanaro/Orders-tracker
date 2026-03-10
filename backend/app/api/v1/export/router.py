@@ -147,8 +147,9 @@ async def download_export(
         ".zip":  "application/zip",
     }.get(ext, "application/octet-stream")
 
-    # Suggest a filename for the downloaded file
-    filename = f"export_{job.entity_type.value}_{job_id}{ext}"
+    # Suggest a filename for the downloaded file using all selected entity names, joined by underscore
+    entities_slug = "_".join(job.entity_types) if job.entity_types else "export"
+    filename = f"export_{entities_slug}_{job_id}{ext}"
 
     # Return the file response
     return FileResponse(path=job.file_path, media_type=media_type, filename=filename)

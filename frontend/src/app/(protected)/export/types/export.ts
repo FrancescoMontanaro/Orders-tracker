@@ -1,10 +1,10 @@
 export type ExportStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type ExportFormat = 'csv' | 'xlsx';
 export type ExportEntity =
-  | 'all'
   | 'customers'
   | 'products'
   | 'orders'
+  | 'order_items'
   | 'expenses'
   | 'incomes'
   | 'lots'
@@ -12,7 +12,7 @@ export type ExportEntity =
 
 export type ExportJob = {
   id: number;
-  entity_type: ExportEntity;
+  entity_types: ExportEntity[];
   format: ExportFormat;
   start_date: string | null;
   end_date: string | null;
@@ -26,21 +26,21 @@ export type ExportJob = {
 };
 
 export type ExportJobStart = {
-  entity_type: ExportEntity;
+  entity_types: ExportEntity[];
   format: ExportFormat;
   start_date?: string | null;
   end_date?: string | null;
 };
 
 export const ENTITY_LABELS: Record<ExportEntity, string> = {
-  all: 'Tutto',
   customers: 'Clienti',
   products: 'Prodotti',
   orders: 'Ordini',
-  expenses: 'Uscite',
+  order_items: 'Righe ordine',
+  expenses: 'Spese',
   incomes: 'Entrate',
   lots: 'Lotti',
-  notes: 'Note',
+  notes: 'Note'
 };
 
 export const FORMAT_LABELS: Record<ExportFormat, string> = {
@@ -52,7 +52,13 @@ export const STATUS_LABELS: Record<ExportStatus, string> = {
   pending: 'In attesa',
   running: 'In elaborazione',
   completed: 'Completato',
-  failed: 'Fallito',
+  failed: 'Fallito'
 };
 
 export const ACTIVE_STATUSES: ExportStatus[] = ['pending', 'running'];
+
+// Ordered list of all selectable entities (ORDER_ITEMS is not directly selectable:
+// it is always included automatically when ORDERS is selected)
+export const SELECTABLE_ENTITIES: ExportEntity[] = [
+  'customers', 'products', 'orders', 'expenses', 'incomes', 'lots', 'notes',
+];

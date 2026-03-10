@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DatePicker } from '@/components/ui/date-picker';
 import {
   Select,
@@ -49,12 +50,9 @@ import {
   ENTITY_LABELS,
   FORMAT_LABELS,
   STATUS_LABELS,
+  SELECTABLE_ENTITIES,
 } from './types/export';
 
-const ENTITY_OPTIONS: ExportEntity[] = [
-  'all', 'orders', 'customers', 'products',
-  'expenses', 'incomes', 'lots', 'notes',
-];
 const FORMAT_OPTIONS: ExportFormat[] = ['xlsx', 'csv'];
 
 function StatusBadge({ status }: { status: ExportJob['status'] }) {
@@ -111,12 +109,26 @@ export default function ExportPage() {
 
   // New export dialog
   const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [entityType, setEntityType] = React.useState<ExportEntity>('orders');
+  const [entityTypes, setEntityTypes] = React.useState<ExportEntity[]>(['orders']);
   const [format, setFormat] = React.useState<ExportFormat>('xlsx');
   const [startDate, setStartDate] = React.useState('');
   const [endDate, setEndDate] = React.useState('');
   const [starting, setStarting] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
+
+  function toggleEntity(entity: ExportEntity) {
+    setEntityTypes((prev) =>
+      prev.includes(entity) ? prev.filter((e) => e !== entity) : [...prev, entity]
+    );
+  }
+
+  function selectAll() {
+    setEntityTypes([...SELECTABLE_ENTITIES]);
+  }
+
+  function clearAll() {
+    setEntityTypes([]);
+  }
 
   // Global error banner
   const [globalError, setGlobalError] = React.useState<string | null>(null);
@@ -130,10 +142,14 @@ export default function ExportPage() {
 
   async function startExport() {
     setFormError(null);
+    if (entityTypes.length === 0) {
+      setFormError('Seleziona almeno un\'entità da esportare.');
+      return;
+    }
     setStarting(true);
     try {
       const payload: ExportJobStart = {
-        entity_type: entityType,
+        entity_types: entityTypes,
         format,
         start_date: startDate || null,
         end_date: endDate || null,
@@ -146,7 +162,7 @@ export default function ExportPage() {
     } catch (e: any) {
       if (e?.response?.status === 409) {
         setFormError(
-          'Un export per questa entità è già in corso. Attendi che termini.'
+          'Un export per una o più delle entità selezionate è già in corso. Attendi che termini.'
         );
       } else {
         const detail =
@@ -168,7 +184,7 @@ export default function ExportPage() {
         responseType: 'blob',
       });
       const cd = res.headers['content-disposition'] as string | undefined;
-      let filename = `export_${job.entity_type}_${job.id}`;
+      let filename = `export_${job.entity_types.join('_')}_${job.id}`;
       if (cd) {
         const m = cd.match(/filename[^;=\n]*=(["']?)([^"'\n;]+)\1/);
         if (m?.[2]) filename = m[2];
@@ -188,7 +204,7 @@ export default function ExportPage() {
     }
   }
 
-  const isAllCsv = entityType === 'all' && format === 'csv';
+  const isAllCsv = false; // kept for reference, no longer needed
 
   return (
     <TooltipProvider>
@@ -248,23 +264,48 @@ export default function ExportPage() {
             </DialogHeader>
 
             <div className="grid gap-4">
-              <div className="grid gap-1 min-w-0">
-                <Label>Entità</Label>
-                <Select
-                  value={entityType}
-                  onValueChange={(v) => setEntityType(v as ExportEntity)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ENTITY_OPTIONS.map((e) => (
-                      <SelectItem key={e} value={e}>
-                        {ENTITY_LABELS[e]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Multi-select entities */}
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label>Entità da esportare</Label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      onClick={selectAll}
+                    >
+                      Seleziona tutte
+                    </button>
+                    <span className="text-muted-foreground">·</span>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      onClick={clearAll}
+                    >
+                      Deseleziona
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-y-2 gap-x-4 rounded-md border p-3">
+                  {SELECTABLE_ENTITIES.map((entity) => (
+                    <div key={entity} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`entity-${entity}`}
+                        checked={entityTypes.includes(entity)}
+                        onCheckedChange={() => toggleEntity(entity)}
+                      />
+                      <label
+                        htmlFor={`entity-${entity}`}
+                        className="text-sm cursor-pointer select-none"
+                      >
+                        {ENTITY_LABELS[entity]}
+                        {entity === 'orders' && (
+                          <span className="ml-1 text-xs text-muted-foreground">(+ righe)</span>
+                        )}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="grid gap-1 min-w-0">
@@ -284,9 +325,9 @@ export default function ExportPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {entityType === 'all' && format === 'csv' && (
+                {entityTypes.length > 1 && format === 'csv' && (
                   <p className="text-xs text-muted-foreground">
-                    Verrà generato un archivio ZIP.
+                    Con più entità verrà generato un archivio ZIP.
                   </p>
                 )}
               </div>
@@ -369,7 +410,10 @@ export default function ExportPage() {
                           {job.id}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {ENTITY_LABELS[job.entity_type]}
+                          {job.entity_types
+                            .filter((e) => e !== 'order_items')
+                            .map((e) => ENTITY_LABELS[e] ?? e)
+                            .join(', ')}
                         </TableCell>
                         <TableCell>{FORMAT_LABELS[job.format]}</TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">

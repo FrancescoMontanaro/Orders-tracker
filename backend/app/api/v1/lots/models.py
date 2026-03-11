@@ -32,7 +32,7 @@ class Lot(BaseModel):
     id: int
     lot_date: date
     name: str
-    location: str
+    location: Optional[str] = None
     description: Optional[str] = None
     order_items: List[LotOrderItem] = []
 
@@ -48,7 +48,7 @@ class LotCreate(BaseModel):
     
     lot_date: date
     name: str = Field(min_length=1, max_length=128)
-    location: str = Field(min_length=1, max_length=128)
+    location: Optional[str] = Field(default=None, max_length=128)
     description: Optional[str] = None
     order_id: Optional[int] = Field(default=None, gt=0)
     order_item_ids: Optional[List[int]] = Field(default=None)
@@ -61,7 +61,7 @@ class LotUpdate(BaseModel):
     
     lot_date: Optional[date] = None
     name: Optional[str] = Field(default=None, min_length=1, max_length=128)
-    location: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    location: Optional[str] = Field(default=None, max_length=128)
     description: Optional[str] = None
     order_id: Optional[int] = Field(default=None, gt=0)
     order_item_ids: Optional[List[int]] = None

@@ -66,12 +66,8 @@ export function AddLotDialog({
       setLocalError('La data di raccolta del lotto è obbligatoria.');
       return;
     }
-    if (!location.trim()) {
-      setLocalError('La locazione è obbligatoria.');
-      return;
-    }
     if (!composedName) {
-      setLocalError('Completa data e locazione per generare il numero lotto.');
+      setLocalError('La data inserita non è valida.');
       return;
     }
 
@@ -133,7 +129,7 @@ export function AddLotDialog({
           </div>
 
           <div className="grid gap-1 min-w-0">
-            <Label>Locazione</Label>
+            <Label>Locazione (facoltativa)</Label>
             <Input
               placeholder="Inserisci locazione"
               value={location}
@@ -151,7 +147,7 @@ export function AddLotDialog({
               className="min-w-0 w-full max-w-full bg-muted/50"
             />
             <p className="text-xs text-muted-foreground">
-              Il numero viene generato automaticamente (yyyymmdd + locazione).
+              Il numero viene generato automaticamente (yyyymmdd + locazione se presente).
             </p>
           </div>
 

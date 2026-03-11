@@ -13,10 +13,12 @@ from .constants import ALLOWED_LOTS_SORTING_FIELDS
 from .models import Lot, LotCreate, LotUpdate, LotOrderItem
 
 
-def _compose_lot_name(lot_date: date, location: str) -> str:
+def _compose_lot_name(lot_date: date, location: Optional[str]) -> str:
     clean_location = (location or "").strip()
     base = lot_date.strftime("%Y%m%d")
-    return f"{base} {clean_location}".strip()
+    if clean_location:
+        return f"{base} {clean_location}"
+    return base
 
 
 async def list_lots(params: ListingQueryParams) -> Pagination[Lot]:
@@ -218,7 +220,7 @@ async def create_lot(payload: LotCreate) -> Optional[Lot]:
     """
 
     async with db_session() as session:
-        clean_location = payload.location.strip()
+        clean_location = payload.location.strip() if payload.location else None
         expected_name = _compose_lot_name(payload.lot_date, clean_location)
         provided_name = payload.name.strip()
         final_name = expected_name if provided_name != expected_name else provided_name
@@ -271,7 +273,7 @@ async def update_lot(lot_id: int, payload: LotUpdate) -> Optional[Lot]:
         if payload.name is not None:
             lot.name = payload.name.strip()
         if payload.location is not None:
-            lot.location = payload.location.strip()
+            lot.location = payload.location.strip() or None
         if payload.description is not None:
             lot.description = payload.description
 

@@ -1,5 +1,5 @@
 from datetime import date
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from sqlalchemy import String, Date, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,7 +19,7 @@ class LotORM(BaseORM):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     lot_date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    location: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    location: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
     description: Mapped[str] = mapped_column(Text, nullable=True)
     
     # Relationships

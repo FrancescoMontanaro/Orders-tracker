@@ -74,7 +74,7 @@ export function EditLotDialog({
   React.useEffect(() => {
     if (open && lot) {
       setLotDate(lot.lot_date);
-      setLocation(lot.location);
+      setLocation(lot.location ?? '');
       setDescription(lot.description ?? '');
       const itemIds = Array.from(
         new Set((lot.order_items ?? []).map((it) => it.id).filter((id): id is number => typeof id === 'number'))
@@ -95,12 +95,8 @@ export function EditLotDialog({
       setLocalError('La data di raccolta del lotto è obbligatoria.');
       return;
     }
-    if (!location.trim()) {
-      setLocalError('La locazione è obbligatoria.');
-      return;
-    }
     if (!composedName) {
-      setLocalError('Completa data e locazione per generare il numero lotto.');
+      setLocalError('La data inserita non è valida.');
       return;
     }
 
@@ -196,7 +192,7 @@ export function EditLotDialog({
               </div>
 
               <div className="grid gap-1 min-w-0">
-                <Label>Locazione</Label>
+                <Label>Locazione (facoltativa)</Label>
                 <Input
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}

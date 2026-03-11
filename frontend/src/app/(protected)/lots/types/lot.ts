@@ -18,7 +18,7 @@ export type Lot = {
   id: number;
   lot_date: string; // ISO YYYY-MM-DD
   name: string;
-  location: string;
+  location?: string | null;
   description?: string | null;
   order_items: LotOrderItem[];
 };

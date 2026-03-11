@@ -67,7 +67,7 @@ export function ViewLotDialog({
               <section className="grid gap-3 sm:grid-cols-2">
                 <Field label="ID" value={`#${lot.id}`} />
                 <Field label="Data" value={formatLotDate(lot.lot_date)} />
-                <Field label="Locazione" value={lot.location} />
+                {lot.location && <Field label="Locazione" value={lot.location} />}
               </section>
 
               <section className="space-y-2">

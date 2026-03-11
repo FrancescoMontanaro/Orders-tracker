@@ -396,15 +396,27 @@ export default function ExportPage() {
                           {job.id}
                         </TableCell>
                         <TableCell className="font-medium max-w-[180px]">
-                          <span className="block truncate" title={job.entity_types
-                            .filter((e) => e !== 'order_items')
-                            .map((e) => ENTITY_LABELS[e] ?? e)
-                            .join(', ')}>
-                          {job.entity_types
-                            .filter((e) => e !== 'order_items')
-                            .map((e) => ENTITY_LABELS[e] ?? e)
-                            .join(', ')}
-                          </span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="block truncate cursor-default">
+                                  {job.entity_types
+                                    .filter((e) => e !== 'order_items')
+                                    .map((e) => ENTITY_LABELS[e] ?? e)
+                                    .join(', ')}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <ul>
+                                  {job.entity_types
+                                    .filter((e) => e !== 'order_items')
+                                    .map((e) => (
+                                      <li key={e}>{ENTITY_LABELS[e] ?? e}</li>
+                                    ))}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </TableCell>
                         <TableCell>{FORMAT_LABELS[job.format]}</TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">

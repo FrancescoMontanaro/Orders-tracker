@@ -222,26 +222,49 @@ function DesktopNav() {
   )
 }
 
-/** Mobile drawer nav — no overflow, links full-width, truncate labels */
+/** Mobile drawer nav — categorized like desktop, subitems always visible indented */
 function MobileDrawerNav() {
   const pathname = usePathname()
   return (
     <nav className="flex flex-col gap-1 pl-2 pr-2">
-      {routes.map(({ href, label, Icon }) => {
-        const active = pathname?.startsWith(href)
-        return (
-          <SheetClose asChild key={href}>
-            <Link
-              href={href}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors overflow-hidden
-                ${active ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground'}`}
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">{label}</span>
-            </Link>
-          </SheetClose>
-        )
-      })}
+      {/* Home standalone */}
+      <SheetClose asChild>
+        <Link
+          href="/home"
+          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors overflow-hidden
+            ${pathname?.startsWith('/home') ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground'}`}
+        >
+          <Home className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="truncate">Home</span>
+        </Link>
+      </SheetClose>
+
+      {/* Categorized groups */}
+      {desktopMenuGroups.map(({ label, items }) => (
+        <div key={label} className="mt-3">
+          <p className="px-3 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+            {label}
+          </p>
+          <div className="ml-2 border-l border-border pl-2 flex flex-col gap-0.5">
+            {items.map(({ href, label: itemLabel }) => {
+              const Icon = routes.find((r) => r.href === href)?.Icon
+              const active = pathname?.startsWith(href)
+              return (
+                <SheetClose asChild key={href}>
+                  <Link
+                    href={href}
+                    className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors overflow-hidden
+                      ${active ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground'}`}
+                  >
+                    {Icon && <Icon className="h-4 w-4 shrink-0" aria-hidden />}
+                    <span className="truncate">{itemLabel}</span>
+                  </Link>
+                </SheetClose>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   )
 }

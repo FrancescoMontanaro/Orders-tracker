@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +25,8 @@ export type DayOrdersGrouped = Array<{
   total_amount: number;
   /** Optional note attached to the order */
   note?: string | null;
+  /** ID of the underlying order (used to open the edit dialog) */
+  order_id?: number | null;
   items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
 }>;
 
@@ -52,12 +55,14 @@ export default function DayOrdersDialog({
   dateISO,
   customerGroups,
   onNewOrder,
+  onEditOrder,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   dateISO: string | undefined;
   customerGroups: DayOrdersGrouped;
   onNewOrder: () => void;
+  onEditOrder?: (orderId: number) => void;
 }) {
   if (!dateISO) return null;
 
@@ -119,6 +124,17 @@ export default function DayOrdersDialog({
                     <StatusDot delivered={g.delivered} />
                     <span>{g.customer_name}</span>
                   </div>
+                  {g.order_id != null && onEditOrder && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                      onClick={() => onEditOrder(g.order_id!)}
+                      title="Modifica ordine"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
 
                 {/* Items */}

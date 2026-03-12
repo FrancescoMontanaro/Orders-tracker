@@ -10,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 import AddOrderDialog from './AddOrderDialog';
 import DayOrdersDialog, { type DayOrdersGrouped } from './DayOrdersDialog';
+import { EditOrderDialog } from '../../orders/components/EditOrderDialog';
+import type { Order } from '../../orders/types/order';
 
 import type { DailySummaryDay, SuccessResponse } from '../types/dailySummary';
 import {
@@ -102,6 +104,7 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
       const unitPrice = Number(it.unit_price ?? 0);
       const qty = Number(it.quantity || 0);
       p.customers.push({
+        order_id: o.id,
         customer_id: o.customer_id,
         customer_name: o.customer_name,
         quantity: qty,
@@ -131,21 +134,21 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
       totalCount: number;
       total_amount: number;
       notes: string[];
+      order_id: number | null;
     }
   >();
 
   for (const p of day.products || []) {
     for (const c of p.customers || []) {
-      const entry =
-        map.get(c.customer_id) ||
-        {
+      const entry = map.get(c.customer_id) ?? {
           customer_id: c.customer_id,
           customer_name: c.customer_name,
-          items: [],
+          items: [] as Array<{ product_id: number; product_name: string; quantity: number; unit: string; unit_price?: number; amount?: number }>,
           deliveredCount: 0,
           totalCount: 0,
           total_amount: 0,
-          notes: [],
+          notes: [] as string[],
+          order_id: (c as any).order_id as (number | null),
         };
       entry.items.push({
         product_id: p.product_id,
@@ -176,6 +179,7 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
       // extra fields (non-breaking for consumers that ignore them)
       total_amount: e.total_amount,
       note: e.notes.length ? e.notes.join(' | ') : null,
+      order_id: e.order_id ?? null,
     }))
     .sort((a, b) => Number(a.delivered) - Number(b.delivered)); // pending first
 }
@@ -189,6 +193,10 @@ export default function CalendarCard() {
   const [days, setDays] = React.useState<Record<string, DailySummaryDay>>({});
   const [addOpen, setAddOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<string | undefined>(undefined);
+
+  // Edit order dialog state
+  const [editOrder, setEditOrder] = React.useState<Order | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
 
   // Day-orders list dialog state
   const [listOpen, setListOpen] = React.useState(false);
@@ -671,6 +679,10 @@ export default function CalendarCard() {
         onNewOrder={() => {
           setAddOpen(true);
         }}
+        onEditOrder={(orderId) => {
+          setEditOrder({ id: orderId } as Order);
+          setEditOpen(true);
+        }}
         {...({
           totalsByCustomer,
           grandTotal,
@@ -685,6 +697,22 @@ export default function CalendarCard() {
           load();
         }}
         defaultDate={selectedDate}
+      />
+
+      {/* Edit order dialog */}
+      <EditOrderDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        order={editOrder}
+        onSaved={() => {
+          setEditOpen(false);
+          load();
+        }}
+        onDeleted={() => {
+          setEditOpen(false);
+          load();
+        }}
+        onError={() => {}}
       />
     </>
   );

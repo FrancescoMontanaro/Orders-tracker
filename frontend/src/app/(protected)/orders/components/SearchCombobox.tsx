@@ -39,14 +39,14 @@ export function SearchCombobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]">
+      <PopoverContent className="p-0 w-[--radix-popover-trigger-width] max-w-[calc(100vw-2rem)]">
         <Command>
           <CommandInput
             value={query}
             onValueChange={setQuery}
             placeholder="Digita per cercare…"
           />
-          <CommandList>
+          <CommandList className="max-h-[50vh] overflow-y-auto">
             {loading ? (
               <div className="p-3 text-sm text-muted-foreground">Caricamento…</div>
             ) : options.length ? (

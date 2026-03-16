@@ -119,68 +119,82 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
   return byDate;
 }
 
-/** Group a day view by customer (delivered state and list of items per customer).
- *  We also accumulate total_amount per customer (sum of item amounts).
+/** Group a day view by customer → orders[].
+ *  Each customer has one sub-entry per order_id.
  */
 function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
   if (!day) return [];
-  const map = new Map<
+
+  // customer_id → { customer info + map of order_id → order entry }
+  const customerMap = new Map<
     number,
     {
       customer_id: number;
       customer_name: string;
-      items: Array<{ product_id: number; product_name: string; quantity: number; unit: string; unit_price?: number; amount?: number }>;
-      deliveredCount: number;
-      totalCount: number;
-      total_amount: number;
-      notes: string[];
-      order_id: number | null;
+      orderMap: Map<
+        number,
+        {
+          order_id: number;
+          delivered: boolean;
+          total_amount: number;
+          note: string | null;
+          items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
+        }
+      >;
     }
   >();
 
   for (const p of day.products || []) {
     for (const c of p.customers || []) {
-      const entry = map.get(c.customer_id) ?? {
+      const orderId: number | null = (c as any).order_id ?? null;
+      if (orderId == null) continue; // skip rows without an order_id
+
+      // Ensure customer entry exists
+      if (!customerMap.has(c.customer_id)) {
+        customerMap.set(c.customer_id, {
           customer_id: c.customer_id,
           customer_name: c.customer_name,
-          items: [] as Array<{ product_id: number; product_name: string; quantity: number; unit: string; unit_price?: number; amount?: number }>,
-          deliveredCount: 0,
-          totalCount: 0,
+          orderMap: new Map(),
+        });
+      }
+      const customer = customerMap.get(c.customer_id)!;
+
+      // Ensure order entry exists
+      if (!customer.orderMap.has(orderId)) {
+        customer.orderMap.set(orderId, {
+          order_id: orderId,
+          delivered: isDelivered(c.order_status),
           total_amount: 0,
-          notes: [] as string[],
-          order_id: (c as any).order_id as (number | null),
-        };
-      entry.items.push({
+          note: (c as any).order_note ?? null,
+          items: [],
+        });
+      }
+      const order = customer.orderMap.get(orderId)!;
+
+      // Update delivered status (mark as pending if even one item is pending)
+      if (!isDelivered(c.order_status)) order.delivered = false;
+
+      order.total_amount += Number((c as any).amount ?? 0);
+      order.items.push({
         product_id: p.product_id,
         product_name: p.product_name,
         quantity: Number(c.quantity || 0),
-        unit: (p as any).product_unit,
-        unit_price: Number((c as any).unit_price ?? 0),
-        amount: Number((c as any).amount ?? 0),
+        unit: (p as any).product_unit ?? '',
       });
-      entry.total_amount += Number((c as any).amount ?? 0);
-      entry.totalCount += 1;
-      // Collect order note if present (avoid duplicates)
-      const orderNote = (c as any).order_note;
-      if (orderNote && !entry.notes.includes(orderNote)) {
-        entry.notes.push(orderNote);
-      }
-      if (isDelivered(c.order_status)) entry.deliveredCount += 1;
-      map.set(c.customer_id, entry);
     }
   }
 
-  return Array.from(map.values())
-    .map((e) => ({
-      customer_id: e.customer_id,
-      customer_name: e.customer_name,
-      delivered: e.totalCount > 0 && e.deliveredCount === e.totalCount,
-      items: e.items,
-      // extra fields (non-breaking for consumers that ignore them)
-      total_amount: e.total_amount,
-      note: e.notes.length ? e.notes.join(' | ') : null,
-      order_id: e.order_id ?? null,
-    }))
+  return Array.from(customerMap.values())
+    .map((c) => {
+      const orders = Array.from(c.orderMap.values());
+      const allDelivered = orders.length > 0 && orders.every((o) => o.delivered);
+      return {
+        customer_id: c.customer_id,
+        customer_name: c.customer_name,
+        delivered: allDelivered,
+        orders,
+      };
+    })
     .sort((a, b) => Number(a.delivered) - Number(b.delivered)); // pending first
 }
 
@@ -289,9 +303,9 @@ export default function CalendarCard() {
     let delivered = 0;
     let pending = 0;
     for (const d of Object.values(days)) {
-      const groups = groupByCustomer(d);
-      const dCount = groups.filter((g) => g.delivered).length;
-      const pCount = groups.length - dCount;
+      const allOrders = groupByCustomer(d).flatMap((g) => g.orders);
+      const dCount = allOrders.filter((o) => o.delivered).length;
+      const pCount = allOrders.length - dCount;
       delivered += dCount;
       pending += pCount;
     }
@@ -309,8 +323,7 @@ export default function CalendarCard() {
     const perCustomer = groups.map((g) => ({
       customer_id: g.customer_id,
       customer_name: g.customer_name,
-      total: (g as any).total_amount
-        ?? (g.items || []).reduce((s, it: any) => s + Number(it.amount ?? 0), 0),
+      total: g.orders.reduce((s, o) => s + Number(o.total_amount ?? 0), 0),
     }));
     const grand = perCustomer.reduce((s, r) => s + r.total, 0);
     setTotalsByCustomer(perCustomer);
@@ -485,8 +498,9 @@ export default function CalendarCard() {
                       const iso = toISO(d);
                       const grouped = groupByCustomer(days[iso]);
                       const today = isToday(d);
-                      const deliveredCount = grouped.filter((g) => g.delivered).length;
-                      const pendingCount = grouped.length - deliveredCount;
+                      const allOrders = grouped.flatMap((g) => g.orders);
+                      const deliveredCount = allOrders.filter((o) => o.delivered).length;
+                      const pendingCount = allOrders.length - deliveredCount;
 
                       return (
                         <button
@@ -539,26 +553,25 @@ export default function CalendarCard() {
 
                           {grouped.length ? (
                             <ul className="space-y-1 text-xs max-h-36 overflow-y-auto pr-1">
-                              {grouped.map((g) => (
-                                <li key={g.customer_id} className="leading-snug">
-                                  <span
-                                    className={cn(
-                                      'inline-block h-2 w-2 rounded-full mr-1 align-middle',
-                                      g.delivered ? 'bg-emerald-500' : 'bg-amber-500'
-                                    )}
-                                  />
-                                  <span className="font-medium">{g.customer_name}</span>{' '}
-                                  <span className="text-muted-foreground">
-                                    {g.items.map((it, i) => (
-                                      <span key={i}>
-                                        {it.product_name} × {it.quantity}
-                                        {it.unit ? ` ${it.unit}` : ''}
-                                        {i < g.items.length - 1 ? ', ' : ''}
-                                      </span>
-                                    ))}
-                                  </span>
-                                </li>
-                              ))}
+                              {grouped.map((g) => {
+                                const totalProducts = g.orders.reduce((s, o) => s + o.items.length, 0);
+                                return (
+                                  <li key={g.customer_id} className="leading-snug">
+                                    <span
+                                      className={cn(
+                                        'inline-block h-2 w-2 rounded-full mr-1 align-middle',
+                                        g.delivered ? 'bg-emerald-500' : 'bg-amber-500'
+                                      )}
+                                    />
+                                    <span className="font-medium">{g.customer_name}</span>
+                                    <div className="pl-3 text-muted-foreground/70">
+                                      {g.orders.length === 1 ? '1 ordine' : `${g.orders.length} ordini`}
+                                      {' · '}
+                                      {totalProducts === 1 ? '1 prodotto' : `${totalProducts} prodotti`}
+                                    </div>
+                                  </li>
+                                );
+                              })}
                             </ul>
                           ) : (
                             <div className="text-xs text-muted-foreground/70">Nessun ordine</div>
@@ -583,8 +596,9 @@ export default function CalendarCard() {
                   const iso = toISO(d);
                   const grouped = groupByCustomer(days[iso]);
                   const today = isToday(d);
-                  const deliveredCount = grouped.filter((g) => g.delivered).length;
-                  const pendingCount = grouped.length - deliveredCount;
+                  const allOrders = grouped.flatMap((g) => g.orders);
+                  const deliveredCount = allOrders.filter((o) => o.delivered).length;
+                  const pendingCount = allOrders.length - deliveredCount;
 
                   return (
                     <button
@@ -637,26 +651,25 @@ export default function CalendarCard() {
 
                       {grouped.length ? (
                         <ul className="space-y-1 text-xs max-h-32 overflow-y-auto pr-1">
-                          {grouped.map((g) => (
-                            <li key={g.customer_id} className="leading-snug">
-                              <span
-                                className={cn(
-                                  'inline-block h-2 w-2 rounded-full mr-1 align-middle',
-                                  g.delivered ? 'bg-emerald-500' : 'bg-amber-500'
-                                )}
-                              />
-                              <span className="font-medium">{g.customer_name}</span>{' '}
-                              <span className="text-muted-foreground">
-                                {g.items.map((it, i) => (
-                                  <span key={i}>
-                                    {it.product_name} × {it.quantity}
-                                    {it.unit ? ` ${it.unit}` : ''}
-                                    {i < g.items.length - 1 ? ', ' : ''}
-                                  </span>
-                                ))}
-                              </span>
-                            </li>
-                          ))}
+                          {grouped.map((g) => {
+                            const totalProducts = g.orders.reduce((s, o) => s + o.items.length, 0);
+                            return (
+                              <li key={g.customer_id} className="leading-snug">
+                                <span
+                                  className={cn(
+                                    'inline-block h-2 w-2 rounded-full mr-1 align-middle',
+                                    g.delivered ? 'bg-emerald-500' : 'bg-amber-500'
+                                  )}
+                                />
+                                <span className="font-medium">{g.customer_name}</span>
+                                <div className="pl-3 text-muted-foreground/70">
+                                  {g.orders.length === 1 ? '1 ordine' : `${g.orders.length} ordini`}
+                                  {' · '}
+                                  {totalProducts === 1 ? '1 prodotto' : `${totalProducts} prodotti`}
+                                </div>
+                              </li>
+                            );
+                          })}
                         </ul>
                       ) : (
                         <div className="text-xs text-muted-foreground/70">Nessun ordine</div>

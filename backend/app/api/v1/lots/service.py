@@ -15,7 +15,7 @@ from .models import Lot, LotCreate, LotUpdate, LotOrderItem
 
 def _compose_lot_name(lot_date: date, location: Optional[str]) -> str:
     clean_location = (location or "").strip()
-    base = lot_date.strftime("%Y%m%d")
+    base = lot_date.strftime("%d.%m.%Y")
     if clean_location:
         return f"{base} {clean_location}"
     return base

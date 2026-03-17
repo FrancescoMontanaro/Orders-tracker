@@ -1,15 +1,21 @@
 /**
  * Compose the lot name based on date and location.
- * Format: yyyymmdd when no location, yyyymmdd + space + location when location is provided.
+ * Format: dd.mm.yyyy when no location, dd.mm.yyyy + space + location when location is provided.
  */
 export function composeLotName(lotDate: string, location: string): string {
   if (!lotDate) return '';
 
-  const compactDate = lotDate.replace(/-/g, '');
-  if (!/^\d{8}$/.test(compactDate)) return '';
+  const normalizedDate = lotDate.trim();
+
+  // Accepts yyyy-mm-dd or yyyymmdd
+  const match = normalizedDate.match(/^(\d{4})-?(\d{2})-?(\d{2})$/);
+  if (!match) return '';
+
+  const [, year, month, day] = match;
+  const formattedDate = `${day}.${month}.${year}`;
 
   const trimmedLocation = location.trim();
-  if (!trimmedLocation) return compactDate;
+  if (!trimmedLocation) return formattedDate;
 
-  return `${compactDate} ${trimmedLocation}`;
+  return `${formattedDate} ${trimmedLocation}`;
 }

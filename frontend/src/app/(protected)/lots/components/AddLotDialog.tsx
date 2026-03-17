@@ -147,7 +147,7 @@ export function AddLotDialog({
               className="min-w-0 w-full max-w-full bg-muted/50"
             />
             <p className="text-xs text-muted-foreground">
-              Il numero viene generato automaticamente (yyyymmdd + locazione se presente).
+              Il numero viene generato automaticamente (dd.mm.yyyy + locazione se presente).
             </p>
           </div>
 

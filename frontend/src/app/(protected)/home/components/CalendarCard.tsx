@@ -224,8 +224,9 @@ export default function CalendarCard() {
   const desktopRef = React.useRef<HTMLDivElement>(null);
   const mobileRef = React.useRef<HTMLDivElement>(null);
 
-  // Prevent repeat auto-scroll
-  const didScrollRef = React.useRef(false);
+  // When true, the next completed load will trigger a scroll to today's cell.
+  // Starts as true so the initial page-load auto-scrolls to today.
+  const scrollToTodayRef = React.useRef(true);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -340,65 +341,54 @@ export default function CalendarCard() {
     setMonth((m) => addMonths(m, +1));
   }
   function gotoToday() {
-    didScrollRef.current = false;
+    // Mark that we want to scroll to today once the new month's load completes.
+    scrollToTodayRef.current = true;
     setMonth(firstDayOfMonth(new Date()));
   }
 
-  // Try to scroll current containers to today using scrollIntoView for accuracy
-  const attemptScrollToToday = React.useCallback(() => {
+  // Scroll the visible calendar container so that today's cell is centred.
+  const attemptScrollToToday = React.useCallback((): boolean => {
     const containers = [desktopRef.current, mobileRef.current].filter(Boolean) as HTMLElement[];
 
     for (const root of containers) {
-      // Skip if the container is not rendered/visible (e.g. desktop hidden on mobile)
+      // Skip containers that are hidden (e.g. desktop grid on mobile via md:hidden)
       if (!root || root.offsetParent === null) continue;
 
       const el = root.querySelector<HTMLElement>('[data-today="true"]');
       if (!el) continue;
 
-      // scrollIntoView handles both horizontal and vertical scroll correctly
-      // across all scroll containers and the page itself
+      // scrollIntoView correctly handles nested scroll containers on both
+      // desktop (horizontal grid) and mobile (vertical list).
       el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-      didScrollRef.current = true;
       return true;
     }
 
     return false;
   }, []);
 
-  // Auto-scroll once when data is ready (robust retry)
+  // Scroll to today's cell whenever a load completes AND scrollToTodayRef is set.
+  // We wait for two animation frames so the browser has fully painted the new
+  // calendar grid before querying element positions via scrollIntoView.
   React.useEffect(() => {
-    if (loading || didScrollRef.current) return;
+    if (loading) return;
+    if (!scrollToTodayRef.current) return;
 
-    let attempts = 14;
-    let timer: number | undefined;
+    let rafId1: number;
+    let rafId2: number;
 
-    const tick = () => {
-      const ok = attemptScrollToToday();
-      if (ok || --attempts <= 0) return;
-      timer = window.setTimeout(tick, 50);
-    };
-
-    tick();
-    return () => {
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [loading, days, month, attemptScrollToToday]);
-
-  // Observe container size changes and try again if needed
-  React.useEffect(() => {
-    if (typeof ResizeObserver === 'undefined') return;
-
-    const obs = new ResizeObserver(() => {
-      if (!loading && !didScrollRef.current) {
-        attemptScrollToToday();
-      }
+    rafId1 = requestAnimationFrame(() => {
+      rafId2 = requestAnimationFrame(() => {
+        if (!scrollToTodayRef.current) return;
+        const ok = attemptScrollToToday();
+        if (ok) scrollToTodayRef.current = false;
+      });
     });
 
-    if (desktopRef.current) obs.observe(desktopRef.current);
-    if (mobileRef.current) obs.observe(mobileRef.current);
-
-    return () => obs.disconnect();
-  }, [loading, attemptScrollToToday]);
+    return () => {
+      cancelAnimationFrame(rafId1);
+      cancelAnimationFrame(rafId2);
+    };
+  }, [loading, days, attemptScrollToToday]);
 
   return (
     <>

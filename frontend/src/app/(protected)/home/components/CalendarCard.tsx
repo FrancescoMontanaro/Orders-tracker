@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
+import { Loader2 } from 'lucide-react';
 import AddOrderDialog from './AddOrderDialog';
 import DayOrdersDialog, { type DayOrdersGrouped } from './DayOrdersDialog';
 import { EditOrderDialog } from '../../orders/components/EditOrderDialog';
@@ -339,49 +340,29 @@ export default function CalendarCard() {
     setMonth((m) => addMonths(m, +1));
   }
   function gotoToday() {
-    setMonth(firstDayOfMonth(new Date()));
     didScrollRef.current = false;
-    desktopRef.current?.scrollTo({ left: 0, top: 0, behavior: 'auto' });
-    mobileRef.current?.scrollTo({ left: 0, top: 0, behavior: 'auto' });
+    setMonth(firstDayOfMonth(new Date()));
   }
 
-  // Try to scroll current containers to today
+  // Try to scroll current containers to today using scrollIntoView for accuracy
   const attemptScrollToToday = React.useCallback(() => {
-    let scrolled = false;
     const containers = [desktopRef.current, mobileRef.current].filter(Boolean) as HTMLElement[];
 
     for (const root of containers) {
-      const isVisible = root && root.offsetParent !== null && root.getClientRects().length > 0;
-      if (!isVisible) continue;
+      // Skip if the container is not rendered/visible (e.g. desktop hidden on mobile)
+      if (!root || root.offsetParent === null) continue;
 
       const el = root.querySelector<HTMLElement>('[data-today="true"]');
       if (!el) continue;
 
-      if (root.scrollWidth > root.clientWidth) {
-        const targetLeft = el.offsetLeft - root.clientWidth / 2 + el.clientWidth / 2;
-        const clampedLeft = Math.max(0, Math.min(targetLeft, root.scrollWidth - root.clientWidth));
-        root.scrollTo({ left: clampedLeft, behavior: 'smooth' });
-        scrolled = true;
-      }
-
-      const hasVerticalScroll = root.scrollHeight > root.clientHeight;
-      const elRect = el.getBoundingClientRect();
-
-      if (hasVerticalScroll) {
-        const elTopInParent = el.offsetTop - root.offsetTop;
-        const targetTop = elTopInParent - root.clientHeight / 2 + el.clientHeight / 2;
-        const clampedTop = Math.max(0, Math.min(targetTop, root.scrollHeight - root.clientHeight));
-        root.scrollTo({ top: clampedTop, behavior: 'smooth' });
-        scrolled = true;
-      } else {
-        const top = window.scrollY + elRect.top - window.innerHeight / 2 + elRect.height / 2;
-        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-        scrolled = true;
-      }
+      // scrollIntoView handles both horizontal and vertical scroll correctly
+      // across all scroll containers and the page itself
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+      didScrollRef.current = true;
+      return true;
     }
 
-    if (scrolled) didScrollRef.current = true;
-    return scrolled;
+    return false;
   }, []);
 
   // Auto-scroll once when data is ready (robust retry)
@@ -427,16 +408,16 @@ export default function CalendarCard() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Calendario ordini</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={gotoToday}>
+              <Button variant="outline" onClick={gotoToday} disabled={loading} aria-label="Vai ad oggi">
                 Oggi
               </Button>
-              <Button variant="outline" onClick={gotoPrev} aria-label="Mese precedente">
+              <Button variant="outline" onClick={gotoPrev} disabled={loading} aria-label="Mese precedente">
                 ‹
               </Button>
               <div className="min-w-[10ch] text-center font-medium sm:min-w-[12ch]">
                 {itMonthLabel(month)}
               </div>
-              <Button variant="outline" onClick={gotoNext} aria-label="Mese successivo">
+              <Button variant="outline" onClick={gotoNext} disabled={loading} aria-label="Mese successivo">
                 ›
               </Button>
             </div>
@@ -470,7 +451,8 @@ export default function CalendarCard() {
         </CardHeader>
 
         <CardContent className="space-y-3">
-          {loading ? (
+          {loading && Object.keys(days).length === 0 ? (
+            // First load: show skeleton placeholder
             <div className="space-y-2">
               <Skeleton className="h-5 w-1/4" />
               <Skeleton className="h-[360px] w-full" />
@@ -480,6 +462,13 @@ export default function CalendarCard() {
               {error}
             </div>
           ) : (
+            // Calendar is rendered; show overlay spinner on subsequent reloads
+            <div className="relative">
+              {loading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-[1px]">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              )}
             <>
               {/* Desktop calendar grid */}
               <div ref={desktopRef} className="hidden md:block w-full overflow-x-auto">
@@ -590,7 +579,7 @@ export default function CalendarCard() {
               </div>
 
               {/* Mobile list view */}
-              <div ref={mobileRef} className="md:hidden grid grid-cols-1 gap-2">
+              <div ref={mobileRef} className="md:hidden grid grid-cols-1 gap-2" aria-busy={loading}>
                 {gridCells.map((d) => {
                   const inCurrentMonth = d.getMonth() === month.getMonth();
                   const iso = toISO(d);
@@ -679,6 +668,7 @@ export default function CalendarCard() {
                 })}
               </div>
             </>
+            </div>
           )}
         </CardContent>
       </Card>

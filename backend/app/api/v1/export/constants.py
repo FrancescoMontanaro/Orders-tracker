@@ -18,7 +18,14 @@ ENTITY_LABELS: dict[ExportEntityEnum, str] = {
     ExportEntityEnum.EXPENSES: "Spese",
     ExportEntityEnum.INCOMES: "Entrate",
     ExportEntityEnum.LOTS: "Lotti",
-    ExportEntityEnum.NOTES: "Note"
+    ExportEntityEnum.NOTES: "Note",
+
+    # Report-based entity types
+    ExportEntityEnum.REPORT_PRODUCT_SALES: "Report: Vendite per prodotto",
+    ExportEntityEnum.REPORT_EXPENSES: "Report: Spese per categoria",
+    ExportEntityEnum.REPORT_INCOMES: "Report: Entrate per categoria",
+    ExportEntityEnum.REPORT_CUSTOMER_SALES: "Report: Vendite per cliente",
+    ExportEntityEnum.REPORT_CASHFLOW: "Report: Flusso di cassa",
 }
 
 
@@ -32,7 +39,14 @@ ENTITY_SHEET_NAMES: dict[ExportEntityEnum, str] = {
     ExportEntityEnum.EXPENSES: "Spese",
     ExportEntityEnum.INCOMES: "Entrate",
     ExportEntityEnum.LOTS: "Lotti",
-    ExportEntityEnum.NOTES: "Note"
+    ExportEntityEnum.NOTES: "Note",
+
+    # Report-based entity types
+    ExportEntityEnum.REPORT_PRODUCT_SALES: "Vendite per prodotto",
+    ExportEntityEnum.REPORT_EXPENSES: "Spese per categoria",
+    ExportEntityEnum.REPORT_INCOMES: "Entrate per categoria",
+    ExportEntityEnum.REPORT_CUSTOMER_SALES: "Vendite per cliente",
+    ExportEntityEnum.REPORT_CASHFLOW: "Flusso di cassa",
 }
 
 
@@ -45,5 +59,12 @@ ENTITY_HEADERS: dict[ExportEntityEnum, list[str]] = {
     ExportEntityEnum.EXPENSES: ["ID", "Categoria", "Data", "Importo", "Note"],
     ExportEntityEnum.INCOMES: ["ID", "Categoria", "Data", "Importo", "Note"],
     ExportEntityEnum.LOTS: ["ID", "Nome", "Data lotto", "Posizione", "Descrizione"],
-    ExportEntityEnum.NOTES: ["ID", "Testo", "Data creazione", "Ultima modifica"]
+    ExportEntityEnum.NOTES: ["ID", "Testo", "Data creazione", "Ultima modifica"],
+
+    # Report-based entity types
+    ExportEntityEnum.REPORT_PRODUCT_SALES: ["ID Prodotto", "Prodotto", "Quantità totale", "Unità di misura", "Ricavo (€)"],
+    ExportEntityEnum.REPORT_EXPENSES: ["ID Categoria", "Categoria", "Importo totale (€)", "N. registrazioni"],
+    ExportEntityEnum.REPORT_INCOMES: ["ID Categoria", "Categoria", "Importo totale (€)", "N. registrazioni"],
+    ExportEntityEnum.REPORT_CUSTOMER_SALES: ["Cliente", "Ricavo totale cliente (€)", "ID Prodotto", "Prodotto", "Quantità", "Unità di misura", "Sconto medio (%)", "Ricavo (€)"],
+    ExportEntityEnum.REPORT_CASHFLOW: ["Tipo", "ID", "Data", "Importo (€)", "Note"],
 }

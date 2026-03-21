@@ -11,11 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....core.config import settings
 from ....db.session import db_session
-from .models import ExportJobStart, ExportJob
 from .exceptions import JobAlreadyExistsException
 from ....core.ws_manager import export_ws_manager
 from ....models import Pagination, ListingQueryParams
 from ....db.orm.notification import NotificationTypeEnum
+from .models import ExportJobStart, ExportReportJobStart, ExportJob
 from ..notifications.service import create_notification as create_notification_service
 from ....db.orm.export_job import ExportJobORM, ExportStatusEnum, ExportFormatEnum, ExportEntityEnum
 from .constants import ALLOWED_EXPORT_JOBS_SORTING_FIELDS, ENTITY_HEADERS, ENTITY_LABELS, ENTITY_SHEET_NAMES
@@ -28,6 +28,20 @@ from .utils import (
     iter_incomes,
     iter_lots,
     iter_notes
+)
+from ..reports.models import (
+    ProductSalesRequest,
+    ExpensesCategoriesRequest,
+    IncomeCategoriesRequest,
+    CustomerSalesRequest,
+    CashflowRequest
+)
+from ..reports.service import (
+    report_product_sales as report_product_sales_service,
+    report_expenses_categories as report_expenses_categories_service,
+    report_income_categories as report_income_categories_service,
+    report_customer_sales as report_customer_sales_service,
+    report_cashflow as report_cashflow_service
 )
 
 # ====================== #
@@ -78,6 +92,78 @@ async def create_export_job(payload: ExportJobStart, user_id: int) -> ExportJobO
             format = payload.format,
             start_date = payload.start_date,
             end_date = payload.end_date
+        )
+
+        # Persist the job to the database
+        session.add(job)
+
+        # Commit the transaction to generate the job ID and make it available for the background task
+        await session.commit()
+        await session.refresh(job)
+
+        # Notify connected tabs in real time that a new job is pending
+        job_data = ExportJob.model_validate(job).model_dump(mode='json')
+        await export_ws_manager.broadcast(user_id, job_data)
+
+        # Return the newly created job
+        return job
+
+
+async def create_report_export_job(payload: ExportReportJobStart, user_id: int) -> ExportJobORM:
+    """
+    Persist a new report export job (status = PENDING) and return it.
+
+    Raises JobAlreadyExistsException if an active job for the same report type
+    and user already exists, to avoid duplicate concurrent exports.
+
+    Parameters:
+    - payload (ExportReportJobStart): The report export job parameters.
+    - user_id (int): The ID of the user requesting the export.
+
+    Returns:
+    - ExportJobORM: The newly created export job.
+    """
+
+    # The entity type for this job is always the single report type
+    entity_types_values = [payload.report_type.value]
+
+    # Build the report-specific parameters dict to persist alongside the job
+    report_params: dict = {"include_incomes": payload.include_incomes}
+    if payload.product_ids:
+        report_params["product_ids"] = payload.product_ids
+    if payload.expense_category_ids:
+        report_params["expense_category_ids"] = payload.expense_category_ids
+    if payload.income_category_ids:
+        report_params["income_category_ids"] = payload.income_category_ids
+    if payload.customer_id:
+        report_params["customer_id"] = payload.customer_id
+
+    # Create a new database session for this operation
+    async with db_session() as session:
+        # Reject if an active job for the same report type already exists for this user
+        active_jobs = (
+            await session.execute(
+                select(ExportJobORM).where(
+                    ExportJobORM.user_id == user_id,
+                    ExportJobORM.status.in_([ExportStatusEnum.PENDING, ExportStatusEnum.RUNNING])
+                )
+            )
+        ).scalars().all()
+
+        # Check for overlap between requested entity and active jobs' entities
+        for active in active_jobs:
+            overlap = set(active.entity_types) & set(entity_types_values)
+            if overlap:
+                raise JobAlreadyExistsException()
+
+        # Create and persist the new job
+        job = ExportJobORM(
+            user_id = user_id,
+            entity_types = entity_types_values,
+            format = payload.format,
+            start_date = payload.start_date,
+            end_date = payload.end_date,
+            report_params = report_params
         )
 
         # Persist the job to the database
@@ -247,18 +333,36 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
                 out_dir = Path(exports_dir)
                 out_dir.mkdir(parents=True, exist_ok=True)
 
-                # Multiple entities → ZIP (CSV) or multi-sheet XLSX
-                # Single entity    → CSV or XLSX as requested
-                is_multi = len(entities) > 1
-                if is_multi and job.format == ExportFormatEnum.CSV:
-                    file_path = str(out_dir / f"{job_id}.zip")
-                    await _build_zip_csv(file_path, entities, job.start_date, job.end_date, session)
-                elif is_multi or job.format == ExportFormatEnum.XLSX:
-                    file_path = str(out_dir / f"{job_id}.xlsx")
-                    await _build_xlsx(file_path, entities, job.start_date, job.end_date, session)
+                # Detect whether this is a report-based job (all entities start with "report_")
+                is_report_job = all(e.value.startswith("report_") for e in entities)
+
+                if is_report_job:
+                    # Report export: each entity maps to a report function; always XLSX
+                    # (CSV is also supported for single-report jobs via a ZIP for multi-report)
+                    report_params = job.report_params or {}
+                    is_multi_report = len(entities) > 1
+                    if is_multi_report and job.format == ExportFormatEnum.CSV:
+                        file_path = str(out_dir / f"{job_id}.zip")
+                        await _build_report_zip_csv(file_path, entities, job.start_date, job.end_date, report_params)
+                    elif is_multi_report or job.format == ExportFormatEnum.XLSX:
+                        file_path = str(out_dir / f"{job_id}.xlsx")
+                        await _build_report_xlsx(file_path, entities, job.start_date, job.end_date, report_params)
+                    else:
+                        file_path = str(out_dir / f"{job_id}.csv")
+                        await _build_report_csv(file_path, entities[0], job.start_date, job.end_date, report_params)
+
                 else:
-                    file_path = str(out_dir / f"{job_id}.csv")
-                    await _build_csv(file_path, entities[0], job.start_date, job.end_date, session)
+                    # Standard table export
+                    is_multi = len(entities) > 1
+                    if is_multi and job.format == ExportFormatEnum.CSV:
+                        file_path = str(out_dir / f"{job_id}.zip")
+                        await _build_zip_csv(file_path, entities, job.start_date, job.end_date, session)
+                    elif is_multi or job.format == ExportFormatEnum.XLSX:
+                        file_path = str(out_dir / f"{job_id}.xlsx")
+                        await _build_xlsx(file_path, entities, job.start_date, job.end_date, session)
+                    else:
+                        file_path = str(out_dir / f"{job_id}.csv")
+                        await _build_csv(file_path, entities[0], job.start_date, job.end_date, session)
 
             # Mark the job as completed
             now = datetime.now(timezone.utc)
@@ -277,7 +381,7 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
                 user_id   = job_user_id,
                 type      = NotificationTypeEnum.EXPORT_COMPLETED,
                 title     = "Export completato",
-                message   = f"{job_entity_label}: il file è pronto, puoi scaricarlo dalla pagina Export.",
+                message   = f"{job_entity_label} - il file è pronto, puoi scaricarlo dalla pagina Export.",
                 entity_id = job_id_val,
             )
 
@@ -297,7 +401,7 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
                 user_id   = job_user_id,
                 type      = NotificationTypeEnum.EXPORT_FAILED,
                 title     = "Export fallito",
-                message   = f"{job_entity_label}: l'elaborazione ha impiegato troppo tempo ed è stata interrotta automaticamente.",
+                message   = f"{job_entity_label} - l'elaborazione ha impiegato troppo tempo ed è stata interrotta automaticamente.",
                 entity_id = job_id_val,
             )
 
@@ -319,7 +423,7 @@ async def run_export_job(job_id: int, exports_dir: str) -> None:
                 user_id   = job_user_id,
                 type      = NotificationTypeEnum.EXPORT_FAILED,
                 title     = "Export fallito",
-                message   = f"{job_entity_label}: si è verificato un errore durante l'elaborazione. Riprova o contatta l'assistenza.",
+                message   = f"{job_entity_label} - si è verificato un errore durante l'elaborazione. Riprova o contatta l'assistenza.",
                 entity_id = job_id_val,
             )
 
@@ -530,6 +634,247 @@ async def _build_xlsx(
         async for batch in _iter_entity(entity, start_date, end_date, session):
             for row in batch:
                 ws.append([v if v is not None else "" for v in row])
+
+    # Flush the workbook to disk in a thread to avoid blocking the event loop
+    await asyncio.to_thread(wb.save, file_path)
+
+
+# ================================ #
+# ===== Report data helpers  ===== #
+# ================================ #
+
+async def _generate_report_rows(
+    entity: ExportEntityEnum,
+    start_date: Optional[date],
+    end_date: Optional[date],
+    params: dict,
+) -> tuple[list[str], list[list]]:
+    """
+    Call the appropriate report service function and return (headers, rows).
+
+    The returned rows are flat lists of scalar values ready to be written to
+    CSV or XLSX without further transformation.
+
+    Parameters:
+    - entity (ExportEntityEnum): One of the REPORT_* entity types.
+    - start_date (Optional[date]): Start of the date range (required for all reports).
+    - end_date (Optional[date]): End of the date range (required for all reports).
+    - params (dict): Report-specific parameters (product_ids, customer_id, etc.).
+
+    Returns:
+    - (headers, rows): Column headers and data rows.
+    """
+
+    # Get the column headers for this report entity type
+    headers = ENTITY_HEADERS[entity]
+
+    # Report exports always require a date range — this is enforced by ExportReportJobStart
+    assert start_date is not None and end_date is not None, (
+        "start_date and end_date are required for report exports"
+    )
+
+    # Call the appropriate report service function based on the entity type and extract rows.
+    match entity:
+        # For each report type, we call the corresponding service function with the appropriate parameters,
+        # then transform the returned data into a list of rows, where each row is a list
+        case ExportEntityEnum.REPORT_PRODUCT_SALES:
+            data = await report_product_sales_service(
+                ProductSalesRequest(
+                    start_date = start_date,
+                    end_date = end_date,
+                    product_ids = params.get("product_ids"),
+                )
+            )
+            rows = [
+                [r.product_id, r.product_name, r.total_qty, r.unit, r.revenue]
+                for r in data
+            ]
+
+        case ExportEntityEnum.REPORT_EXPENSES:
+            data = await report_expenses_categories_service(
+                ExpensesCategoriesRequest(
+                    start_date = start_date,
+                    end_date = end_date,
+                    category_ids = params.get("expense_category_ids"),
+                )
+            )
+            rows = [
+                [r.category_id, r.category_descr, r.amount, r.count]
+                for r in data
+            ]
+
+        case ExportEntityEnum.REPORT_INCOMES:
+            data = await report_income_categories_service(
+                IncomeCategoriesRequest(
+                    start_date = start_date,
+                    end_date = end_date,
+                    category_ids = params.get("income_category_ids"),
+                )
+            )
+            rows = [
+                [r.category_id, r.category_descr, r.amount, r.count]
+                for r in data
+            ]
+
+        case ExportEntityEnum.REPORT_CUSTOMER_SALES:
+            data = await report_customer_sales_service(
+                CustomerSalesRequest(
+                    start_date = start_date,
+                    end_date = end_date,
+                    customer_id = params.get("customer_id", 0),
+                )
+            )
+            # Flatten: repeat customer info on every product row for CSV/XLSX readability
+            rows = [
+                [
+                    data.customer_name,
+                    data.total_revenue,
+                    r.product_id,
+                    r.product_name,
+                    r.total_qty,
+                    r.unit,
+                    r.avg_discount,
+                    r.revenue,
+                ]
+                for r in data.per_product
+            ]
+
+        case ExportEntityEnum.REPORT_CASHFLOW:
+            data = await report_cashflow_service(
+                CashflowRequest(
+                    start_date = start_date,
+                    end_date = end_date,
+                    include_incomes = params.get("include_incomes", True),
+                )
+            )
+            rows = []
+            for e in data.entries:
+                rows.append(["Ordine", e.order_id, str(e.date), e.amount, ""])
+            for inc in data.incomes:
+                rows.append(["Entrata extra", inc.id, str(inc.date), inc.amount, inc.note or ""])
+            for exp in data.expenses:
+                rows.append(["Uscita", exp.id, str(exp.date), exp.amount, exp.note or ""])
+            # Summary rows
+            rows.append(["", "", "", "", ""])
+            rows.append(["TOTALE ENTRATE", "", "", data.entries_total, ""])
+            rows.append(["TOTALE USCITE", "", "", data.expenses_total, ""])
+            rows.append(["SALDO NETTO", "", "", data.net, ""])
+
+        case _:
+            # This should never happen because the API only allows REPORT_* entity types for report export jobs,
+            raise ValueError(f"Unknown report entity type: {entity}")
+
+    # Return the column headers and the list of data rows for this report entity type
+    return headers, rows
+
+
+async def _build_report_csv(
+    file_path: str,
+    entity: ExportEntityEnum,
+    start_date: Optional[date],
+    end_date: Optional[date],
+    params: dict,
+) -> None:
+    """
+    Build a single CSV file for a report entity type.
+
+    Parameters:
+    - file_path (str): The output file path.
+    - entity (ExportEntityEnum): The REPORT_* entity to export.
+    - start_date (Optional[date]): Start of the date range.
+    - end_date (Optional[date]): End of the date range.
+    - params (dict): Report-specific parameters.
+    """
+
+    # Generate the report data rows by calling the appropriate report service function
+    headers, rows = await _generate_report_rows(entity, start_date, end_date, params)
+
+    # Write the headers and rows to a CSV file in a thread to avoid blocking the event loop
+    with open(file_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows)
+
+
+async def _build_report_zip_csv(
+    file_path: str,
+    entities: list[ExportEntityEnum],
+    start_date: Optional[date],
+    end_date: Optional[date],
+    params: dict,
+) -> None:
+    """
+    Build a ZIP archive containing one CSV file per report entity type.
+
+    Parameters:
+    - file_path (str): The output ZIP file path.
+    - entities (list[ExportEntityEnum]): The REPORT_* entities to export.
+    - start_date (Optional[date]): Start of the date range.
+    - end_date (Optional[date]): End of the date range.
+    - params (dict): Shared report-specific parameters.
+    """
+
+    # Define the output directory and a temporary file path for each entity's CSV, which will be deleted after the ZIP is created
+    out_dir = Path(file_path).parent
+    job_stem = Path(file_path).stem
+    tmp_files: list[tuple[ExportEntityEnum, str]] = []
+
+    try:
+        # Write a temporary CSV file for each entity by generating the report data and writing it to disk
+        for entity in entities:
+            tmp_path = str(out_dir / f"_tmp_{job_stem}_{entity.value}.csv")
+            await _build_report_csv(tmp_path, entity, start_date, end_date, params)
+            tmp_files.append((entity, tmp_path))
+
+        # Define a synchronous function to create the ZIP archive, since zipfile is not async-aware and we want to offload it to a thread
+        def _write_zip() -> None:
+            with zipfile.ZipFile(file_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for entity, tmp_path in tmp_files:
+                    zf.write(tmp_path, arcname=f"{ENTITY_SHEET_NAMES[entity]}.csv")
+
+        # Pack all CSV files into a single ZIP archive in a thread to avoid blocking the event loop
+        await asyncio.to_thread(_write_zip)
+
+    finally:
+        # Remove temporary CSV files regardless of outcome to avoid leaving orphaned files on disk
+        for _, tmp_path in tmp_files:
+            try:
+                Path(tmp_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
+async def _build_report_xlsx(
+    file_path: str,
+    entities: list[ExportEntityEnum],
+    start_date: Optional[date],
+    end_date: Optional[date],
+    params: dict,
+) -> None:
+    """
+    Build a multi-sheet XLSX file for one or more report entity types.
+
+    Parameters:
+    - file_path (str): The output file path.
+    - entities (list[ExportEntityEnum]): The REPORT_* entities to export, one sheet each.
+    - start_date (Optional[date]): Start of the date range.
+    - end_date (Optional[date]): End of the date range.
+    - params (dict): Shared report-specific parameters.
+    """
+
+    # Write-only mode streams rows directly through an internal buffer, avoiding
+    wb = openpyxl.Workbook(write_only=True)
+
+    # For each entity, create a new sheet and write the report data rows, which are generated by calling the appropriate report service function
+    for entity in entities:
+        # Generate the report data rows for this entity by calling the appropriate report service function
+        headers, rows = await _generate_report_rows(entity, start_date, end_date, params)
+
+        # Create a new sheet for this entity (openpyxl automatically handles sheet naming conflicts by appending a number)
+        ws = wb.create_sheet(title=ENTITY_SHEET_NAMES[entity])
+        ws.append(headers)
+        for row in rows:
+            ws.append([v if v is not None else "" for v in row])
 
     # Flush the workbook to disk in a thread to avoid blocking the event loop
     await asyncio.to_thread(wb.save, file_path)

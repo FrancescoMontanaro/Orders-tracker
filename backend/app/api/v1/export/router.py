@@ -5,15 +5,16 @@ from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, WebSocke
 
 from ....db.orm.user import UserORM
 from ....core.config import settings
-from .models import ExportJobStart, ExportJob
 from .exceptions import JobAlreadyExistsException
 from ....db.orm.export_job import ExportStatusEnum
 from ....core.response_models import SuccessResponse
 from ....core.dependencies import get_current_user, get_ws_user
 from ....core.ws_manager import export_ws_manager as ws_manager
 from ....models import Pagination, SortParam, ListingQueryParams
+from .models import ExportJobStart, ExportReportJobStart, ExportJob
 from .service import (
     create_export_job as create_export_job_service,
+    create_report_export_job as create_report_export_job_service,
     list_export_jobs as list_export_jobs_service,
     get_export_job as get_export_job_service,
     run_export_job as run_export_job_service
@@ -100,6 +101,47 @@ async def start_export(
         )
 
     # Enqueue the background task to run the export job
+    background_tasks.add_task(run_export_job_service, job.id, settings.exports_dir)
+
+    # Return the job details
+    return SuccessResponse(data=ExportJob.model_validate(job))
+
+
+@router.post(
+    path = "/report/start",
+    response_model = SuccessResponse[ExportJob],
+    status_code = status.HTTP_202_ACCEPTED
+)
+async def start_report_export(
+    payload: ExportReportJobStart,
+    background_tasks: BackgroundTasks,
+    user: UserORM = Depends(get_current_user)
+) -> SuccessResponse[ExportJob]:
+    """
+    Start an asynchronous report export job.
+
+    Creates a job record (status = pending), enqueues the background report
+    generation task and immediately returns the job details. The report data
+    is computed on the fly from the live database and written to a file.
+
+    - **report_type**: the report to export (report_product_sales, report_expenses, etc.).
+    - **format**: csv or xlsx (xlsx recommended for reports).
+    - **start_date / end_date**: required inclusive date range for the report.
+    - Additional optional fields depend on the chosen report type.
+    """
+
+    try:
+        # Persist the job record and enqueue the background task
+        job = await create_report_export_job_service(payload, user.id)
+
+    # If the user already has a pending/running job for the same report type, return 409 Conflict
+    except JobAlreadyExistsException:
+        raise HTTPException(
+            status_code = status.HTTP_409_CONFLICT,
+            detail = "A report export job of this type is already pending or running"
+        )
+
+    # Enqueue the background task to run the report export job
     background_tasks.add_task(run_export_job_service, job.id, settings.exports_dir)
 
     # Return the job details

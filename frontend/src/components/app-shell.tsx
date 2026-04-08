@@ -14,6 +14,7 @@ import {
   BarChart3,
   Menu,
   Boxes,
+  FileDown,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,8 @@ import {
 } from '@/components/ui/sheet'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { LogoutButton } from '@/components/logout-button'
+import { NotificationBell } from '@/components/notification-bell'
+import { NotificationsProvider } from '@/contexts/notifications-context'
 import {
   NavigationMenu,
   NavigationMenuList,
@@ -51,6 +54,7 @@ const routes = [
   { href: '/balance', label: 'Bilancio', Icon: Receipt },
   { href: '/notes', label: 'Note', Icon: NotebookIcon },
   { href: '/reports', label: 'Report', Icon: BarChart3 },
+  { href: '/export', label: 'Export', Icon: FileDown },
 ] as const
 
 const desktopMenuGroups = [
@@ -101,6 +105,11 @@ const desktopMenuGroups = [
         href: '/notes',
         label: 'Note',
         description: 'Appunti operativi e archivio interno.',
+      },
+      {
+        href: '/export',
+        label: 'Export',
+        description: 'Esporta dati in CSV o Excel.',
       },
     ],
   },
@@ -213,26 +222,49 @@ function DesktopNav() {
   )
 }
 
-/** Mobile drawer nav — no overflow, links full-width, truncate labels */
+/** Mobile drawer nav — categorized like desktop, subitems always visible indented */
 function MobileDrawerNav() {
   const pathname = usePathname()
   return (
     <nav className="flex flex-col gap-1 pl-2 pr-2">
-      {routes.map(({ href, label, Icon }) => {
-        const active = pathname?.startsWith(href)
-        return (
-          <SheetClose asChild key={href}>
-            <Link
-              href={href}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors overflow-hidden
-                ${active ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground'}`}
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">{label}</span>
-            </Link>
-          </SheetClose>
-        )
-      })}
+      {/* Home standalone */}
+      <SheetClose asChild>
+        <Link
+          href="/home"
+          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors overflow-hidden
+            ${pathname?.startsWith('/home') ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground'}`}
+        >
+          <Home className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="truncate">Home</span>
+        </Link>
+      </SheetClose>
+
+      {/* Categorized groups */}
+      {desktopMenuGroups.map(({ label, items }) => (
+        <div key={label} className="mt-3">
+          <p className="px-3 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+            {label}
+          </p>
+          <div className="ml-2 border-l border-border pl-2 flex flex-col gap-0.5">
+            {items.map(({ href, label: itemLabel }) => {
+              const Icon = routes.find((r) => r.href === href)?.Icon
+              const active = pathname?.startsWith(href)
+              return (
+                <SheetClose asChild key={href}>
+                  <Link
+                    href={href}
+                    className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors overflow-hidden
+                      ${active ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground'}`}
+                  >
+                    {Icon && <Icon className="h-4 w-4 shrink-0" aria-hidden />}
+                    <span className="truncate">{itemLabel}</span>
+                  </Link>
+                </SheetClose>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   )
 }
@@ -262,6 +294,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
+    <NotificationsProvider>
     <div className="min-h-dvh grid grid-rows-[auto_1fr]">
       {showSnow ? (
         <Snowfall
@@ -282,7 +315,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           {/* Left: mobile trigger + brand */}
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex flex-1 items-center gap-2 min-w-0">
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
                 <Button
@@ -327,7 +360,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <DesktopNav />
 
           {/* Right: actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-1 items-center justify-end gap-2">
+            <NotificationBell />
             <ThemeToggle />
             <LogoutButton />
           </div>
@@ -339,5 +373,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
     </div>
+    </NotificationsProvider>
   )
 }

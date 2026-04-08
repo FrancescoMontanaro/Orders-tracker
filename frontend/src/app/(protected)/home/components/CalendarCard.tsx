@@ -8,8 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
+import { Loader2 } from 'lucide-react';
 import AddOrderDialog from './AddOrderDialog';
 import DayOrdersDialog, { type DayOrdersGrouped } from './DayOrdersDialog';
+import { EditOrderDialog } from '../../orders/components/EditOrderDialog';
+import type { Order } from '../../orders/types/order';
 
 import type { DailySummaryDay, SuccessResponse } from '../types/dailySummary';
 import {
@@ -102,6 +105,7 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
       const unitPrice = Number(it.unit_price ?? 0);
       const qty = Number(it.quantity || 0);
       p.customers.push({
+        order_id: o.id,
         customer_id: o.customer_id,
         customer_name: o.customer_name,
         quantity: qty,
@@ -116,67 +120,82 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
   return byDate;
 }
 
-/** Group a day view by customer (delivered state and list of items per customer).
- *  We also accumulate total_amount per customer (sum of item amounts).
+/** Group a day view by customer → orders[].
+ *  Each customer has one sub-entry per order_id.
  */
 function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
   if (!day) return [];
-  const map = new Map<
+
+  // customer_id → { customer info + map of order_id → order entry }
+  const customerMap = new Map<
     number,
     {
       customer_id: number;
       customer_name: string;
-      items: Array<{ product_id: number; product_name: string; quantity: number; unit: string; unit_price?: number; amount?: number }>;
-      deliveredCount: number;
-      totalCount: number;
-      total_amount: number;
-      notes: string[];
+      orderMap: Map<
+        number,
+        {
+          order_id: number;
+          delivered: boolean;
+          total_amount: number;
+          note: string | null;
+          items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
+        }
+      >;
     }
   >();
 
   for (const p of day.products || []) {
     for (const c of p.customers || []) {
-      const entry =
-        map.get(c.customer_id) ||
-        {
+      const orderId: number | null = (c as any).order_id ?? null;
+      if (orderId == null) continue; // skip rows without an order_id
+
+      // Ensure customer entry exists
+      if (!customerMap.has(c.customer_id)) {
+        customerMap.set(c.customer_id, {
           customer_id: c.customer_id,
           customer_name: c.customer_name,
-          items: [],
-          deliveredCount: 0,
-          totalCount: 0,
+          orderMap: new Map(),
+        });
+      }
+      const customer = customerMap.get(c.customer_id)!;
+
+      // Ensure order entry exists
+      if (!customer.orderMap.has(orderId)) {
+        customer.orderMap.set(orderId, {
+          order_id: orderId,
+          delivered: isDelivered(c.order_status),
           total_amount: 0,
-          notes: [],
-        };
-      entry.items.push({
+          note: (c as any).order_note ?? null,
+          items: [],
+        });
+      }
+      const order = customer.orderMap.get(orderId)!;
+
+      // Update delivered status (mark as pending if even one item is pending)
+      if (!isDelivered(c.order_status)) order.delivered = false;
+
+      order.total_amount += Number((c as any).amount ?? 0);
+      order.items.push({
         product_id: p.product_id,
         product_name: p.product_name,
         quantity: Number(c.quantity || 0),
-        unit: (p as any).product_unit,
-        unit_price: Number((c as any).unit_price ?? 0),
-        amount: Number((c as any).amount ?? 0),
+        unit: (p as any).product_unit ?? '',
       });
-      entry.total_amount += Number((c as any).amount ?? 0);
-      entry.totalCount += 1;
-      // Collect order note if present (avoid duplicates)
-      const orderNote = (c as any).order_note;
-      if (orderNote && !entry.notes.includes(orderNote)) {
-        entry.notes.push(orderNote);
-      }
-      if (isDelivered(c.order_status)) entry.deliveredCount += 1;
-      map.set(c.customer_id, entry);
     }
   }
 
-  return Array.from(map.values())
-    .map((e) => ({
-      customer_id: e.customer_id,
-      customer_name: e.customer_name,
-      delivered: e.totalCount > 0 && e.deliveredCount === e.totalCount,
-      items: e.items,
-      // extra fields (non-breaking for consumers that ignore them)
-      total_amount: e.total_amount,
-      note: e.notes.length ? e.notes.join(' | ') : null,
-    }))
+  return Array.from(customerMap.values())
+    .map((c) => {
+      const orders = Array.from(c.orderMap.values());
+      const allDelivered = orders.length > 0 && orders.every((o) => o.delivered);
+      return {
+        customer_id: c.customer_id,
+        customer_name: c.customer_name,
+        delivered: allDelivered,
+        orders,
+      };
+    })
     .sort((a, b) => Number(a.delivered) - Number(b.delivered)); // pending first
 }
 
@@ -190,6 +209,10 @@ export default function CalendarCard() {
   const [addOpen, setAddOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<string | undefined>(undefined);
 
+  // Edit order dialog state
+  const [editOrder, setEditOrder] = React.useState<Order | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
+
   // Day-orders list dialog state
   const [listOpen, setListOpen] = React.useState(false);
 
@@ -201,8 +224,9 @@ export default function CalendarCard() {
   const desktopRef = React.useRef<HTMLDivElement>(null);
   const mobileRef = React.useRef<HTMLDivElement>(null);
 
-  // Prevent repeat auto-scroll
-  const didScrollRef = React.useRef(false);
+  // When true, the next completed load will trigger a scroll to today's cell.
+  // Starts as true so the initial page-load auto-scrolls to today.
+  const scrollToTodayRef = React.useRef(true);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -281,9 +305,9 @@ export default function CalendarCard() {
     let delivered = 0;
     let pending = 0;
     for (const d of Object.values(days)) {
-      const groups = groupByCustomer(d);
-      const dCount = groups.filter((g) => g.delivered).length;
-      const pCount = groups.length - dCount;
+      const allOrders = groupByCustomer(d).flatMap((g) => g.orders);
+      const dCount = allOrders.filter((o) => o.delivered).length;
+      const pCount = allOrders.length - dCount;
       delivered += dCount;
       pending += pCount;
     }
@@ -301,8 +325,7 @@ export default function CalendarCard() {
     const perCustomer = groups.map((g) => ({
       customer_id: g.customer_id,
       customer_name: g.customer_name,
-      total: (g as any).total_amount
-        ?? (g.items || []).reduce((s, it: any) => s + Number(it.amount ?? 0), 0),
+      total: g.orders.reduce((s, o) => s + Number(o.total_amount ?? 0), 0),
     }));
     const grand = perCustomer.reduce((s, r) => s + r.total, 0);
     setTotalsByCustomer(perCustomer);
@@ -318,85 +341,54 @@ export default function CalendarCard() {
     setMonth((m) => addMonths(m, +1));
   }
   function gotoToday() {
+    // Mark that we want to scroll to today once the new month's load completes.
+    scrollToTodayRef.current = true;
     setMonth(firstDayOfMonth(new Date()));
-    didScrollRef.current = false;
-    desktopRef.current?.scrollTo({ left: 0, top: 0, behavior: 'auto' });
-    mobileRef.current?.scrollTo({ left: 0, top: 0, behavior: 'auto' });
   }
 
-  // Try to scroll current containers to today
-  const attemptScrollToToday = React.useCallback(() => {
-    let scrolled = false;
+  // Scroll the visible calendar container so that today's cell is centred.
+  const attemptScrollToToday = React.useCallback((): boolean => {
     const containers = [desktopRef.current, mobileRef.current].filter(Boolean) as HTMLElement[];
 
     for (const root of containers) {
-      const isVisible = root && root.offsetParent !== null && root.getClientRects().length > 0;
-      if (!isVisible) continue;
+      // Skip containers that are hidden (e.g. desktop grid on mobile via md:hidden)
+      if (!root || root.offsetParent === null) continue;
 
       const el = root.querySelector<HTMLElement>('[data-today="true"]');
       if (!el) continue;
 
-      if (root.scrollWidth > root.clientWidth) {
-        const targetLeft = el.offsetLeft - root.clientWidth / 2 + el.clientWidth / 2;
-        const clampedLeft = Math.max(0, Math.min(targetLeft, root.scrollWidth - root.clientWidth));
-        root.scrollTo({ left: clampedLeft, behavior: 'smooth' });
-        scrolled = true;
-      }
-
-      const hasVerticalScroll = root.scrollHeight > root.clientHeight;
-      const elRect = el.getBoundingClientRect();
-
-      if (hasVerticalScroll) {
-        const elTopInParent = el.offsetTop - root.offsetTop;
-        const targetTop = elTopInParent - root.clientHeight / 2 + el.clientHeight / 2;
-        const clampedTop = Math.max(0, Math.min(targetTop, root.scrollHeight - root.clientHeight));
-        root.scrollTo({ top: clampedTop, behavior: 'smooth' });
-        scrolled = true;
-      } else {
-        const top = window.scrollY + elRect.top - window.innerHeight / 2 + elRect.height / 2;
-        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-        scrolled = true;
-      }
+      // scrollIntoView correctly handles nested scroll containers on both
+      // desktop (horizontal grid) and mobile (vertical list).
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+      return true;
     }
 
-    if (scrolled) didScrollRef.current = true;
-    return scrolled;
+    return false;
   }, []);
 
-  // Auto-scroll once when data is ready (robust retry)
+  // Scroll to today's cell whenever a load completes AND scrollToTodayRef is set.
+  // We wait for two animation frames so the browser has fully painted the new
+  // calendar grid before querying element positions via scrollIntoView.
   React.useEffect(() => {
-    if (loading || didScrollRef.current) return;
+    if (loading) return;
+    if (!scrollToTodayRef.current) return;
 
-    let attempts = 14;
-    let timer: number | undefined;
+    let rafId1: number;
+    let rafId2: number;
 
-    const tick = () => {
-      const ok = attemptScrollToToday();
-      if (ok || --attempts <= 0) return;
-      timer = window.setTimeout(tick, 50);
-    };
-
-    tick();
-    return () => {
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [loading, days, month, attemptScrollToToday]);
-
-  // Observe container size changes and try again if needed
-  React.useEffect(() => {
-    if (typeof ResizeObserver === 'undefined') return;
-
-    const obs = new ResizeObserver(() => {
-      if (!loading && !didScrollRef.current) {
-        attemptScrollToToday();
-      }
+    rafId1 = requestAnimationFrame(() => {
+      rafId2 = requestAnimationFrame(() => {
+        if (!scrollToTodayRef.current) return;
+        const ok = attemptScrollToToday();
+        if (ok) scrollToTodayRef.current = false;
+      });
     });
 
-    if (desktopRef.current) obs.observe(desktopRef.current);
-    if (mobileRef.current) obs.observe(mobileRef.current);
-
-    return () => obs.disconnect();
-  }, [loading, attemptScrollToToday]);
+    return () => {
+      cancelAnimationFrame(rafId1);
+      cancelAnimationFrame(rafId2);
+    };
+  }, [loading, days, attemptScrollToToday]);
 
   return (
     <>
@@ -406,16 +398,16 @@ export default function CalendarCard() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Calendario ordini</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={gotoToday}>
+              <Button variant="outline" onClick={gotoToday} disabled={loading} aria-label="Vai ad oggi">
                 Oggi
               </Button>
-              <Button variant="outline" onClick={gotoPrev} aria-label="Mese precedente">
+              <Button variant="outline" onClick={gotoPrev} disabled={loading} aria-label="Mese precedente">
                 ‹
               </Button>
               <div className="min-w-[10ch] text-center font-medium sm:min-w-[12ch]">
                 {itMonthLabel(month)}
               </div>
-              <Button variant="outline" onClick={gotoNext} aria-label="Mese successivo">
+              <Button variant="outline" onClick={gotoNext} disabled={loading} aria-label="Mese successivo">
                 ›
               </Button>
             </div>
@@ -449,7 +441,8 @@ export default function CalendarCard() {
         </CardHeader>
 
         <CardContent className="space-y-3">
-          {loading ? (
+          {loading && Object.keys(days).length === 0 ? (
+            // First load: show skeleton placeholder
             <div className="space-y-2">
               <Skeleton className="h-5 w-1/4" />
               <Skeleton className="h-[360px] w-full" />
@@ -459,6 +452,13 @@ export default function CalendarCard() {
               {error}
             </div>
           ) : (
+            // Calendar is rendered; show overlay spinner on subsequent reloads
+            <div className="relative">
+              {loading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-[1px]">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              )}
             <>
               {/* Desktop calendar grid */}
               <div ref={desktopRef} className="hidden md:block w-full overflow-x-auto">
@@ -477,8 +477,9 @@ export default function CalendarCard() {
                       const iso = toISO(d);
                       const grouped = groupByCustomer(days[iso]);
                       const today = isToday(d);
-                      const deliveredCount = grouped.filter((g) => g.delivered).length;
-                      const pendingCount = grouped.length - deliveredCount;
+                      const allOrders = grouped.flatMap((g) => g.orders);
+                      const deliveredCount = allOrders.filter((o) => o.delivered).length;
+                      const pendingCount = allOrders.length - deliveredCount;
 
                       return (
                         <button
@@ -531,26 +532,25 @@ export default function CalendarCard() {
 
                           {grouped.length ? (
                             <ul className="space-y-1 text-xs max-h-36 overflow-y-auto pr-1">
-                              {grouped.map((g) => (
-                                <li key={g.customer_id} className="leading-snug">
-                                  <span
-                                    className={cn(
-                                      'inline-block h-2 w-2 rounded-full mr-1 align-middle',
-                                      g.delivered ? 'bg-emerald-500' : 'bg-amber-500'
-                                    )}
-                                  />
-                                  <span className="font-medium">{g.customer_name}</span>{' '}
-                                  <span className="text-muted-foreground">
-                                    {g.items.map((it, i) => (
-                                      <span key={i}>
-                                        {it.product_name} × {it.quantity}
-                                        {it.unit ? ` ${it.unit}` : ''}
-                                        {i < g.items.length - 1 ? ', ' : ''}
-                                      </span>
-                                    ))}
-                                  </span>
-                                </li>
-                              ))}
+                              {grouped.map((g) => {
+                                const totalProducts = g.orders.reduce((s, o) => s + o.items.length, 0);
+                                return (
+                                  <li key={g.customer_id} className="leading-snug">
+                                    <span
+                                      className={cn(
+                                        'inline-block h-2 w-2 rounded-full mr-1 align-middle',
+                                        g.delivered ? 'bg-emerald-500' : 'bg-amber-500'
+                                      )}
+                                    />
+                                    <span className="font-medium">{g.customer_name}</span>
+                                    <div className="pl-3 text-muted-foreground/70">
+                                      {g.orders.length === 1 ? '1 ordine' : `${g.orders.length} ordini`}
+                                      {' · '}
+                                      {totalProducts === 1 ? '1 prodotto' : `${totalProducts} prodotti`}
+                                    </div>
+                                  </li>
+                                );
+                              })}
                             </ul>
                           ) : (
                             <div className="text-xs text-muted-foreground/70">Nessun ordine</div>
@@ -569,14 +569,15 @@ export default function CalendarCard() {
               </div>
 
               {/* Mobile list view */}
-              <div ref={mobileRef} className="md:hidden grid grid-cols-1 gap-2">
+              <div ref={mobileRef} className="md:hidden grid grid-cols-1 gap-2" aria-busy={loading}>
                 {gridCells.map((d) => {
                   const inCurrentMonth = d.getMonth() === month.getMonth();
                   const iso = toISO(d);
                   const grouped = groupByCustomer(days[iso]);
                   const today = isToday(d);
-                  const deliveredCount = grouped.filter((g) => g.delivered).length;
-                  const pendingCount = grouped.length - deliveredCount;
+                  const allOrders = grouped.flatMap((g) => g.orders);
+                  const deliveredCount = allOrders.filter((o) => o.delivered).length;
+                  const pendingCount = allOrders.length - deliveredCount;
 
                   return (
                     <button
@@ -629,26 +630,25 @@ export default function CalendarCard() {
 
                       {grouped.length ? (
                         <ul className="space-y-1 text-xs max-h-32 overflow-y-auto pr-1">
-                          {grouped.map((g) => (
-                            <li key={g.customer_id} className="leading-snug">
-                              <span
-                                className={cn(
-                                  'inline-block h-2 w-2 rounded-full mr-1 align-middle',
-                                  g.delivered ? 'bg-emerald-500' : 'bg-amber-500'
-                                )}
-                              />
-                              <span className="font-medium">{g.customer_name}</span>{' '}
-                              <span className="text-muted-foreground">
-                                {g.items.map((it, i) => (
-                                  <span key={i}>
-                                    {it.product_name} × {it.quantity}
-                                    {it.unit ? ` ${it.unit}` : ''}
-                                    {i < g.items.length - 1 ? ', ' : ''}
-                                  </span>
-                                ))}
-                              </span>
-                            </li>
-                          ))}
+                          {grouped.map((g) => {
+                            const totalProducts = g.orders.reduce((s, o) => s + o.items.length, 0);
+                            return (
+                              <li key={g.customer_id} className="leading-snug">
+                                <span
+                                  className={cn(
+                                    'inline-block h-2 w-2 rounded-full mr-1 align-middle',
+                                    g.delivered ? 'bg-emerald-500' : 'bg-amber-500'
+                                  )}
+                                />
+                                <span className="font-medium">{g.customer_name}</span>
+                                <div className="pl-3 text-muted-foreground/70">
+                                  {g.orders.length === 1 ? '1 ordine' : `${g.orders.length} ordini`}
+                                  {' · '}
+                                  {totalProducts === 1 ? '1 prodotto' : `${totalProducts} prodotti`}
+                                </div>
+                              </li>
+                            );
+                          })}
                         </ul>
                       ) : (
                         <div className="text-xs text-muted-foreground/70">Nessun ordine</div>
@@ -658,6 +658,7 @@ export default function CalendarCard() {
                 })}
               </div>
             </>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -670,6 +671,10 @@ export default function CalendarCard() {
         customerGroups={selectedDate ? groupByCustomer(days[selectedDate]) : []}
         onNewOrder={() => {
           setAddOpen(true);
+        }}
+        onEditOrder={(orderId) => {
+          setEditOrder({ id: orderId } as Order);
+          setEditOpen(true);
         }}
         {...({
           totalsByCustomer,
@@ -685,6 +690,22 @@ export default function CalendarCard() {
           load();
         }}
         defaultDate={selectedDate}
+      />
+
+      {/* Edit order dialog */}
+      <EditOrderDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        order={editOrder}
+        onSaved={() => {
+          setEditOpen(false);
+          load();
+        }}
+        onDeleted={() => {
+          setEditOpen(false);
+          load();
+        }}
+        onError={() => {}}
       />
     </>
   );

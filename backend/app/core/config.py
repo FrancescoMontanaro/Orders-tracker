@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     refresh_cookie_domain: str | None = None
     refresh_cookie_secure: bool = False
 
+    # Export settings
+    exports_dir: str = "exports"
+    export_job_timeout_seconds: int = 300 # Max allowed duration for a single export job (5 min default)
+    export_batch_size: int = 500 # Number of rows fetched per DB query when building an export file
+
     # CORS settings
     cors_origins: list[str] = Field(alias="CORS_ORIGINS")
 

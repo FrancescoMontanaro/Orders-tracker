@@ -16,6 +16,8 @@ from .api.v1.reports.router import router as reports_router
 from .api.v1.products.router import router as products_router
 from .api.v1.expenses.router import router as expenses_router
 from .api.v1.customers.router import router as customers_router
+from .api.v1.export.router import router as export_router, ws_router as export_ws_router
+from .api.v1.notifications.router import router as notifications_router, ws_router as notifications_ws_router
 
 # Create FastAPI app with lifespan
 app = FastAPI(
@@ -44,3 +46,9 @@ app.include_router(incomes_router, dependencies=[Depends(require_active_user)])
 app.include_router(lots_router, dependencies=[Depends(require_active_user)])
 app.include_router(notes_router, dependencies=[Depends(require_active_user)])
 app.include_router(reports_router, dependencies=[Depends(require_active_user)])
+app.include_router(export_router, dependencies=[Depends(require_active_user)])
+app.include_router(notifications_router, dependencies=[Depends(require_active_user)])
+
+# Include WebSocket routers (no dependencies
+app.include_router(notifications_ws_router)
+app.include_router(export_ws_router)

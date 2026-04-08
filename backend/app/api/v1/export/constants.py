@@ -1,0 +1,70 @@
+from ....db.orm.export_job import ExportJobORM, ExportEntityEnum
+
+
+# Define allowed fields for filtering and sorting
+ALLOWED_EXPORT_JOBS_SORTING_FIELDS = {
+    "status": ExportJobORM.status,
+    "format": ExportJobORM.format,
+    "created_at": ExportJobORM.created_at
+}
+
+
+# Human-readable label for each entity type (used in notifications and the UI)
+ENTITY_LABELS: dict[ExportEntityEnum, str] = {
+    ExportEntityEnum.CUSTOMERS: "Clienti",
+    ExportEntityEnum.PRODUCTS: "Prodotti",
+    ExportEntityEnum.ORDERS: "Ordini",
+    ExportEntityEnum.ORDER_ITEMS: "Righe ordine",
+    ExportEntityEnum.EXPENSES: "Spese",
+    ExportEntityEnum.INCOMES: "Entrate",
+    ExportEntityEnum.LOTS: "Lotti",
+    ExportEntityEnum.NOTES: "Note",
+
+    # Report-based entity types
+    ExportEntityEnum.REPORT_PRODUCT_SALES: "Report: Vendite per prodotto",
+    ExportEntityEnum.REPORT_EXPENSES: "Report: Spese per categoria",
+    ExportEntityEnum.REPORT_INCOMES: "Report: Entrate per categoria",
+    ExportEntityEnum.REPORT_CUSTOMER_SALES: "Report: Vendite per cliente",
+    ExportEntityEnum.REPORT_CASHFLOW: "Report: Flusso di cassa",
+}
+
+
+# Sheet / CSV filename for each entity type (used in XLSX tabs and ZIP archive entries).
+# Must be ≤ 31 characters (Excel limit for sheet names).
+ENTITY_SHEET_NAMES: dict[ExportEntityEnum, str] = {
+    ExportEntityEnum.CUSTOMERS: "Clienti",
+    ExportEntityEnum.PRODUCTS: "Prodotti",
+    ExportEntityEnum.ORDERS: "Ordini",
+    ExportEntityEnum.ORDER_ITEMS: "Righe ordine",
+    ExportEntityEnum.EXPENSES: "Spese",
+    ExportEntityEnum.INCOMES: "Entrate",
+    ExportEntityEnum.LOTS: "Lotti",
+    ExportEntityEnum.NOTES: "Note",
+
+    # Report-based entity types
+    ExportEntityEnum.REPORT_PRODUCT_SALES: "Vendite per prodotto",
+    ExportEntityEnum.REPORT_EXPENSES: "Spese per categoria",
+    ExportEntityEnum.REPORT_INCOMES: "Entrate per categoria",
+    ExportEntityEnum.REPORT_CUSTOMER_SALES: "Vendite per cliente",
+    ExportEntityEnum.REPORT_CASHFLOW: "Flusso di cassa",
+}
+
+
+# Column headers exported for each entity type
+ENTITY_HEADERS: dict[ExportEntityEnum, list[str]] = {
+    ExportEntityEnum.CUSTOMERS: ["ID", "Nome", "Attivo"],
+    ExportEntityEnum.PRODUCTS: ["ID", "Nome", "Prezzo unitario", "Unità di misura", "Attivo"],
+    ExportEntityEnum.ORDERS: ["ID", "Cliente", "Data consegna", "Data creazione", "Sconto applicato (%)", "Stato", "Note"],
+    ExportEntityEnum.ORDER_ITEMS: ["ID", "ID ordine", "Prodotto", "Quantità", "Prezzo unitario", "ID lotto"],
+    ExportEntityEnum.EXPENSES: ["ID", "Categoria", "Data", "Importo", "Note"],
+    ExportEntityEnum.INCOMES: ["ID", "Categoria", "Data", "Importo", "Note"],
+    ExportEntityEnum.LOTS: ["ID", "Nome", "Data lotto", "Posizione", "Descrizione"],
+    ExportEntityEnum.NOTES: ["ID", "Testo", "Data creazione", "Ultima modifica"],
+
+    # Report-based entity types
+    ExportEntityEnum.REPORT_PRODUCT_SALES: ["ID Prodotto", "Prodotto", "Quantità totale", "Unità di misura", "Ricavo (€)"],
+    ExportEntityEnum.REPORT_EXPENSES: ["ID Categoria", "Categoria", "Importo totale (€)", "N. registrazioni"],
+    ExportEntityEnum.REPORT_INCOMES: ["ID Categoria", "Categoria", "Importo totale (€)", "N. registrazioni"],
+    ExportEntityEnum.REPORT_CUSTOMER_SALES: ["Cliente", "Ricavo totale cliente (€)", "ID Prodotto", "Prodotto", "Quantità", "Unità di misura", "Sconto medio (%)", "Ricavo (€)"],
+    ExportEntityEnum.REPORT_CASHFLOW: ["Tipo", "ID", "Data", "Importo (€)", "Note"],
+}

@@ -22,7 +22,6 @@ import {
 import { api } from '@/lib/api-client';
 
 import { SearchCombobox } from './SearchCombobox';
-import { ItemsEditor } from './ItemsEditor';
 import { usePreviewTotals } from '../hooks/usePreviewTotals';
 import { euro } from '../utils/currency';
 import { Option } from '../types/option';
@@ -30,6 +29,264 @@ import { Order, OrderItem } from '../types/order';
 import { LotSelect } from '@/components/lot-select';
 import type { LotOption } from '@/types/lot';
 import { formatLotOptionDate } from '@/types/lot';
+import { Badge } from '@/components/ui/badge';
+import { PackagePlus, Plus, X } from 'lucide-react';
+import { formatUnit } from '@/lib/utils';
+
+/** Sub-dialog: card-based product editor + lot selector + totals preview */
+function OrderProductsDialog({
+  open,
+  onOpenChange,
+  items,
+  onItemsChange,
+  orderLot,
+  onOrderLotChange,
+  appliedDiscount,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  items: OrderItem[];
+  onItemsChange: (items: OrderItem[]) => void;
+  orderLot: LotOption | null;
+  onOrderLotChange: (lot: LotOption | null) => void;
+  appliedDiscount: number | '';
+}) {
+  const totals = usePreviewTotals(items, appliedDiscount);
+
+  function updateAt(i: number, patch: Partial<OrderItem>) {
+    const next = [...items];
+    next[i] = { ...next[i], ...patch };
+    onItemsChange(next);
+  }
+  function removeAt(i: number) {
+    const next = items.slice();
+    next.splice(i, 1);
+    onItemsChange(next);
+  }
+  function lotPatch(lot?: LotOption | null) {
+    if (!lot) return { lot_id: null, lot_name: null, lot_date: null, lot_location: null };
+    return { lot_id: lot.id, lot_name: lot.name, lot_date: lot.lot_date ?? null, lot_location: lot.location ?? null };
+  }
+  function addItem() {
+    onItemsChange([
+      ...items,
+      { product_id: 0, product_name: '', unit: null, quantity: 1, unit_price: null, ...lotPatch(orderLot) } as OrderItem,
+    ]);
+  }
+
+  const applyLotToAll = React.useCallback(
+    (lot: LotOption | null) => {
+      onItemsChange(items.map((item) => ({ ...item, ...lotPatch(lot) })));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, onItemsChange]
+  );
+
+  const clearAllLots = React.useCallback(() => {
+    applyLotToAll(null);
+    onOrderLotChange(null);
+  }, [applyLotToAll, onOrderLotChange]);
+
+  function handleLotChange(lot: LotOption | null) {
+    onOrderLotChange(lot);
+    if (!lot) return;
+    onItemsChange(items.map((item) => (item.lot_id ? item : { ...item, ...lotPatch(lot) })));
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="
+          w-[calc(100vw-2rem)]
+          sm:w-[36rem] md:w-[44rem]
+          sm:max-w-[36rem] md:max-w-[44rem]
+          max-h-[90vh] flex flex-col overflow-hidden
+        "
+      >
+        <DialogHeader className="shrink-0">
+          <DialogTitle>Prodotti e lotti</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto overflow-x-hidden space-y-4 pr-1 pb-1">
+
+          {/* ── Lot card ── */}
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Lotto predefinito</Label>
+              {orderLot && (
+                <Button
+                  type="button" variant="ghost" size="sm"
+                  className="h-7 text-xs text-muted-foreground px-2"
+                  onClick={clearAllLots}
+                >
+                  Rimuovi da tutti
+                </Button>
+              )}
+            </div>
+            <LotSelect value={orderLot} onChange={handleLotChange} />
+            {orderLot ? (
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground">
+                  {[orderLot.location, orderLot.lot_date ? formatLotOptionDate(orderLot.lot_date) : null]
+                    .filter(Boolean).join(' • ')}
+                </span>
+                <Button
+                  type="button" variant="outline" size="sm"
+                  className="h-7 text-xs shrink-0"
+                  onClick={() => applyLotToAll(orderLot)}
+                >
+                  Applica a tutti i prodotti
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Opzionale — viene assegnato automaticamente ai nuovi prodotti.
+              </p>
+            )}
+          </div>
+
+          {/* ── Products list ── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Prodotti</Label>
+              {items.length > 0 && <Badge variant="secondary">{items.length}</Badge>}
+            </div>
+
+            {items.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nessun prodotto. Aggiungine almeno uno.</p>
+            )}
+
+            {items.map((it, i) => {
+              const itemTotal =
+                typeof it.unit_price === 'number' && it.unit_price > 0
+                  ? it.unit_price * Number(it.quantity ?? 0)
+                  : null;
+              return (
+                <div key={i} className="rounded-lg border p-3 space-y-3">
+                  {/* Card header */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Prodotto {i + 1}</span>
+                    <Button
+                      type="button" variant="ghost" size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeAt(i)}
+                      aria-label="Rimuovi prodotto"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  {/* Product selector */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Prodotto</Label>
+                    <SearchCombobox
+                      value={it.product_id ? { id: it.product_id, name: it.product_name ?? `#${it.product_id}`, unit_price: it.unit_price ?? null, unit: it.unit ?? null } : null}
+                      onChange={(opt) => {
+                        if (!opt) return;
+                        updateAt(i, { product_id: opt.id, product_name: opt.name, unit_price: opt.unit_price ?? null, unit: opt.unit ?? null });
+                      }}
+                      placeholder="Seleziona prodotto…"
+                      endpoint="/products/list"
+                      emptyText="Nessun prodotto"
+                    />
+                  </div>
+
+                  {/* Lot selector */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Lotto</Label>
+                    <LotSelect
+                      value={it.lot_id ? { id: Number(it.lot_id), name: it.lot_name ?? `Lotto #${it.lot_id}`, lot_date: it.lot_date ?? '', location: it.lot_location ?? '' } : null}
+                      onChange={(lot) => updateAt(i, lotPatch(lot) as Partial<OrderItem>)}
+                      placeholder="Nessun lotto"
+                    />
+                  </div>
+
+                  {/* Price + Qty — 2-column */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Prezzo{it.unit ? ` (€/${formatUnit(it.unit)})` : ' (€)'}
+                      </Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min={0}
+                        placeholder="0.00"
+                        value={it.unit_price == null || Number.isNaN(it.unit_price as any) ? '' : String(it.unit_price)}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === '') { updateAt(i, { unit_price: null } as Partial<OrderItem>); return; }
+                          const n = parseLocaleNumber(raw);
+                          if (n == null) return;
+                          updateAt(i, { unit_price: n } as Partial<OrderItem>);
+                        }}
+                        className="min-w-0 w-full"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Quantità{it.unit ? ` (${formatUnit(it.unit)})` : ''}
+                      </Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.001"
+                        min={0.001}
+                        placeholder="0"
+                        value={it.quantity == null ? '' : String(it.quantity)}
+                        onChange={(e) => updateAt(i, { quantity: e.target.value as any })}
+                        className="min-w-0 w-full"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Per-item total */}
+                  {itemTotal !== null && (
+                    <div className="flex justify-end text-xs text-muted-foreground border-t pt-2">
+                      Totale riga:{' '}
+                      <span className="ml-1 font-medium text-foreground tabular-nums">{euro(itemTotal)}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <Button type="button" variant="outline" className="w-full" onClick={addItem}>
+              <Plus className="mr-2 h-4 w-4" />
+              Aggiungi prodotto
+            </Button>
+          </div>
+
+          {/* ── Order totals ── */}
+          {items.length > 0 && (
+            <div className="rounded-lg border p-3 text-sm space-y-1.5">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Subtotale</span>
+                <span className="tabular-nums">{euro(totals.subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Sconto{appliedDiscount ? ` (${appliedDiscount}%)` : ''}</span>
+                <span className="tabular-nums">−{euro(totals.discountAmount)}</span>
+              </div>
+              <div className="border-t pt-2 flex items-center justify-between font-medium">
+                <span>Totale</span>
+                <span className="tabular-nums">{euro(totals.total)}</span>
+              </div>
+              {totals.hasMissingPrices && (
+                <p className="text-xs text-muted-foreground">* Totale parziale: alcuni prezzi non disponibili.</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="mt-3 shrink-0">
+          <Button onClick={() => onOpenChange(false)}>Conferma</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function mapOrderItemFromApi(it: any): OrderItem {
   return {
@@ -156,39 +413,8 @@ export function EditOrderDialog({
   }, [open, order]);
 
   // Totals preview (client-side estimate)
-  const totals = usePreviewTotals(items, appliedDiscount);
-
-  React.useEffect(() => {
-    if (!orderLot) return;
-    setItems((prev) =>
-      prev.map((item) =>
-        item.lot_id ? item : {
-          ...item,
-          lot_id: orderLot.id,
-          lot_name: orderLot.name,
-          lot_date: orderLot.lot_date ?? null,
-          lot_location: orderLot.location ?? null,
-        }
-      )
-    );
-  }, [orderLot]);
-
-  const applyLotToAll = React.useCallback((lot: LotOption | null) => {
-    setItems((prev) =>
-      prev.map((item) => ({
-        ...item,
-        lot_id: lot ? lot.id : null,
-        lot_name: lot ? lot.name : null,
-        lot_date: lot ? lot.lot_date ?? null : null,
-        lot_location: lot ? lot.location ?? null : null,
-      }))
-    );
-  }, []);
-
-  const clearAllLots = React.useCallback(() => {
-    applyLotToAll(null);
-    setOrderLot(null);
-  }, [applyLotToAll]);
+  const summaryTotals = usePreviewTotals(items, appliedDiscount);
+  const [productsOpen, setProductsOpen] = React.useState(false);
 
   // Save changes to the API (PATCH)
   async function save() {
@@ -353,67 +579,83 @@ export function EditOrderDialog({
                 />
               </div>
 
-              {/* Default lot selector */}
+              {/* Products summary */}
               <div className="grid gap-2 min-w-0">
-                <Label>Lotto predefinito (opzionale)</Label>
-                <LotSelect value={orderLot} onChange={setOrderLot} />
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {orderLot ? (
-                    <>
-                      <span>
-                        Lotto selezionato: {orderLot.name}
-                        {orderLot.location ? ` • ${orderLot.location}` : ''}
-                        {orderLot.lot_date ? ` (${formatLotOptionDate(orderLot.lot_date)})` : ''}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyLotToAll(orderLot)}
-                      >
-                        Applica a tutti gli articoli
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={clearAllLots}>
-                        Rimuovi da tutti
-                      </Button>
-                    </>
-                  ) : (
-                    <span>Imposta un lotto predefinito e personalizzalo sui singoli prodotti se necessario.</span>
+                <div className="flex items-center justify-between">
+                  <Label>Prodotti</Label>
+                  {items.length > 0 && (
+                    <Badge variant="secondary">{items.length}</Badge>
                   )}
                 </div>
-              </div>
-
-              {/* Items editor section with divider instead of <br />; avoids layout quirks */}
-              <div className="grid gap-2 mt-2 rounded-lg border p-3 text-sm min-w-0">
-                <Label>Prodotti</Label>
-                <div className="h-px bg-border" />
-                <ItemsEditor
-                  items={items}
-                  onChange={setItems}
-                  defaultLot={orderLot}
-                  onApplyLotToAll={applyLotToAll}
-                />
-              </div>
-
-              {/* Totals preview */}
-              <div className="mt-2 rounded-lg border p-3 text-sm min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Subtotale</span>
-                  <span className="tabular-nums">{euro(totals.subtotal)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Sconto{appliedDiscount ? ` (${appliedDiscount}%)` : ''}</span>
-                  <span className="tabular-nums">−{euro(totals.discountAmount)}</span>
-                </div>
-                <div className="mt-1 border-t pt-2 flex items-center justify-between font-medium">
-                  <span>Totale</span>
-                  <span className="tabular-nums">{euro(totals.total)}</span>
-                </div>
-                {totals.hasMissingPrices && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Alcuni prezzi unitari non sono disponibili: il totale è parziale.
-                  </p>
+                {items.length > 0 ? (
+                  <div className="rounded-lg border divide-y text-sm">
+                    {items.map((it, i) => {
+                      const qty = Number(it.quantity ?? 0);
+                      const itemTotal =
+                        typeof it.unit_price === 'number' && it.unit_price > 0 && qty > 0
+                          ? it.unit_price * qty
+                          : null;
+                      return (
+                        <div key={i} className="px-3 py-2.5 space-y-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-medium leading-tight">
+                              {it.product_name ?? `Prodotto #${it.product_id}`}
+                            </span>
+                            <span className="text-muted-foreground shrink-0 text-xs mt-0.5">
+                              × {qty}{it.unit ? ` ${formatUnit(it.unit)}` : ''}
+                            </span>
+                          </div>
+                          {it.lot_name && (
+                            <div className="text-xs text-muted-foreground">
+                              Lotto: <span className="text-foreground">{it.lot_name}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="text-muted-foreground">
+                              {typeof it.unit_price === 'number'
+                                ? `€${it.unit_price.toFixed(2)}${it.unit ? `/${formatUnit(it.unit)}` : ''}`
+                                : 'Prezzo non disponibile'}
+                            </span>
+                            {itemTotal !== null && (
+                              <span className="font-medium tabular-nums">= {euro(itemTotal)}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {/* Order totals row */}
+                    <div className="px-3 py-2.5 space-y-1 bg-muted/30">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Subtotale</span>
+                        <span className="tabular-nums">{euro(summaryTotals.subtotal)}</span>
+                      </div>
+                      {(appliedDiscount !== '' && Number(appliedDiscount) > 0) && (
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Sconto ({appliedDiscount}%)</span>
+                          <span className="tabular-nums">−{euro(summaryTotals.discountAmount)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-sm font-medium border-t pt-1 mt-0.5">
+                        <span>Totale</span>
+                        <span className="tabular-nums">{euro(summaryTotals.total)}</span>
+                      </div>
+                      {summaryTotals.hasMissingPrices && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">* Totale parziale</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nessun prodotto aggiunto.</p>
                 )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setProductsOpen(true)}
+                >
+                  <PackagePlus className="mr-2 h-4 w-4" />
+                  {items.length > 0 ? 'Modifica prodotti e lotti' : 'Aggiungi prodotti e lotti'}
+                </Button>
               </div>
 
               {localError && <p className="text-sm text-red-600 whitespace-pre-wrap">{localError}</p>}
@@ -443,6 +685,16 @@ export function EditOrderDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <OrderProductsDialog
+        open={productsOpen}
+        onOpenChange={setProductsOpen}
+        items={items}
+        onItemsChange={setItems}
+        orderLot={orderLot}
+        onOrderLotChange={setOrderLot}
+        appliedDiscount={appliedDiscount}
+      />
 
       {/* Delete confirmation */}
       <AlertDialog open={confirmDeleteOpen} onOpenChange={handleConfirmDeleteOpenChange}>

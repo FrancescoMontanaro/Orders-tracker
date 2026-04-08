@@ -236,13 +236,12 @@ export default function ItemsEditor({
                 </div>
                 <Input
                   type="number"
-                  min={1}
-                  value={String(it.quantity ?? 1)}
-                  onChange={(e) =>
-                    updateAt(i, {
-                      quantity: Math.max(1, Number(e.target.value) || 1),
-                    })
-                  }
+                  inputMode="decimal"
+                  step="0.001"
+                  min={0.001}
+                  placeholder="0"
+                  value={it.quantity == null ? '' : String(it.quantity)}
+                  onChange={(e) => updateAt(i, { quantity: e.target.value as any })}
                   className="min-w-0 w-full max-w-full"
                 />
               </div>

@@ -94,6 +94,13 @@ services:
         # Cookie
         REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE}
         REFRESH_COOKIE_DOMAIN: ${DOMAIN}
+
+        # Export
+        EXPORTS_DIR: /app/exports
+        EXPORT_JOB_TIMEOUT_SECONDS: ${EXPORT_JOB_TIMEOUT_SECONDS:-300}
+        EXPORT_BATCH_SIZE: ${EXPORT_BATCH_SIZE:-500}
+    volumes:
+      - exports_data:/app/exports
     depends_on:
       db:
         condition: service_healthy
@@ -184,6 +191,7 @@ services:
 
 volumes:
   letsencrypt: {}
+  exports_data: {}
 
 networks:
   app-net:

@@ -1,10 +1,77 @@
 # Migrazione su nuovo VPS
 
+Sono disponibili due procedure. Scegli in base alla situazione:
+
+| | Procedura A — copia diretta | Procedura B — restore da Restic |
+|---|---|---|
+| **Quando usarla** | Hai accesso SSH a entrambi i VPS contemporaneamente | Hai solo accesso al bucket S3 (es. disaster recovery) |
+| **Complessità** | Più semplice | Più articolata |
+| **Tempo** | Più rapido (nessun dump/import) | Più lento |
+
+---
+
+## Procedura A — Copia diretta dei dati (più semplice)
+
+### A1. Sul vecchio VPS — esegui un backup finale e ferma tutto
+
+Assicurati di avere uno snapshot aggiornato, poi ferma MySQL per garantire la consistenza dei file prima della copia.
+
+```bash
+docker compose run --rm db_backup /usr/local/bin/backup.sh
+docker compose stop
+```
+
+### A2. Copia le cartelle dati sul nuovo VPS
+
+Usa `rsync` per preservare i permessi. Con `scp -r` i permessi possono andare persi e MySQL potrebbe non avviarsi.
+
+```bash
+rsync -av --archive database/ user@<IP_NUOVO_VPS>:/path/to/project/database/
+rsync -av --archive status/  user@<IP_NUOVO_VPS>:/path/to/project/status/
+```
+
+> Copiare `status/` è utile: il sentinel troverà un heartbeat recente e non bloccherà l'app durante l'avvio.
+
+### A3. Sul nuovo VPS — clona il progetto e configura `.env`
+
+```bash
+git clone <repo-url>
+cd orders-tracker
+cp .env.example .env
+```
+
+Compila `.env` con le **stesse credenziali** del vecchio VPS.
+
+### A4. Sul nuovo VPS — avvia tutti i servizi
+
+Il repository Restic esiste già nel bucket (stesso `RESTIC_REPOSITORY`), quindi **non eseguire** `restic init`.
+
+```bash
+# Deploy HTTP
+docker compose up -d
+
+# oppure Deploy HTTPS
+docker compose --profile prod up -d
+```
+
+### A5. Verifica finale
+
+```bash
+docker compose exec db_backup /usr/local/bin/backup.sh
+docker compose run --rm db_backup restic snapshots --last
+```
+
+Confermato che tutto funziona, spegni il vecchio VPS.
+
+---
+
+## Procedura B — Restore da backup Restic
+
 > **Principio fondamentale:** i due VPS non devono mai scrivere sul bucket contemporaneamente con lo stesso host tag. Il rischio è che `restic forget --prune` sul nuovo VPS (con DB vuoto) poti snapshot validi del vecchio VPS.
 
 ---
 
-## 1. Sul vecchio VPS — esegui un backup finale
+## B1. Sul vecchio VPS — esegui un backup finale
 
 Assicurati di avere uno snapshot aggiornato prima di toccare qualsiasi cosa.
 
@@ -20,7 +87,7 @@ docker compose run --rm db_backup restic snapshots --last
 
 ---
 
-## 2. Sul vecchio VPS — ferma il servizio di backup
+## B2. Sul vecchio VPS — ferma il servizio di backup
 
 Impedisce che il vecchio VPS continui a scrivere sul bucket mentre il nuovo è in fase di setup.
 
@@ -32,7 +99,7 @@ docker compose stop db_backup
 
 ---
 
-## 3. Sul nuovo VPS — clona il progetto e configura `.env`
+## B3. Sul nuovo VPS — clona il progetto e configura `.env`
 
 Prepara l'ambiente con le stesse credenziali del vecchio VPS in modo da poter accedere agli snapshot esistenti nel bucket.
 
@@ -52,7 +119,7 @@ RESTIC_HOST_TAG=orders-db-backup-migration
 
 ---
 
-## 4. Sul nuovo VPS — avvia solo il database
+## B4. Sul nuovo VPS — avvia solo il database
 
 Avvia MySQL prima di fare il restore, così il DB è pronto a ricevere i dati. Gli altri servizi restano fermi per evitare che il backup gate (sentinel) parta con un DB ancora vuoto.
 
@@ -68,7 +135,7 @@ docker compose logs db --tail 20
 
 ---
 
-## 5. Sul nuovo VPS — ripristina il database dal backup
+## B5. Sul nuovo VPS — ripristina il database dal backup
 
 Scarica l'ultimo snapshot dal bucket S3 e lo importa direttamente nel DB.
 
@@ -89,7 +156,7 @@ docker compose exec db sh -lc \
 
 ---
 
-## 6. Sul nuovo VPS — avvia tutti i servizi
+## B6. Sul nuovo VPS — avvia tutti i servizi
 
 Ripristina il tag definitivo nel `.env` in modo che la retention policy sul nuovo VPS gestisca gli snapshot nello stesso gruppo del vecchio:
 
@@ -109,7 +176,7 @@ docker compose --profile prod up -d
 
 ---
 
-## 7. Verifica finale
+## B7. Verifica finale
 
 Controlla che l'app funzioni e che il primo backup del nuovo VPS vada a buon fine.
 
@@ -123,13 +190,13 @@ docker compose run --rm db_backup restic snapshots --last
 
 ---
 
-## 8. Spegni il vecchio VPS
+## B8. Spegni il vecchio VPS
 
 Solo dopo aver verificato che tutto funziona, spegni o distruggi il vecchio VPS.
 
 ---
 
-## 9. Rimuovi gli snapshot temporanei di migrazione
+## B9. Rimuovi gli snapshot temporanei di migrazione
 
 Gli snapshot creati durante la migrazione con `RESTIC_HOST_TAG=orders-db-backup-migration` non rientrano nella retention policy normale e vanno rimossi manualmente.
 

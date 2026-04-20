@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
+import { FileDown } from 'lucide-react';
 import {
   Select,
   SelectTrigger,
@@ -19,6 +20,7 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { euro } from '../utils/currency';
+import { downloadDdt } from '../../orders/utils/downloadDdt';
 
 /* --------------------------------- Helpers --------------------------------- */
 
@@ -420,10 +422,21 @@ export default function DailySummaryCard() {
                       <ul className="space-y-2">
                         {g.orders.map((ord) => (
                           <li key={ord.id} className="py-3 border-b last:border-none space-y-2">
-                            {/* Top row: Order ID (left) and Total (right) on the same baseline */}
+                            {/* Top row: Order ID (left) and Total + DDT button (right) */}
                             <div className="flex items-center justify-between text-sm">
                               <div className="text-xs text-muted-foreground">Ordine #{ord.id}</div>
-                              <div className="font-semibold whitespace-nowrap">Totale: {euro(ord.total_amount)}</div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                  onClick={() => downloadDdt(ord.id, (msg) => setInlineError(msg))}
+                                  title="Scarica DDT"
+                                >
+                                  <FileDown className="h-3.5 w-3.5" />
+                                </Button>
+                                <div className="font-semibold whitespace-nowrap">Totale: {euro(ord.total_amount)}</div>
+                              </div>
                             </div>
 
                             {/* Note (shown only when present) */}

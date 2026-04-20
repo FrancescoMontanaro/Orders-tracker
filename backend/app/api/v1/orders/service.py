@@ -1,7 +1,10 @@
+import fitz
+from pathlib import Path
 from datetime import date
 from typing import Optional, Dict, List, Tuple, Any
 from sqlalchemy import select, delete, asc, desc, func
 
+from .utils import format_it_number
 from ....db.session import db_session
 from ....db.orm.product import ProductORM
 from ....db.orm.customer import CustomerORM
@@ -200,9 +203,8 @@ async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
             # Map the items to the order
             o.items = items_by_order.get(o.id, [])
 
-            # Compute subtotal and total amount
-            subtotal = sum(it.quantity * it.unit_price for it in o.items)
-            o.total_amount = round(subtotal * (1 - (o.applied_discount or 0) / 100), 2)
+            # Compute the total amount with discount for the order
+            o.total_amount = round(o.total_amount_with_discount, 2)
 
         # Return the paginated result
         return Pagination(total=total, items=orders)
@@ -284,8 +286,7 @@ async def get_order_by_id(order_id: int) -> Optional[Order]:
             order.items.append(pyd)
 
         # Compute subtotal and total amount
-        subtotal = sum(it.quantity * it.unit_price for it in order.items)
-        order.total_amount = round(subtotal * (1 - (order.applied_discount or 0) / 100), 2)
+        order.total_amount = round(order.total_amount_with_discount, 2)
 
         # Return the complete order
         return order
@@ -510,3 +511,77 @@ async def delete_order(order_id: int) -> bool:
 
         # Return True to indicate successful deletion
         return True
+
+
+async def generate_ddt_pdf(order_id: int, output_file: str) -> None:
+    """
+    Generate a DDT PDF for the given order ID.
+
+    Params:
+    - order_id (int): The ID of the order to generate the DDT for.
+    - output_file (str): The path where the generated PDF will be saved.
+    """
+
+    # Constants
+    max_allowed_items = 16
+
+    # Get the order details (you can expand this to include more data as needed)
+    order = await get_order_by_id(order_id)
+
+    # Check if the order exists
+    if not order:
+        raise ValueError("Order not found")
+    
+    # Check if the order has too many items for the template
+    if len(order.items) > max_allowed_items:
+        raise ValueError(f"Order has {len(order.items)} items, which exceeds the maximum allowed for DDT generation ({max_allowed_items})")
+
+    # Compose the path to the input PDF template
+    ddt_template_file = Path(__file__).parent / "resources" / "ddt_template.pdf"
+
+    # Build the full fields map
+    fields: Dict[str, str] = {
+        "Text2": str(order.id),
+        "Text3": order.delivery_date.strftime("%d/%m/%Y"),
+        "Text4": order.customer_name or "N/A",
+        "Text7": str(order.id),
+        "Text8": order.delivery_date.strftime("%d/%m/%Y"),
+        "Text64": f"Totale (€): {format_it_number(order.total_amount_with_discount)}",
+    }
+
+    # Fill item fields (up to max_allowed_items)
+    for idx, item in enumerate(order.items):
+        fields[f"Text{9 + idx * 3 + 0}"] = format_it_number(item.quantity)
+        fields[f"Text{9 + idx * 3 + 1}"] = format_it_number(item.quantity * item.unit_price)
+        fields[f"Text{9 + idx * 3 + 2}"] = item.product_name + (f" (Lotto: {item.lot_date.strftime('%d/%m/%Y')})" if item.lot_date else "")
+
+    # Open the PDF template using PyMuPDF
+    doc = fitz.open(str(ddt_template_file))
+    page = doc[0]
+
+    # Fill the form fields with the order data
+    for widget in page.widgets():
+        # Skip fields that are not in our mapping
+        if widget.field_name is None:
+            continue
+
+        # Get the value for the field from the mapping
+        value = fields.get(widget.field_name)
+
+        # Update the field value if there is a corresponding value in the mapping
+        if value is not None:
+            widget.field_value = value  # type: ignore[assignment]
+            widget.update()
+
+    # Render using PyMuPDF's internal engine, which correctly reads /AP streams.
+    pix = page.get_pixmap(dpi=200, alpha=False) # type: ignore
+
+    # Create a new PDF document and insert the rendered page as an image
+    out_doc = fitz.open()
+
+    # Insert the rendered page as an image into the new PDF
+    out_page = out_doc.new_page(width=page.rect.width, height=page.rect.height) # type: ignore
+    out_page.insert_image(out_page.rect, pixmap=pix)
+    out_doc.save(output_file, deflate=True)
+    out_doc.close()
+    doc.close()

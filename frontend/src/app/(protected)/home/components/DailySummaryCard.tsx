@@ -244,6 +244,7 @@ export default function DailySummaryCard() {
         orders: [] as CustomerOrderRow[],
       };
 
+      const discountFactor = 1 - (Number(o.applied_discount ?? 0) / 100);
       entry.orders.push({
         id: o.id,
         status: o.status,
@@ -257,7 +258,7 @@ export default function DailySummaryCard() {
             quantity: qty,
             unit: (it.unit ?? undefined) as any,
             unit_price: price,
-            subtotal: round2(qty * price),
+            subtotal: round2(qty * price * discountFactor),
           };
         }),
       });

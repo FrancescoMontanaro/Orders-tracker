@@ -46,6 +46,7 @@ type OrderRow = {
   customer_name: string;
   delivery_date: string; // YYYY-MM-DD
   status: 'created' | 'delivered';
+  applied_discount?: number | null;
   note?: string | null;
   items: OrderItemRow[];
 };
@@ -104,6 +105,7 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
       // Append a customer row for this order item (carry unit_price + amount for totals)
       const unitPrice = Number(it.unit_price ?? 0);
       const qty = Number(it.quantity || 0);
+      const discountFactor = 1 - (Number(o.applied_discount ?? 0) / 100);
       p.customers.push({
         order_id: o.id,
         customer_id: o.customer_id,
@@ -111,7 +113,7 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
         quantity: qty,
         order_status: o.status,
         unit_price: unitPrice,
-        amount: unitPrice * qty,
+        amount: unitPrice * qty * discountFactor,
         order_note: o.note ?? null,
       } as any);
     }

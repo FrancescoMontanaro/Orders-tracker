@@ -47,7 +47,7 @@ async def report_product_sales(payload: ProductSalesRequest) -> List[ProductSale
                 ProductORM.name.label("product_name"),
                 ProductORM.unit.label("unit"),
                 func.sum(OrderItemORM.quantity).label("total_qty"),
-                func.sum(OrderItemORM.quantity * OrderItemORM.unit_price).label("revenue"),
+                func.sum(OrderItemORM.quantity * OrderItemORM.unit_price * (1 - (func.coalesce(OrderORM.applied_discount, 0) / 100.0))).label("revenue"),
             )
             .join(OrderItemORM, OrderItemORM.product_id == ProductORM.id)
             .join(OrderORM, OrderORM.id == OrderItemORM.order_id)

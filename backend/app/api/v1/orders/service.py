@@ -309,9 +309,8 @@ async def create_order(payload: OrderCreate) -> Optional[Order]:
         if not await session.get(CustomerORM, payload.customer_id):
             raise ValueError("Customer not found")
 
-        # Prepare items and total (merge duplicates)
+        # Prepare items (merge duplicates)
         items_orm: list[OrderItemORM] = []
-        total = 0.0
 
         # Aggregate quantities by product_id
         agg: Dict[Tuple[int, Optional[int]], Dict[str, Any]] = {}
@@ -330,7 +329,6 @@ async def create_order(payload: OrderCreate) -> Optional[Order]:
             unit_price = float(prod.unit_price) if data["unit_price"] is None else float(data["unit_price"])
             if lot_id is not None and not await session.get(LotORM, lot_id):
                 raise ValueError(f"Lot {lot_id} not found")
-            total += unit_price * data["quantity"]
             items_orm.append(
                 OrderItemORM(
                     product_id=pid,
@@ -458,20 +456,6 @@ async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
         if payload.applied_discount is not None:
             order_orm.applied_discount = payload.applied_discount
 
-        # Recompute the subtotal from the current items
-        subtotal_stmt = (
-            select(func.coalesce(func.sum(OrderItemORM.quantity * OrderItemORM.unit_price), 0))
-            .where(OrderItemORM.order_id == order_orm.id)
-        )
-
-        # Compute the subtotal
-        subtotal = float(await session.scalar(subtotal_stmt) or 0.0)
-
-        # Apply the current discount
-        discount_pct = float(order_orm.applied_discount or 0.0)
-        total = subtotal * (1.0 - discount_pct / 100.0)
-        total = round(total, 2)
-
         # Commit the transaction
         await session.commit()
         await session.refresh(order_orm)
@@ -550,9 +534,10 @@ async def generate_ddt_pdf(order_id: int, output_file: str) -> None:
     }
 
     # Fill item fields (up to max_allowed_items)
+    discount_factor = 1.0 - (float(order.applied_discount or 0.0) / 100.0)
     for idx, item in enumerate(order.items):
         fields[f"Text{9 + idx * 3 + 0}"] = format_it_number(item.quantity)
-        fields[f"Text{9 + idx * 3 + 1}"] = format_it_number(item.quantity * item.unit_price)
+        fields[f"Text{9 + idx * 3 + 1}"] = format_it_number(item.quantity * item.unit_price * discount_factor)
         fields[f"Text{9 + idx * 3 + 2}"] = item.product_name + (f" (Lotto: {item.lot_date.strftime('%d/%m/%Y')})" if item.lot_date else "")
 
     # Open the PDF template using PyMuPDF

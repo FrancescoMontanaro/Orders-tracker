@@ -11,7 +11,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
-import { FileDown } from 'lucide-react';
+import { FileDown, Pencil } from 'lucide-react';
+import { EditOrderDialog } from '../../orders/components/EditOrderDialog';
+import type { Order } from '../../orders/types/order';
 import {
   Select,
   SelectTrigger,
@@ -122,6 +124,8 @@ export default function DailySummaryCard() {
   const [loading, setLoading] = React.useState(false);
   const [orders, setOrders] = React.useState<OrderRow[]>([]);
   const [error, setError] = React.useState<string | null>(null);
+  const [editOrder, setEditOrder] = React.useState<Order | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
 
   // Toggle: product grouping (default=false)
   const [groupByCustomer, setGroupByCustomer] = React.useState(false);
@@ -310,6 +314,7 @@ export default function DailySummaryCard() {
   /* --------------------------------- Render --------------------------------- */
 
   return (
+    <>
     <Card>
       {/* Header: title and date controls */}
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 min-w-0 max-w-full overflow-hidden">
@@ -435,6 +440,18 @@ export default function DailySummaryCard() {
                                   title="Scarica DDT"
                                 >
                                   <FileDown className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    setEditOrder({ id: ord.id } as Order);
+                                    setEditOpen(true);
+                                  }}
+                                  title="Modifica ordine"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
                                 </Button>
                                 <div className="font-semibold whitespace-nowrap">Totale: {euro(ord.total_amount)}</div>
                               </div>
@@ -577,5 +594,20 @@ export default function DailySummaryCard() {
         )}
       </CardContent>
     </Card>
+    <EditOrderDialog
+      open={editOpen}
+      onOpenChange={setEditOpen}
+      order={editOrder}
+      onSaved={() => {
+        setEditOpen(false);
+        load(date);
+      }}
+      onDeleted={() => {
+        setEditOpen(false);
+        load(date);
+      }}
+      onError={(msg) => setInlineError(msg)}
+    />
+    </>
   );
 }

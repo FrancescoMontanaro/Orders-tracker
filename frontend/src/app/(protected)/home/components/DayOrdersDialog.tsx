@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { Pencil } from 'lucide-react';
+import { FileDown, Pencil } from 'lucide-react';
+import { downloadDdt } from '../../orders/utils/downloadDdt';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -68,6 +69,8 @@ export default function DayOrdersDialog({
   onNewOrder: () => void;
   onEditOrder?: (orderId: number) => void;
 }) {
+  const [ddtError, setDdtError] = React.useState<string | null>(null);
+
   if (!dateISO) return null;
 
   // Count individual orders delivered vs pending
@@ -111,6 +114,13 @@ export default function DayOrdersDialog({
           )}
         </div>
 
+        {/* DDT download error */}
+        {ddtError && (
+          <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300 shrink-0">
+            {ddtError}
+          </div>
+        )}
+
         {/* Scrollable list — one card per customer */}
         <div className="flex-1 overflow-y-auto space-y-3 pr-1">
           {customerGroups.map((g) => (
@@ -128,23 +138,34 @@ export default function DayOrdersDialog({
               <div className="divide-y">
                 {g.orders.map((ord, idx) => (
                   <div key={ord.order_id} className="px-3 py-2">
-                    {/* Sub-header: order label + edit button */}
+                    {/* Sub-header: order label + DDT + edit buttons */}
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <StatusDot delivered={ord.delivered} />
                         <span className="font-medium text-foreground">Ordine #{ord.order_id}</span>
                       </div>
-                      {onEditOrder && (
+                      <div className="flex items-center">
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                          onClick={() => onEditOrder(ord.order_id)}
-                          title="Modifica ordine"
+                          onClick={() => downloadDdt(ord.order_id, setDdtError)}
+                          title="Scarica DDT"
                         >
-                          <Pencil className="h-3.5 w-3.5" />
+                          <FileDown className="h-3.5 w-3.5" />
                         </Button>
-                      )}
+                        {onEditOrder && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                            onClick={() => onEditOrder(ord.order_id)}
+                            title="Modifica ordine"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Items */}

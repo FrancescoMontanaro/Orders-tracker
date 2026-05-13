@@ -1,4 +1,6 @@
+import tempfile
 from datetime import date
+from fastapi.responses import FileResponse
 from typing import Optional, Dict, List, Any
 from fastapi import APIRouter, status, HTTPException, Query
 
@@ -13,6 +15,7 @@ from .service import (
     create_order as create_order_service,
     update_order as update_order_service,
     delete_order as delete_order_service,
+    generate_ddt_pdf as generate_ddt_pdf_service
 )
 
 # Create the router
@@ -184,3 +187,30 @@ async def delete_order(order_id: int) -> SuccessResponse[None]:
 
     # Return the success response
     return SuccessResponse(data=None)
+
+
+@router.get(
+    path = "/{order_id}/ddt",
+    response_class = FileResponse
+)
+async def generate_ddt_pdf(order_id: int) -> FileResponse:
+    """
+    Generate a DDT PDF for the given order ID and return it as a file response.
+
+    Parameters:
+    - order_id (int): The ID of the order for which to generate the DDT PDF.
+
+    Returns:
+    - FileResponse: The response containing the generated DDT PDF file.
+    """
+
+    # Create a temporary file to save the generated PDF
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+        # Get the path to the temporary file
+        output_file = temp_file.name
+
+        # Generate the DDT PDF using the service
+        await generate_ddt_pdf_service(order_id, output_file)
+
+        # Return the generated PDF as a file response
+        return FileResponse(path=output_file, filename=f"ddt_ordine_{order_id}.pdf", media_type="application/pdf")

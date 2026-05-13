@@ -560,6 +560,31 @@
           "response": []
         },
         {
+          "name": "/orders/{order_id}/ddt",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/:order_id/ddt",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                ":order_id",
+                "ddt"
+              ],
+              "variable": [
+                {
+                  "key": "order_id",
+                  "value": "48"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "/orders",
           "request": {
             "method": "POST",

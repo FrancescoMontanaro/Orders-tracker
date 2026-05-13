@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from fastapi import FastAPI
+from typing import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from ..db import BaseORM, engine
@@ -30,7 +31,7 @@ async def _stale_jobs_watchdog() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan event handler.
     """

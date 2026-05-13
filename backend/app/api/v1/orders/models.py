@@ -44,6 +44,19 @@ class Order(BaseModel):
     class Config:
         from_attributes = True
 
+    # Properties
+    @property
+    def total_amount_with_discount(self) -> float:
+        """
+        Compute the total amount of the order, applying the discount.
+        """
+
+        # Compute the subtotal as the sum of (quantity * unit_price) for all items
+        subtotal = sum(it.quantity * it.unit_price for it in self.items)
+
+        # Apply the discount to the subtotal and round to 2 decimal places
+        return subtotal * (1 - (self.applied_discount or 0) / 100)
+
 
 class OrderItemCreate(BaseModel):
     """

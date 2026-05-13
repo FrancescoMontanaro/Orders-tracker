@@ -11,6 +11,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
+import { FileDown, Pencil } from 'lucide-react';
+import { EditOrderDialog } from '../../orders/components/EditOrderDialog';
+import type { Order } from '../../orders/types/order';
 import {
   Select,
   SelectTrigger,
@@ -19,6 +22,7 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { euro } from '../utils/currency';
+import { downloadDdt } from '../../orders/utils/downloadDdt';
 
 /* --------------------------------- Helpers --------------------------------- */
 
@@ -120,6 +124,8 @@ export default function DailySummaryCard() {
   const [loading, setLoading] = React.useState(false);
   const [orders, setOrders] = React.useState<OrderRow[]>([]);
   const [error, setError] = React.useState<string | null>(null);
+  const [editOrder, setEditOrder] = React.useState<Order | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
 
   // Toggle: product grouping (default=false)
   const [groupByCustomer, setGroupByCustomer] = React.useState(false);
@@ -242,6 +248,7 @@ export default function DailySummaryCard() {
         orders: [] as CustomerOrderRow[],
       };
 
+      const discountFactor = 1 - (Number(o.applied_discount ?? 0) / 100);
       entry.orders.push({
         id: o.id,
         status: o.status,
@@ -255,7 +262,7 @@ export default function DailySummaryCard() {
             quantity: qty,
             unit: (it.unit ?? undefined) as any,
             unit_price: price,
-            subtotal: round2(qty * price),
+            subtotal: round2(qty * price * discountFactor),
           };
         }),
       });
@@ -307,6 +314,7 @@ export default function DailySummaryCard() {
   /* --------------------------------- Render --------------------------------- */
 
   return (
+    <>
     <Card>
       {/* Header: title and date controls */}
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 min-w-0 max-w-full overflow-hidden">
@@ -420,10 +428,33 @@ export default function DailySummaryCard() {
                       <ul className="space-y-2">
                         {g.orders.map((ord) => (
                           <li key={ord.id} className="py-3 border-b last:border-none space-y-2">
-                            {/* Top row: Order ID (left) and Total (right) on the same baseline */}
+                            {/* Top row: Order ID (left) and Total + DDT button (right) */}
                             <div className="flex items-center justify-between text-sm">
                               <div className="text-xs text-muted-foreground">Ordine #{ord.id}</div>
-                              <div className="font-semibold whitespace-nowrap">Totale: {euro(ord.total_amount)}</div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                  onClick={() => downloadDdt(ord.id, (msg) => setInlineError(msg))}
+                                  title="Scarica DDT"
+                                >
+                                  <FileDown className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    setEditOrder({ id: ord.id } as Order);
+                                    setEditOpen(true);
+                                  }}
+                                  title="Modifica ordine"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <div className="font-semibold whitespace-nowrap">Totale: {euro(ord.total_amount)}</div>
+                              </div>
                             </div>
 
                             {/* Note (shown only when present) */}
@@ -563,5 +594,20 @@ export default function DailySummaryCard() {
         )}
       </CardContent>
     </Card>
+    <EditOrderDialog
+      open={editOpen}
+      onOpenChange={setEditOpen}
+      order={editOrder}
+      onSaved={() => {
+        setEditOpen(false);
+        load(date);
+      }}
+      onDeleted={() => {
+        setEditOpen(false);
+        load(date);
+      }}
+      onError={(msg) => setInlineError(msg)}
+    />
+    </>
   );
 }

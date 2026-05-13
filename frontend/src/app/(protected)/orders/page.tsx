@@ -660,6 +660,7 @@ export default function OrdersPage() {
         onOpenChange={handleViewOpenChange}
         order={viewOrder}
         onRequestEdit={onEdit}
+        onError={(msg) => setGlobalError(msg)}
       />
       <AddOrderDialog
         open={addOpen}

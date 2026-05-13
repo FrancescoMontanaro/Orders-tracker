@@ -14,6 +14,7 @@ import {
 import { MoreHorizontal } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { Order } from '../types/order';
+import { downloadDdt } from '../utils/downloadDdt';
 
 /**
  * Per-row actions dropdown: Edit / Delete.
@@ -52,6 +53,7 @@ export function RowActions({
         <DropdownMenuContent align="end" side="bottom" className="min-w-[10rem]">
           <DropdownMenuItem onClick={() => onView(order)}>Visualizza</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onEdit(order)}>Modifica</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => downloadDdt(order.id, onError)}>Scarica DDT</DropdownMenuItem>
           <DropdownMenuItem className="text-red-600" onClick={requestDeleteOne}>
             Elimina
           </DropdownMenuItem>

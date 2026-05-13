@@ -4,6 +4,7 @@ import * as React from 'react';
 import type { Order } from '../types/order';
 import { euro } from '../utils/currency';
 import { fmtDate } from '../utils/date';
+import { downloadDdt } from '../utils/downloadDdt';
 import { formatUnit } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,6 +30,7 @@ type Props = {
   onOpenChange: (o: boolean) => void;
   order: Order | null;
   onRequestEdit: (order: Order) => void;
+  onError: (msg: string) => void;
 };
 
 export function ViewOrderDialog({
@@ -36,6 +38,7 @@ export function ViewOrderDialog({
   onOpenChange,
   order,
   onRequestEdit,
+  onError,
 }: Props) {
   const handleEdit = React.useCallback(() => {
     if (!order) return;
@@ -154,9 +157,21 @@ export function ViewOrderDialog({
           <DialogClose asChild>
             <Button variant="outline">Chiudi</Button>
           </DialogClose>
-          <Button onClick={handleEdit} disabled={!order}>
-            Modifica
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              disabled={!order}
+              onClick={() => {
+                if (!order) return;
+                downloadDdt(order.id, onError);
+              }}
+            >
+              Scarica DDT
+            </Button>
+            <Button onClick={handleEdit} disabled={!order}>
+              Modifica
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

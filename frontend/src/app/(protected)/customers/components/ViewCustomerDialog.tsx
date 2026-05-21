@@ -71,6 +71,18 @@ export function ViewCustomerDialog({
                   </span>
                 )}
               />
+
+              <div className="border-t pt-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-3">Preferenze</p>
+                <Field
+                  label="Precompilazione quantità sul DDT"
+                  value={
+                    (customer.preferences?.ddt_include_quantity ?? true)
+                      ? 'Inclusa'
+                      : 'Non inclusa'
+                  }
+                />
+              </div>
             </>
           )}
         </div>

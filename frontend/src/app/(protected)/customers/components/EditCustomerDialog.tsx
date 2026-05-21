@@ -6,6 +6,7 @@ import type { Customer } from '../types/customer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import {
@@ -29,6 +30,9 @@ export function EditCustomerDialog({
 }) {
   const [name, setName] = React.useState(customer?.name ?? '');
   const [isActive, setIsActive] = React.useState<boolean>(customer?.is_active ?? true);
+  const [ddtIncludeQuantity, setDdtIncludeQuantity] = React.useState<boolean>(
+    customer?.preferences?.ddt_include_quantity ?? true
+  );
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
 
@@ -46,6 +50,7 @@ export function EditCustomerDialog({
     if (open && customer) {
       setName(customer.name);
       setIsActive(customer.is_active);
+      setDdtIncludeQuantity(customer.preferences?.ddt_include_quantity ?? true);
       setLocalError(null);
     }
   }, [open, customer]);
@@ -62,6 +67,9 @@ export function EditCustomerDialog({
       await api.patch(`/customers/${customer.id}`, {
         name: name.trim(),
         is_active: isActive,
+      });
+      await api.patch(`/customers/${customer.id}/preferences`, {
+        ddt_include_quantity: ddtIncludeQuantity,
       });
       onOpenChange(false);
       onSaved();
@@ -119,6 +127,20 @@ export function EditCustomerDialog({
                     <SelectItem value="inactive">Non attivo</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="border-t pt-3 grid gap-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Preferenze</p>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="ddt-include-quantity"
+                    checked={ddtIncludeQuantity}
+                    onCheckedChange={setDdtIncludeQuantity}
+                  />
+                  <label htmlFor="ddt-include-quantity" className="text-sm cursor-pointer select-none">
+                    Precompilazione quantità sul DDT
+                  </label>
+                </div>
               </div>
 
               {localError && <p className="text-sm text-red-600">{localError}</p>}

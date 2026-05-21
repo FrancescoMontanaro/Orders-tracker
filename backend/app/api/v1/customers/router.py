@@ -3,8 +3,8 @@ from typing import Optional, Dict, List, Any
 from fastapi import APIRouter, status, HTTPException
 
 from ....core.response_models import SuccessResponse
-from .models import Customer, CustomerCreate, CustomerUpdate
 from ....models import Pagination, SortParam, ListingQueryParams
+from .models import Customer, CustomerCreate, CustomerUpdate, CustomerPreferences, CustomerPreferencesUpdate
 
 # Import service functions
 from .service import (
@@ -12,6 +12,7 @@ from .service import (
     get_customer_by_id as get_customer_by_id_service,
     create_customer as create_customer_service,
     update_customer as update_customer_service,
+    update_customer_preferences as update_customer_preferences_service,
     delete_customer as delete_customer_service,
     customer_has_orders as customer_has_orders_service
 )
@@ -117,6 +118,34 @@ async def create_customer(customer_create: CustomerCreate) -> SuccessResponse[Cu
 
     # Return the created customer
     return SuccessResponse(data=created_customer)
+
+
+@router.patch(
+    path = "/{customer_id}/preferences",
+    response_model = SuccessResponse[CustomerPreferences]
+)
+async def update_customer_preferences(customer_id: int, preferences_update: CustomerPreferencesUpdate) -> SuccessResponse[CustomerPreferences]:
+    """
+    Update the preferences of an existing customer.
+
+    Args:
+        customer_id (int): The ID of the customer whose preferences to update.
+        preferences_update (CustomerPreferencesUpdate): The updated preferences data.
+
+    Returns:
+        SuccessResponse[CustomerPreferences]: The updated customer preferences.
+    """
+
+    # Call the service function to update customer preferences
+    result = await update_customer_preferences_service(customer_id, preferences_update)
+
+    # Check if the customer was found
+    if not result:
+        # Raise a 404 error if the customer was not found
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente non trovato")
+
+    # Return the updated preferences
+    return SuccessResponse(data=result)
 
 
 @router.patch(

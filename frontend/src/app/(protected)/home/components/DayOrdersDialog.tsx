@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { FileDown, Pencil } from 'lucide-react';
+import { FileDown, Loader2, Pencil } from 'lucide-react';
 import { downloadDdt } from '../../orders/utils/downloadDdt';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -70,6 +70,7 @@ export default function DayOrdersDialog({
   onEditOrder?: (orderId: number) => void;
 }) {
   const [ddtError, setDdtError] = React.useState<string | null>(null);
+  const [ddtLoadingIds, setDdtLoadingIds] = React.useState<Set<number>>(new Set());
 
   if (!dateISO) return null;
 
@@ -149,10 +150,17 @@ export default function DayOrdersDialog({
                           variant="ghost"
                           size="sm"
                           className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                          onClick={() => downloadDdt(ord.order_id, setDdtError)}
+                          disabled={ddtLoadingIds.has(ord.order_id)}
+                          onClick={async () => {
+                            setDdtLoadingIds(prev => new Set(prev).add(ord.order_id));
+                            await downloadDdt(ord.order_id, setDdtError);
+                            setDdtLoadingIds(prev => { const s = new Set(prev); s.delete(ord.order_id); return s; });
+                          }}
                           title="Scarica DDT"
                         >
-                          <FileDown className="h-3.5 w-3.5" />
+                          {ddtLoadingIds.has(ord.order_id)
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <FileDown className="h-3.5 w-3.5" />}
                         </Button>
                         {onEditOrder && (
                           <Button

@@ -9,11 +9,44 @@ from ....db.session import db_session
 from ....db.orm.product import ProductORM
 from ....db.orm.customer import CustomerORM
 from .constants import ALLOWED_SORTING_FIELDS
-from ....db.orm import OrderORM, OrderItemORM
 from ....db.orm.lot import LotORM
 from ....models import Pagination, ListingQueryParams
 from .models import Order, OrderCreate, OrderUpdate, OrderItem
+from ....db.orm import OrderORM, OrderItemORM, CustomerPreferencesORM
 
+
+# ======================================== #
+# ======= Internal helper functions ====== #
+# ======================================== #
+
+async def _get_customer_preferences(session, customer_id: int) -> Optional[CustomerPreferencesORM]:
+    """
+    Fetch customer preferences for DDT rendering options.
+    
+    Params:
+    - session: The database session to use for the query.
+    - customer_id (int): The ID of the customer whose preferences to fetch.
+    
+    Returns:
+    - Optional[CustomerPreferencesORM]: The customer preferences if found, None otherwise.
+    """
+
+    # Fetch customer preferences to determine DDT rendering options
+    async with db_session() as session:
+        prefs_result = await session.execute(
+            select(CustomerPreferencesORM).where(CustomerPreferencesORM.customer_id == customer_id)
+        )
+
+        # Extract the preferences or return None if not found
+        prefs = prefs_result.scalar_one_or_none()
+
+    # Return the preferences
+    return prefs
+
+
+# ======================================== #
+# ======= Service layer functions ======== #
+# ======================================== #
 
 async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
     """
@@ -515,10 +548,16 @@ async def generate_ddt_pdf(order_id: int, output_file: str) -> None:
     # Check if the order exists
     if not order:
         raise ValueError("Order not found")
-    
+
     # Check if the order has too many items for the template
     if len(order.items) > max_allowed_items:
         raise ValueError(f"Order has {len(order.items)} items, which exceeds the maximum allowed for DDT generation ({max_allowed_items})")
+
+    # Fetch customer preferences for DDT rendering options
+    prefs = await _get_customer_preferences(db_session, order.customer_id)
+
+    # Default to True if no preferences row exists (backwards compatibility)
+    ddt_include_quantity = prefs.ddt_include_quantity if prefs else True
 
     # Compose the path to the input PDF template
     ddt_template_file = Path(__file__).parent / "resources" / "ddt_template.pdf"
@@ -536,7 +575,7 @@ async def generate_ddt_pdf(order_id: int, output_file: str) -> None:
     # Fill item fields (up to max_allowed_items)
     discount_factor = 1.0 - (float(order.applied_discount or 0.0) / 100.0)
     for idx, item in enumerate(order.items):
-        fields[f"Text{9 + idx * 3 + 0}"] = format_it_number(item.quantity)
+        fields[f"Text{9 + idx * 3 + 0}"] = format_it_number(item.quantity) if ddt_include_quantity else ""
         fields[f"Text{9 + idx * 3 + 1}"] = format_it_number(item.quantity * item.unit_price * discount_factor)
         fields[f"Text{9 + idx * 3 + 2}"] = item.product_name + (f" (Lotto: {item.lot_date.strftime('%d/%m/%Y')})" if item.lot_date else "")
 

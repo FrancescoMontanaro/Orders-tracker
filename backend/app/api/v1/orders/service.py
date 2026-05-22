@@ -577,7 +577,7 @@ async def generate_ddt_pdf(order_id: int, output_file: str) -> None:
     for idx, item in enumerate(order.items):
         fields[f"Text{9 + idx * 3 + 0}"] = format_it_number(item.quantity) if ddt_include_quantity else ""
         fields[f"Text{9 + idx * 3 + 1}"] = format_it_number(item.quantity * item.unit_price * discount_factor)
-        fields[f"Text{9 + idx * 3 + 2}"] = item.product_name + (f" (Lotto: {item.lot_date.strftime('%d/%m/%Y')})" if item.lot_date else "")
+        fields[f"Text{9 + idx * 3 + 2}"] = item.product_name + (f" (Lotto: {item.lot_date.strftime('%d/%m/%Y')})" if item.lot_date else "") if ddt_include_quantity else ""
 
     # Open the PDF template using PyMuPDF
     doc = fitz.open(str(ddt_template_file))

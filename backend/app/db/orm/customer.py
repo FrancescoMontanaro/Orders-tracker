@@ -3,7 +3,9 @@ from typing import TYPE_CHECKING
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import BaseORM
-if TYPE_CHECKING: from .order import OrderORM
+if TYPE_CHECKING:
+    from .order import OrderORM
+    from .customer_preferences import CustomerPreferencesORM
 
 
 class CustomerORM(BaseORM):
@@ -24,4 +26,10 @@ class CustomerORM(BaseORM):
         back_populates = "customer",
         cascade = "all, delete-orphan",
         passive_deletes = True
+    )
+    preferences: Mapped["CustomerPreferencesORM"] = relationship(
+        back_populates = "customer",
+        cascade = "all, delete-orphan",
+        passive_deletes = True,
+        uselist = False
     )

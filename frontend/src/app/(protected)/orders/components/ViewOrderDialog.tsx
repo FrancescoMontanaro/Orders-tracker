@@ -4,6 +4,7 @@ import * as React from 'react';
 import type { Order } from '../types/order';
 import { euro } from '../utils/currency';
 import { fmtDate } from '../utils/date';
+import { Loader2 } from 'lucide-react';
 import { downloadDdt } from '../utils/downloadDdt';
 import { formatUnit } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,8 @@ export function ViewOrderDialog({
   onRequestEdit,
   onError,
 }: Props) {
+  const [ddtLoading, setDdtLoading] = React.useState(false);
+
   const handleEdit = React.useCallback(() => {
     if (!order) return;
     onOpenChange(false);
@@ -160,13 +163,15 @@ export function ViewOrderDialog({
           <div className="flex gap-2">
             <Button
               variant="outline"
-              disabled={!order}
-              onClick={() => {
+              disabled={!order || ddtLoading}
+              onClick={async () => {
                 if (!order) return;
-                downloadDdt(order.id, onError);
+                setDdtLoading(true);
+                await downloadDdt(order.id, onError);
+                setDdtLoading(false);
               }}
             >
-              Scarica DDT
+              {ddtLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Scarica DDT'}
             </Button>
             <Button onClick={handleEdit} disabled={!order}>
               Modifica

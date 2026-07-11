@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
-import { FileDown, Pencil } from 'lucide-react';
+import { FileDown, Loader2, Pencil } from 'lucide-react';
 import { EditOrderDialog } from '../../orders/components/EditOrderDialog';
 import type { Order } from '../../orders/types/order';
 import {
@@ -133,6 +133,7 @@ export default function DailySummaryCard() {
   // Inline status update state
   const [updatingId, setUpdatingId] = React.useState<number | null>(null);
   const [inlineError, setInlineError] = React.useState<string | null>(null);
+  const [ddtLoadingIds, setDdtLoadingIds] = React.useState<Set<number>>(new Set());
 
   // Fetch all orders for the selected date via /orders/list
   async function load(currentDate: string) {
@@ -436,10 +437,17 @@ export default function DailySummaryCard() {
                                   variant="ghost"
                                   size="sm"
                                   className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                                  onClick={() => downloadDdt(ord.id, (msg) => setInlineError(msg))}
+                                  disabled={ddtLoadingIds.has(ord.id)}
+                                  onClick={async () => {
+                                    setDdtLoadingIds(prev => new Set(prev).add(ord.id));
+                                    await downloadDdt(ord.id, (msg) => setInlineError(msg));
+                                    setDdtLoadingIds(prev => { const s = new Set(prev); s.delete(ord.id); return s; });
+                                  }}
                                   title="Scarica DDT"
                                 >
-                                  <FileDown className="h-3.5 w-3.5" />
+                                  {ddtLoadingIds.has(ord.id)
+                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    : <FileDown className="h-3.5 w-3.5" />}
                                 </Button>
                                 <Button
                                   variant="ghost"

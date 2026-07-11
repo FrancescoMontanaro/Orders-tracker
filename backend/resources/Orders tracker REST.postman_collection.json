@@ -219,7 +219,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"filters\": {\n        \"name\": \"V\"\n    },\n    \"sort\": [\n        {\n            \"field\": \"id\",\n            \"order\": \"desc\"\n        }\n    ]\n}",
+              "raw": "{\n    \"sort\": [\n        {\n            \"field\": \"id\",\n            \"order\": \"asc\"\n        }\n    ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -311,6 +311,40 @@
               "path": [
                 "customers",
                 ":customer_id"
+              ],
+              "variable": [
+                {
+                  "key": "customer_id",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "/customers/{customer_id}/preferences",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"ddt_include_quantity\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/customers/:customer_id/preferences",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "customers",
+                ":customer_id",
+                "preferences"
               ],
               "variable": [
                 {

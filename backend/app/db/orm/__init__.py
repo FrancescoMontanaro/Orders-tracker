@@ -1,4 +1,5 @@
 from .customer import CustomerORM
+from .customer_preferences import CustomerPreferencesORM
 from .expense_category import ExpenseCategoryORM
 from .expense import ExpenseORM
 from .export_job import ExportJobORM, ExportStatusEnum, ExportFormatEnum, ExportEntityEnum

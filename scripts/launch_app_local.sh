@@ -14,8 +14,7 @@ trap cleanup EXIT INT TERM
 
 echo "==> Starting backend..."
 cd "$ROOT_DIR/backend"
-source venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
 BACKEND_PID=$!
 
 echo "==> Starting frontend..."

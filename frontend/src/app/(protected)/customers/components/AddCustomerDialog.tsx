@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 
 /**
  * Add dialog; identical validations and API calls as before.
@@ -20,12 +21,14 @@ export function AddCustomerDialog({
   onError: (msg: string) => void;
 }) {
   const [name, setName] = React.useState('');
+  const [ddtIncludeQuantity, setDdtIncludeQuantity] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (open) {
       setName('');
+      setDdtIncludeQuantity(true);
       setLocalError(null);
     }
   }, [open]);
@@ -39,9 +42,15 @@ export function AddCustomerDialog({
     setSaving(true);
     setLocalError(null);
     try {
-      await api.post(
+      const res = await api.post(
         '/customers/',
         { name: name.trim() },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      const createdId: number = res.data?.data?.id;
+      await api.patch(
+        `/customers/${createdId}/preferences`,
+        { ddt_include_quantity: ddtIncludeQuantity },
         { headers: { 'Content-Type': 'application/json' } }
       );
       onOpenChange(false);
@@ -80,6 +89,20 @@ export function AddCustomerDialog({
               onChange={(e) => setName(e.target.value)}
               className="min-w-0 w-full max-w-full"
             />
+          </div>
+
+          <div className="border-t pt-3 grid gap-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Preferenze</p>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="add-ddt-include-quantity"
+                checked={ddtIncludeQuantity}
+                onCheckedChange={setDdtIncludeQuantity}
+              />
+              <label htmlFor="add-ddt-include-quantity" className="text-sm cursor-pointer select-none">
+                Precompilazione quantità sul DDT
+              </label>
+            </div>
           </div>
 
           {localError && <p className="text-sm text-red-600">{localError}</p>}

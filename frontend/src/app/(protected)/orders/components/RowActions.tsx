@@ -11,7 +11,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import { MoreHorizontal } from 'lucide-react';
+import { Loader2, MoreHorizontal } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { Order } from '../types/order';
 import { downloadDdt } from '../utils/downloadDdt';
@@ -30,6 +30,7 @@ export function RowActions({
   onError: (msg: string) => void;
 }) {
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [ddtLoading, setDdtLoading] = React.useState(false);
   const handleConfirmOpenChange = React.useCallback((o: boolean) => {
     setConfirmOpen(o);
     if (!o && typeof document !== 'undefined') {
@@ -46,14 +47,18 @@ export function RowActions({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <MoreHorizontal className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={ddtLoading}>
+            {ddtLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" className="min-w-[10rem]">
           <DropdownMenuItem onClick={() => onView(order)}>Visualizza</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onEdit(order)}>Modifica</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => downloadDdt(order.id, onError)}>Scarica DDT</DropdownMenuItem>
+          <DropdownMenuItem onClick={async () => {
+            setDdtLoading(true);
+            await downloadDdt(order.id, onError);
+            setDdtLoading(false);
+          }}>Scarica DDT</DropdownMenuItem>
           <DropdownMenuItem className="text-red-600" onClick={requestDeleteOne}>
             Elimina
           </DropdownMenuItem>

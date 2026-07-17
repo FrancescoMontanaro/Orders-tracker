@@ -412,7 +412,15 @@ function CategoryBreakdown({ title, rows }: { title: string; rows: CategoryRow[]
  * Presets
  * ============================================================ */
 
-type Preset = { key: string; label: string; from: string; to: string; gran: Granularity };
+type Preset = {
+  key: string;
+  label: string;
+  from: string;
+  to: string;
+  gran: Granularity;
+  /** Optional comparison mode to force when this preset is applied */
+  compare?: CompareMode;
+};
 
 function buildPresets(): Preset[] {
   const now = new Date();
@@ -426,7 +434,8 @@ function buildPresets(): Preset[] {
     { key: 'month', label: 'Questo mese', from: cur.start, to: cur.end, gran: 'daily' },
     { key: 'prev-month', label: 'Mese scorso', from: prevFirst, to: prevLast, gran: 'daily' },
     { key: 'last-30', label: 'Ultimi 30 giorni', from: addDaysUTC(todayISO, -29), to: todayISO, gran: 'daily' },
-    { key: 'ytd', label: 'Anno corrente', from: `${y}-01-01`, to: todayISO, gran: 'monthly' },
+    // Year-to-date: compare against the same span last year, not the rolling previous window
+    { key: 'ytd', label: 'Anno corrente', from: `${y}-01-01`, to: todayISO, gran: 'monthly', compare: 'year' },
     { key: 'last-year', label: 'Anno scorso', from: `${y - 1}-01-01`, to: `${y - 1}-12-31`, gran: 'monthly' },
   ];
 }
@@ -551,6 +560,7 @@ export default function CashflowCard() {
     setDateFrom(p.from);
     setDateTo(p.to);
     setGran(p.gran);
+    if (p.compare) setCompareMode(p.compare);
   }, []);
 
   const resetFilters = React.useCallback(() => {

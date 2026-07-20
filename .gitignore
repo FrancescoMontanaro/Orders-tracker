@@ -1,5 +1,8 @@
 .env
 database
+database_dumps/
+database.before-sync-*/
+database.failed-sync-*/
 .DS_Store
 .vscode/
 restic

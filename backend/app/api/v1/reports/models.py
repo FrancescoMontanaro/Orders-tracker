@@ -1,6 +1,6 @@
 from datetime import date
-from pydantic import BaseModel
 from typing import List, Optional
+from pydantic import BaseModel, model_validator
 
 ### Common Models ###
 
@@ -11,6 +11,12 @@ class DateRange(BaseModel):
     
     start_date: date
     end_date: date
+
+    @model_validator(mode="after")
+    def validate_date_range(self) -> "DateRange":
+        if self.start_date > self.end_date:
+            raise ValueError("La data iniziale deve essere precedente o uguale alla data finale.")
+        return self
 
 
 ### Product Sales ###

@@ -39,6 +39,9 @@
     "recharts": "^2.15.4",
     "tailwind-merge": "^3.3.1"
   },
+  "overrides": {
+    "@radix-ui/react-dismissable-layer": "1.1.11"
+  },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",

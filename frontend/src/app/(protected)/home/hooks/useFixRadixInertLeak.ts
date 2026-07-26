@@ -1,13 +1,20 @@
 import * as React from 'react';
 
+// Any Radix layer that is still on screen: dialogs, alert dialogs and poppers
+// (popover / select / dropdown content lives inside the popper wrapper).
+// Radix does not render a `[data-radix-portal]` attribute anymore, so matching
+// on it silently found nothing and the cleanup below ran while dialogs were
+// still open — stripping the very attributes that keep taps from reaching the
+// UI behind an overlay.
+const OPEN_RADIX_LAYER =
+  '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [data-radix-popper-content-wrapper]';
+
 // Safety net for Radix Dialog/Popover "inert/aria-hidden" leaks across pages.
 // If no dialog is open, it cleans stray attributes that may lock the page.
 export function useFixRadixInertLeak() {
   React.useEffect(() => {
     const fix = () => {
-      const anyOpenDialog = document.querySelector(
-        '[data-radix-portal] [role="dialog"][data-state="open"]'
-      );
+      const anyOpenDialog = document.querySelector(OPEN_RADIX_LAYER);
       if (anyOpenDialog) return;
 
       document

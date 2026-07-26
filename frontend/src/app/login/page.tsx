@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
+import { HOME_PATH_BY_ROLE } from '@/types/user';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,9 +24,11 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     try {
-      await login({ username, password });
-      // On success, redirect to the app home
-      router.replace('/home');
+      const profile = await login({ username, password });
+      // On success, redirect to the landing page of the user's role
+      router.replace(
+        profile?.role === 'employee' ? HOME_PATH_BY_ROLE.employee : HOME_PATH_BY_ROLE.admin
+      );
     } catch (err: any) {
       // Normalize common error shapes (fetch/axios/custom)
       const status =

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from .models import Notification
 from ....db.orm.user import UserORM
 from ....core.response_models import SuccessResponse
-from ....core.dependencies import get_current_user, get_ws_user
+from ....core.dependencies import get_current_user, get_ws_admin
 from ....models import Pagination, SortParam, ListingQueryParams
 from ....core.ws_manager import notifications_ws_manager as ws_manager
 from .service import (
@@ -116,7 +116,7 @@ async def mark_all_notifications_as_read(
 @ws_router.websocket(path="/ws")
 async def notifications_ws(
     websocket: WebSocket,
-    user: UserORM = Depends(get_ws_user),
+    user: UserORM = Depends(get_ws_admin),
 ) -> None:
     """
     WebSocket endpoint for real-time notification delivery.

@@ -8,7 +8,7 @@ from ....core.config import settings
 from .exceptions import JobAlreadyExistsException
 from ....db.orm.export_job import ExportStatusEnum
 from ....core.response_models import SuccessResponse
-from ....core.dependencies import get_current_user, get_ws_user
+from ....core.dependencies import get_current_user, get_ws_admin
 from ....core.ws_manager import export_ws_manager as ws_manager
 from ....models import Pagination, SortParam, ListingQueryParams
 from .models import ExportJobStart, ExportReportJobStart, ExportJob
@@ -208,7 +208,7 @@ async def download_export(
 @ws_router.websocket(path="/ws")
 async def export_jobs_ws(
     websocket: WebSocket,
-    user: UserORM = Depends(get_ws_user),
+    user: UserORM = Depends(get_ws_admin),
 ) -> None:
     """
     WebSocket endpoint for real-time export job status updates.

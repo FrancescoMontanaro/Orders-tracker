@@ -1,10 +1,45 @@
 import asyncio
 import logging
 from fastapi import FastAPI
+from sqlalchemy import text
 from typing import AsyncGenerator
 from contextlib import asynccontextmanager
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from ..db import BaseORM, engine
+
+
+async def _ensure_users_role_column(conn: AsyncConnection) -> None:
+    """
+    Add the `users.role` column when it is missing.
+
+    `metadata.create_all` only creates missing tables, it never alters existing
+    ones: on a database created before roles existed the column would never
+    appear. This check is idempotent, so it is safe to run at every startup.
+
+    Parameters:
+        conn (AsyncConnection): The connection used to inspect and alter the schema.
+    """
+
+    # Look for the column in the schema of the database we are connected to
+    exists = await conn.scalar(
+        text(
+            "SELECT COUNT(*) FROM information_schema.columns "
+            "WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'role'"
+        )
+    )
+
+    # Nothing to do when the column is already there
+    if exists:
+        return
+
+    # Add the column defaulting every pre-existing user to 'admin', preserving the previous behaviour
+    await conn.execute(
+        text("ALTER TABLE users ADD COLUMN role VARCHAR(16) NOT NULL DEFAULT 'admin'")
+    )
+
+    # Log the applied migration
+    logging.info("Added missing column users.role (default 'admin')")
 
 
 async def _stale_jobs_watchdog() -> None:
@@ -40,6 +75,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     async with engine.begin() as conn:
         # Create all tables
         await conn.run_sync(BaseORM.metadata.create_all)
+
+        # Patch tables created before the roles feature existed
+        await _ensure_users_role_column(conn)
 
     # Start the background watchdog that expires stale export jobs
     watchdog_task = asyncio.create_task(_stale_jobs_watchdog())

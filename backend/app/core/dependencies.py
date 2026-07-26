@@ -2,9 +2,9 @@ from sqlalchemy import select
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, Query, WebSocketException, status
 
-from ..db.orm.user import UserORM
 from ..db.session import db_session
 from ..core.security import decode_token
+from ..db.orm.user import UserORM, UserRoleEnum
 
 
 # Create OAuth2 scheme
@@ -97,6 +97,29 @@ async def get_ws_user(
     return user
 
 
+def get_ws_admin(user: UserORM = Depends(get_ws_user)) -> UserORM:
+    """
+    FastAPI dependency for WebSocket endpoints restricted to admins.
+
+    WebSocket routers are mounted without the router-level role dependency, so
+    the role check has to happen here.
+
+    Parameters:
+        user (UserORM): The current user resolved from the query-param token.
+
+    Returns:
+        UserORM: The current user, guaranteed to be an admin.
+    """
+
+    # Reject any user that is not an admin, closing the connection before it is accepted
+    if user.role != UserRoleEnum.ADMIN.value:
+        # Raise a WebSocketException to reject the connection
+        raise WebSocketException(code=4003)
+
+    # Return the authenticated admin
+    return user
+
+
 def require_active_user(user: UserORM = Depends(get_current_user)) -> UserORM:
     """
     Require an active user.
@@ -109,4 +132,27 @@ def require_active_user(user: UserORM = Depends(get_current_user)) -> UserORM:
     """
 
     # Return the authenticated user
+    return user
+
+
+def require_admin(user: UserORM = Depends(get_current_user)) -> UserORM:
+    """
+    Require an active user with the admin role.
+
+    Employees are restricted to the daily deliveries summary, so every other
+    router is mounted behind this dependency.
+
+    Parameters:
+        user (UserORM): The current user.
+
+    Returns:
+        UserORM: The current user, guaranteed to be an admin.
+    """
+
+    # Reject any user that is not an admin
+    if user.role != UserRoleEnum.ADMIN.value:
+        # Raise an error if the user lacks the required role
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permessi insufficienti")
+
+    # Return the authenticated admin
     return user

@@ -7,11 +7,12 @@ from datetime import datetime, timedelta, timezone
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import APIRouter, Response, HTTPException, status, Depends, Form, Cookie
 
-from .models import AccessToken
-from ....db.orm.user import UserORM
 from ....core.config import settings
 from ....db.session import db_session
+from .models import AccessToken, CurrentUser
 from ....core.response_models import SuccessResponse
+from ....db.orm.user import UserORM, UserRoleEnum
+from ....core.dependencies import get_current_user
 from ....core.security import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
 
 
@@ -28,7 +29,8 @@ async def register(
     username: EmailStr = Form(...),
     password: str = Form(...),
     name: str = Form(...),
-    registration_password: str = Form(..., description="Secret per abilitare la registrazione")
+    registration_password: str = Form(..., description="Secret per abilitare la registrazione"),
+    role: UserRoleEnum = Form(default=UserRoleEnum.ADMIN, description="Ruolo dell'utente: admin o employee")
 ) -> SuccessResponse:
     """
     User registration
@@ -38,6 +40,7 @@ async def register(
     - password (str): The password of the user
     - name (str): The name of the user
     - registration_password (str): The registration password to authorize the registration
+    - role (UserRoleEnum): The role of the user (defaults to admin)
 
     Returns:
     - SuccessResponse: The response containing the result of the registration
@@ -61,7 +64,7 @@ async def register(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email già registrata")
 
         # Create a new user
-        user = UserORM(email=username, name=name, password_hash=hash_password(password))
+        user = UserORM(email=username, name=name, password_hash=hash_password(password), role=role.value)
 
         # Add the user to the session
         session.add(user)
@@ -177,8 +180,27 @@ async def refresh(response: Response, refresh_token: Optional[str] = Cookie(None
     return AccessToken(access_token=new_access)
     
     
+@router.get(
+    path = "/me",
+    response_model = SuccessResponse[CurrentUser]
+)
+async def me(user: UserORM = Depends(get_current_user)) -> SuccessResponse[CurrentUser]:
+    """
+    Get the profile of the currently authenticated user (including the role).
+
+    Parameters:
+    - user (UserORM): The authenticated user resolved from the access token
+
+    Returns:
+    - SuccessResponse[CurrentUser]: The response containing the current user profile
+    """
+
+    # Return the current user profile
+    return SuccessResponse(data=CurrentUser.model_validate(user))
+
+
 @router.post(
-    path = "/logout", 
+    path = "/logout",
     response_model = SuccessResponse[None]
 )
 async def logout(response: Response) -> SuccessResponse:

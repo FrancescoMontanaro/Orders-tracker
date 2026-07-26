@@ -66,7 +66,7 @@ export default function SearchCombobox({
   const { open, setOpen, query, setQuery, options, loading } = useRemoteSearch(endpoint);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         {/* Trigger is shrinkable and x-safe on mobile */}
         <Button
@@ -96,7 +96,6 @@ export default function SearchCombobox({
                 <CommandItem
                   key={opt.id}
                   value={opt.name}
-                  onMouseDown={(e) => e.preventDefault()} // keep focus within dialog
                   onSelect={() => {
                     onChange(opt);
                     setOpen(false);

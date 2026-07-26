@@ -41,7 +41,7 @@ export function LotSelect({
     : placeholder;
 
   return (
-    <Popover open={open} onOpenChange={(next) => {
+    <Popover modal open={open} onOpenChange={(next) => {
       setOpen(next);
       if (next) {
         setQuery('');

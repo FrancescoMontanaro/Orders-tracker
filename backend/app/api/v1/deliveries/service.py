@@ -3,7 +3,7 @@ from sqlalchemy import select
 from typing import Dict, List
 
 from ....db.session import db_session
-from ....db.orm import OrderORM, OrderItemORM, ProductORM
+from ....db.orm import OrderORM, OrderItemORM, ProductORM, CustomerORM
 from .models import DailyDeliveries, DeliveryOrder, DeliveryItem
 
 
@@ -12,8 +12,8 @@ async def get_daily_deliveries(delivery_date: date) -> DailyDeliveries:
     Build the delivery summary of a given day.
 
     Only the data an employee needs to prepare the goods is selected: order id,
-    order status, product name, unit and quantity. Prices, discounts and
-    customers are never read from the database.
+    customer name, order note, order status, product name, unit and quantity. Prices and
+    discounts are never read from the database.
 
     Parameters:
     - delivery_date (date): The delivery date to summarise.
@@ -28,7 +28,9 @@ async def get_daily_deliveries(delivery_date: date) -> DailyDeliveries:
         stmt = (
             select(
                 OrderORM.id.label("order_id"),
+                CustomerORM.name.label("customer_name"),
                 OrderORM.status.label("status"),
+                OrderORM.note.label("note"),
                 ProductORM.id.label("product_id"),
                 ProductORM.name.label("product_name"),
                 ProductORM.unit.label("unit"),
@@ -36,6 +38,7 @@ async def get_daily_deliveries(delivery_date: date) -> DailyDeliveries:
             )
             .join(OrderItemORM, OrderItemORM.order_id == OrderORM.id)
             .join(ProductORM, ProductORM.id == OrderItemORM.product_id)
+            .join(CustomerORM, CustomerORM.id == OrderORM.customer_id)
             .where(OrderORM.delivery_date == delivery_date)
             .order_by(OrderORM.id.asc(), ProductORM.name.asc())
         )
@@ -57,7 +60,13 @@ async def get_daily_deliveries(delivery_date: date) -> DailyDeliveries:
         # Create the order group the first time we meet it
         order = orders.setdefault(
             int(row.order_id),
-            DeliveryOrder(order_id=int(row.order_id), status=row.status, items=[])
+            DeliveryOrder(
+                order_id = int(row.order_id),
+                customer_name = row.customer_name,
+                status = row.status,
+                note = row.note,
+                items = []
+            )
         )
 
         # Append the line to its order

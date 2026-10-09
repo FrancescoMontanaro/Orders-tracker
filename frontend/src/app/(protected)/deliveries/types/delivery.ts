@@ -10,10 +10,12 @@ export type DeliveryItem = {
 
 /**
  * The products of one order to be delivered.
- * Orders are identified by their id only: no customer data is exposed.
+ * Orders are identified by their id and customer name.
  */
 export type DeliveryOrder = {
   order_id: number;
+  customer_name: string;
+  note?: string | null;
   status: 'created' | 'delivered';
   items: DeliveryItem[];
 };

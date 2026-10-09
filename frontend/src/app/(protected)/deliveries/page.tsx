@@ -31,7 +31,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 /**
  * DeliveriesPage
  * Daily deliveries summary for employees: the products to prepare, grouped by
- * order. Quantities only — no prices and no customer data.
+ * order, with customer names and quantities, without prices.
  */
 export default function DeliveriesPage() {
   const [date, setDate] = React.useState<string>(todayISO());
@@ -124,7 +124,7 @@ export default function DeliveriesPage() {
                 className="gap-2 rounded-full px-4 py-2 data-[state=active]:bg-background data-[state=active]:shadow"
               >
                 <ClipboardList className="h-4 w-4" aria-hidden />
-                Per ordine
+                Per cliente
                 <span className="text-xs text-muted-foreground">({orders.length})</span>
               </TabsTrigger>
             </TabsList>
@@ -161,12 +161,22 @@ export default function DeliveriesPage() {
               <div className="space-y-4">
                 {orders.map((o) => (
                   <div key={o.order_id} className="rounded-md border">
-                    {/* Order header: id and status only */}
-                    <div className="flex items-center justify-between gap-2 px-4 py-3">
-                      <div className="font-medium">Ordine #{o.order_id}</div>
-                      <Badge className="whitespace-nowrap" variant={statusVariant(o.status)}>
-                        {statusLabel(o.status)}
-                      </Badge>
+                    {/* Order header: id, customer name and status */}
+                    <div className="space-y-3 px-4 py-3">
+                      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0 max-w-full font-medium [overflow-wrap:anywhere]">
+                          Ordine #{o.order_id} — {o.customer_name}
+                        </div>
+                        <Badge className="shrink-0 whitespace-nowrap" variant={statusVariant(o.status)}>
+                          {statusLabel(o.status)}
+                        </Badge>
+                      </div>
+                      {o.note?.trim() && (
+                        <div className="min-w-0 rounded-md bg-muted/50 px-3 py-2 text-sm">
+                          <p className="font-medium">Nota dell’ordine</p>
+                          <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">{o.note}</p>
+                        </div>
+                      )}
                     </div>
 
                     <Separator />

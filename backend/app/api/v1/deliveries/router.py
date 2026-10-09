@@ -18,7 +18,7 @@ async def daily_deliveries(
 ) -> SuccessResponse[DailyDeliveries]:
     """
     Get the products to deliver on a given day, grouped by order.
-    Quantities only: no prices and no customer data are returned.
+    Includes customer names, order notes and quantities, without prices or other customer data.
 
     Parameters:
     - delivery_date (date): The delivery date to summarise.

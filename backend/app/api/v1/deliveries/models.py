@@ -18,10 +18,12 @@ class DeliveryItem(BaseModel):
 class DeliveryOrder(BaseModel):
     """
     The products of one order to be delivered.
-    The customer is intentionally not exposed: orders are identified by their id only.
+    Orders are identified by their id and customer name.
     """
 
     order_id: int
+    customer_name: str
+    note: str | None = None
     status: str
     items: List[DeliveryItem] = []
 

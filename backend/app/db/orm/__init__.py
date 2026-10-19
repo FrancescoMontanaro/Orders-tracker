@@ -10,4 +10,4 @@ from .notification import NotificationORM, NotificationTypeEnum
 from .order_item import OrderItemORM
 from .order import OrderORM
 from .product import ProductORM, UnitEnum
-from .user import UserORM
+from .user import UserORM, UserRoleEnum

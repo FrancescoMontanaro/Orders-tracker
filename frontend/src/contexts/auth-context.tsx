@@ -1,7 +1,9 @@
 'use client'
 import React, { createContext, useContext, useMemo, useState, useEffect } from 'react'
-import { authlessApi } from '@/lib/api-client'
+import { api, authlessApi } from '@/lib/api-client'
 import { setAccessToken, getAccessToken } from '@/lib/token'
+import type { CurrentUser, UserRole } from '@/types/user'
+import type { SuccessResponse } from '@/types/api'
 
 type LoginInput = { username: string; password: string }
 
@@ -9,7 +11,10 @@ type AuthContextType = {
   isAuthenticated: boolean
   ready: boolean
   loading: boolean
-  login: (input: LoginInput) => Promise<void>
+  user: CurrentUser | null
+  role: UserRole | null
+  isAdmin: boolean
+  login: (input: LoginInput) => Promise<CurrentUser | null>
   logout: () => Promise<void>
 }
 
@@ -17,13 +22,28 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 /**
+ * fetchCurrentUser
+ * Loads the authenticated profile (including the role) from the API.
+ * Returns null when the profile cannot be retrieved.
+ */
+async function fetchCurrentUser(): Promise<CurrentUser | null> {
+  try {
+    const { data } = await api.get<SuccessResponse<CurrentUser>>('/auth/me')
+    return data?.data ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * AuthProvider
  * Provides authentication state and actions to the app.
- * Handles login, logout, and token refresh logic.
+ * Handles login, logout, token refresh and the current user profile.
  */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false)
   const [authed, setAuthed] = useState(false)
+  const [user, setUser] = useState<CurrentUser | null>(null)
   const [ready, setReady] = useState(false) // gating for hydration
 
   // On mount, check for access token or try to refresh via cookie
@@ -34,8 +54,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const existing = getAccessToken()
         if (existing) {
+          // Token in memory: resolve the profile before unblocking the UI, so
+          // that role-based routing never runs with an unknown role
+          const profile = await fetchCurrentUser()
           if (!cancelled) {
-            setAuthed(true)
+            if (profile) {
+              setUser(profile)
+              setAuthed(true)
+            } else {
+              // The token is no longer usable: drop it
+              setAccessToken(null)
+            }
             setReady(true)
           }
           return
@@ -47,9 +76,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             '/auth/refresh',
             null
           )
+          setAccessToken(data.access_token)
+
+          const profile = await fetchCurrentUser()
           if (!cancelled) {
-            setAccessToken(data.access_token)
-            setAuthed(true)
+            if (profile) {
+              setUser(profile)
+              setAuthed(true)
+            } else {
+              setAccessToken(null)
+            }
           }
         } catch {
           // Refresh failed: remain unauthenticated
@@ -69,9 +105,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * login
-   * Authenticates user and stores access token.
+   * Authenticates user, stores access token and loads the profile.
+   * Returns the profile so the caller can route by role.
    */
-  async function login(input: LoginInput) {
+  async function login(input: LoginInput): Promise<CurrentUser | null> {
     setLoading(true)
     try {
       const form = new URLSearchParams()
@@ -84,7 +121,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       setAccessToken(data.access_token)
+
+      // Load the profile: the role drives which pages the user can reach
+      const profile = await fetchCurrentUser()
+
+      // Without a profile the role is unknown: fail the login instead of
+      // dropping the user into a half-configured session
+      if (!profile) {
+        setAccessToken(null)
+        throw new Error('Impossibile recuperare il profilo utente')
+      }
+
+      setUser(profile)
       setAuthed(true)
+
+      return profile
     } finally {
       setLoading(false)
     }
@@ -92,20 +143,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * logout
-   * Logs out user and clears access token.
+   * Logs out user and clears access token and profile.
    */
   async function logout() {
     try {
       await authlessApi.post('/auth/logout', null) // optional if endpoint exists
     } catch {}
     setAccessToken(null)
+    setUser(null)
     setAuthed(false)
   }
 
   // Memoize context value for performance
   const value = useMemo(
-    () => ({ isAuthenticated: authed, ready, loading, login, logout }),
-    [authed, ready, loading]
+    () => ({
+      isAuthenticated: authed,
+      ready,
+      loading,
+      user,
+      role: user?.role ?? null,
+      isAdmin: user?.role === 'admin',
+      login,
+      logout,
+    }),
+    [authed, ready, loading, user]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

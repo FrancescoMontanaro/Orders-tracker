@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends
 from .core.config import settings
 from .core.context_manager import lifespan
 from fastapi.middleware.cors import CORSMiddleware
-from .core.dependencies import require_active_user
+from .core.dependencies import require_active_user, require_admin
 
 # Import routers
 from .api.v1.auth.router import router as auth_router
@@ -16,6 +16,7 @@ from .api.v1.reports.router import router as reports_router
 from .api.v1.products.router import router as products_router
 from .api.v1.expenses.router import router as expenses_router
 from .api.v1.customers.router import router as customers_router
+from .api.v1.deliveries.router import router as deliveries_router
 from .api.v1.export.router import router as export_router, ws_router as export_ws_router
 from .api.v1.notifications.router import router as notifications_router, ws_router as notifications_ws_router
 
@@ -38,16 +39,21 @@ app.add_middleware(
 # Include routers
 app.include_router(auth_router)
 app.include_router(health_router)
-app.include_router(customers_router, dependencies=[Depends(require_active_user)])
-app.include_router(products_router, dependencies=[Depends(require_active_user)])
-app.include_router(orders_router, dependencies=[Depends(require_active_user)])
-app.include_router(expenses_router, dependencies=[Depends(require_active_user)])
-app.include_router(incomes_router, dependencies=[Depends(require_active_user)])
-app.include_router(lots_router, dependencies=[Depends(require_active_user)])
-app.include_router(notes_router, dependencies=[Depends(require_active_user)])
-app.include_router(reports_router, dependencies=[Depends(require_active_user)])
-app.include_router(export_router, dependencies=[Depends(require_active_user)])
-app.include_router(notifications_router, dependencies=[Depends(require_active_user)])
+
+# Available to every active user, whatever their role (admins and employees)
+app.include_router(deliveries_router, dependencies=[Depends(require_active_user)])
+
+# Admin-only routers: employees are limited to the daily deliveries summary
+app.include_router(customers_router, dependencies=[Depends(require_admin)])
+app.include_router(products_router, dependencies=[Depends(require_admin)])
+app.include_router(orders_router, dependencies=[Depends(require_admin)])
+app.include_router(expenses_router, dependencies=[Depends(require_admin)])
+app.include_router(incomes_router, dependencies=[Depends(require_admin)])
+app.include_router(lots_router, dependencies=[Depends(require_admin)])
+app.include_router(notes_router, dependencies=[Depends(require_admin)])
+app.include_router(reports_router, dependencies=[Depends(require_admin)])
+app.include_router(export_router, dependencies=[Depends(require_admin)])
+app.include_router(notifications_router, dependencies=[Depends(require_admin)])
 
 # Include WebSocket routers (no dependencies
 app.include_router(notifications_ws_router)

@@ -30,6 +30,8 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { LogoutButton } from '@/components/logout-button'
 import { NotificationBell } from '@/components/notification-bell'
 import { NotificationsProvider } from '@/contexts/notifications-context'
+import { useAuth } from '@/contexts/auth-context'
+import { HOME_PATH_BY_ROLE } from '@/types/user'
 import {
   NavigationMenu,
   NavigationMenuList,
@@ -116,10 +118,10 @@ const desktopMenuGroups = [
 ] as const
 
 /** Brand (text only, no badge/initials) */
-function Brand() {
+function Brand({ href = '/home' }: { href?: string }) {
   return (
     <Link
-      href="/home"
+      href={href}
       className="font-semibold tracking-tight truncate max-w-[50vw] md:max-w-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
       title={COMPANY_NAME}
       aria-label={`${COMPANY_NAME} – home`}
@@ -273,8 +275,12 @@ function MobileDrawerNav() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const [snowflakeCount, setSnowflakeCount] = useState(60)
+  const { isAdmin } = useAuth()
 
   const showSnow = isSnowPeriod(new Date())
+
+  // Employees only have one page: no navigation and no notifications for them
+  const homeHref = isAdmin ? HOME_PATH_BY_ROLE.admin : HOME_PATH_BY_ROLE.employee
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 768px)')
@@ -293,8 +299,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => mediaQuery.removeListener(updateSnowflakes)
   }, [])
 
-  return (
-    <NotificationsProvider>
+  const shell = (
     <div className="min-h-dvh grid grid-rows-[auto_1fr]">
       {showSnow ? (
         <Snowfall
@@ -316,6 +321,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           {/* Left: mobile trigger + brand */}
           <div className="flex flex-1 items-center gap-2 min-w-0">
+            {isAdmin && (
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
                 <Button
@@ -352,16 +358,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
               </SheetContent>
             </Sheet>
+            )}
 
-            <Brand />
+            <Brand href={homeHref} />
           </div>
 
           {/* Center: desktop nav */}
-          <DesktopNav />
+          {isAdmin && <DesktopNav />}
 
           {/* Right: actions */}
           <div className="flex flex-1 items-center justify-end gap-2">
-            <NotificationBell />
+            {isAdmin && <NotificationBell />}
             <ThemeToggle />
             <LogoutButton />
           </div>
@@ -373,6 +380,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
     </div>
-    </NotificationsProvider>
   )
+
+  // Notifications are an admin-only feature: employees never open the socket
+  return isAdmin ? <NotificationsProvider>{shell}</NotificationsProvider> : shell
 }

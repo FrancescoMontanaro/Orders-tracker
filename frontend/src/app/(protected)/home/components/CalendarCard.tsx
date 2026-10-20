@@ -378,10 +378,9 @@ export default function CalendarCard() {
     if (loading) return;
     if (!scrollToTodayRef.current) return;
 
-    let rafId1: number;
     let rafId2: number;
 
-    rafId1 = requestAnimationFrame(() => {
+    const rafId1 = requestAnimationFrame(() => {
       rafId2 = requestAnimationFrame(() => {
         if (!scrollToTodayRef.current) return;
         const ok = attemptScrollToToday();

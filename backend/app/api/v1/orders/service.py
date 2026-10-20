@@ -1,9 +1,11 @@
 import fitz
 from pathlib import Path
 from datetime import date
+from decimal import Decimal
 from typing import Optional, Dict, List, Tuple, Any
 from sqlalchemy import select, delete, asc, desc, func
 
+from .pricing import calculate_order_pricing
 from .utils import format_it_number
 from ....db.session import db_session
 from ....db.orm.product import ProductORM
@@ -18,6 +20,21 @@ from ....db.orm import OrderORM, OrderItemORM, CustomerPreferencesORM
 # ======================================== #
 # ======= Internal helper functions ====== #
 # ======================================== #
+
+def _apply_pricing(order: Order) -> None:
+    """Populate the API amounts from the same allocation used by documents."""
+
+    pricing = calculate_order_pricing(
+        lines = [(item.quantity, item.unit_price) for item in order.items],
+        applied_discount = order.applied_discount,
+        discount_type = order.discount_type,
+    )
+    order.subtotal = float(pricing.subtotal)
+    order.discount_amount = float(pricing.discount_amount)
+    order.total_amount = float(pricing.total)
+    for item, amount in zip(order.items, pricing.line_totals):
+        item.net_amount = float(amount)
+
 
 async def _get_customer_preferences(session, customer_id: int) -> Optional[CustomerPreferencesORM]:
     """
@@ -205,6 +222,7 @@ async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
                 LotORM.location.label("lot_location")
             )
             .where(OrderItemORM.order_id.in_(order_ids))
+            .order_by(OrderItemORM.id)
             .join(ProductORM, ProductORM.id == OrderItemORM.product_id)
             .outerjoin(LotORM, LotORM.id == OrderItemORM.lot_id)
         )
@@ -237,7 +255,7 @@ async def list_orders(params: ListingQueryParams) -> Pagination[Order]:
             o.items = items_by_order.get(o.id, [])
 
             # Compute the total amount with discount for the order
-            o.total_amount = round(o.total_amount_with_discount, 2)
+            _apply_pricing(o)
 
         # Return the paginated result
         return Pagination(total=total, items=orders)
@@ -295,6 +313,7 @@ async def get_order_by_id(order_id: int) -> Optional[Order]:
             .join(ProductORM, ProductORM.id == OrderItemORM.product_id)
             .outerjoin(LotORM, LotORM.id == OrderItemORM.lot_id)
             .where(OrderItemORM.order_id == order.id)
+            .order_by(OrderItemORM.id)
         )
 
         # Execute the query
@@ -319,7 +338,7 @@ async def get_order_by_id(order_id: int) -> Optional[Order]:
             order.items.append(pyd)
 
         # Compute subtotal and total amount
-        order.total_amount = round(order.total_amount_with_discount, 2)
+        _apply_pricing(order)
 
         # Return the complete order
         return order
@@ -349,8 +368,8 @@ async def create_order(payload: OrderCreate) -> Optional[Order]:
         agg: Dict[Tuple[int, Optional[int]], Dict[str, Any]] = {}
         for it in payload.items:
             key = (it.product_id, it.lot_id)
-            agg[key] = agg.get(key, {"quantity": 0.0, "unit_price": None})
-            agg[key]["quantity"] += float(it.quantity)
+            agg[key] = agg.get(key, {"quantity": Decimal(0), "unit_price": None})
+            agg[key]["quantity"] += Decimal(str(it.quantity))
             if it.unit_price is not None:
                 agg[key]["unit_price"] = float(it.unit_price)
 
@@ -365,17 +384,25 @@ async def create_order(payload: OrderCreate) -> Optional[Order]:
             items_orm.append(
                 OrderItemORM(
                     product_id=pid,
-                    quantity=data["quantity"],
+                    quantity=float(data["quantity"]),
                     unit_price=unit_price,
                     lot_id=lot_id
                 )
             )
+
+        # Validate against resolved snapshot prices before writing anything.
+        calculate_order_pricing(
+            lines = [(item.quantity, item.unit_price) for item in items_orm],
+            applied_discount = payload.applied_discount,
+            discount_type = payload.discount_type,
+        )
 
         # Create the order
         order_orm = OrderORM(
             customer_id = payload.customer_id,
             delivery_date = payload.delivery_date,
             applied_discount = payload.applied_discount,
+            discount_type = payload.discount_type,
             note = payload.note,
             items = items_orm
         )
@@ -406,7 +433,7 @@ async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
     # Create a new database session
     async with db_session() as session:
         # Load the order
-        res = await session.execute(select(OrderORM).where(OrderORM.id == order_id))
+        res = await session.execute(select(OrderORM).where(OrderORM.id == order_id).with_for_update())
         order_orm = res.scalar_one_or_none()
         if not order_orm:
             return None
@@ -451,8 +478,8 @@ async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
             agg: Dict[Tuple[int, Optional[int]], Dict[str, Any]] = {}
             for it in payload.items:
                 key = (it.product_id, it.lot_id)
-                agg[key] = agg.get(key, {"quantity": 0.0, "unit_price": None})
-                agg[key]["quantity"] += float(it.quantity)
+                agg[key] = agg.get(key, {"quantity": Decimal(0), "unit_price": None})
+                agg[key]["quantity"] += Decimal(str(it.quantity))
                 if it.unit_price is not None:
                     agg[key]["unit_price"] = float(it.unit_price)
 
@@ -485,9 +512,24 @@ async def update_order(order_id: int, payload: OrderUpdate) -> Optional[Order]:
             for r in new_rows:
                 session.add(r)
 
-        # Update the discount (percentage)
+        # Preserve omitted discount fields on partial updates.
         if payload.applied_discount is not None:
             order_orm.applied_discount = payload.applied_discount
+        if payload.discount_type is not None:
+            order_orm.discount_type = payload.discount_type
+
+        # Use the replacement rows or fetch persisted prices for discount-only edits.
+        if payload.items is not None:
+            pricing_items = new_rows
+        else:
+            pricing_items = list((await session.scalars(
+                select(OrderItemORM).where(OrderItemORM.order_id == order_orm.id)
+            )).all())
+        calculate_order_pricing(
+            lines = [(item.quantity, item.unit_price) for item in pricing_items],
+            applied_discount = order_orm.applied_discount,
+            discount_type = order_orm.discount_type,
+        )
 
         # Commit the transaction
         await session.commit()
@@ -569,14 +611,13 @@ async def generate_ddt_pdf(order_id: int, output_file: str) -> None:
         "Text4": order.customer_name or "N/A",
         "Text7": str(order.id),
         "Text8": order.delivery_date.strftime("%d/%m/%Y"),
-        "Text64": f"Totale (€): {format_it_number(order.total_amount_with_discount)}",
+        "Text64": f"Totale (€): {format_it_number(order.total_amount)}",
     }
 
     # Fill item fields (up to max_allowed_items)
-    discount_factor = 1.0 - (float(order.applied_discount or 0.0) / 100.0)
     for idx, item in enumerate(order.items):
         fields[f"Text{9 + idx * 3 + 0}"] = format_it_number(item.quantity) if ddt_include_quantity else ""
-        fields[f"Text{9 + idx * 3 + 1}"] = format_it_number(item.quantity * item.unit_price * discount_factor)
+        fields[f"Text{9 + idx * 3 + 1}"] = format_it_number(item.net_amount)
         fields[f"Text{9 + idx * 3 + 2}"] = item.product_name + (f" (Lotto: {item.lot_date.strftime('%d/%m/%Y')})" if item.lot_date else "") if ddt_include_quantity else ""
 
     # Open the PDF template using PyMuPDF

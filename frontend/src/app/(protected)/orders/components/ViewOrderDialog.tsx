@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { calculateOrderPricing, formatDiscount } from '@/lib/order-pricing';
 import type { Order } from '../types/order';
 import { euro } from '../utils/currency';
 import { fmtDate } from '../utils/date';
@@ -54,10 +55,7 @@ export function ViewOrderDialog({
     if (order.total_amount != null) return order.total_amount;
     if (order.total_price != null) return order.total_price;
     if (order.items?.length) {
-      return order.items.reduce((sum, item) => {
-        const price = item.total_price ?? (item.unit_price != null ? item.unit_price * item.quantity : 0);
-        return sum + (price || 0);
-      }, 0);
+      return calculateOrderPricing(order.items, order.applied_discount, order.discount_type).total;
     }
     return 0;
   }, [order]);
@@ -90,7 +88,7 @@ export function ViewOrderDialog({
                 <Field label="Stato" value={mapStatus(order.status)} />
                 <Field
                   label="Sconto applicato"
-                  value={order.applied_discount != null ? `${order.applied_discount}%` : '—'}
+                  value={order.applied_discount != null ? formatDiscount(order.applied_discount, order.discount_type) : '—'}
                 />
                 <Field label="Totale" value={<span className="font-semibold tabular-nums">{euro(totalAmount)}</span>} />
               </section>

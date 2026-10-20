@@ -1,3 +1,5 @@
+import type { DiscountType } from '@/lib/order-pricing';
+
 // Core domain types for Orders page. These mirror your API payloads.
 // IMPORTANT: Do not change field names/types to preserve API compatibility.
 
@@ -6,6 +8,7 @@ export type OrderItem = {
   product_name?: string | null;
   unit?: string | null;          // Unit of measure (e.g., Kg, Px)
   quantity: number;
+  net_amount?: number | null;
   unit_price?: number | null;    // Provided by API in GET /orders/:id
   total_price?: number | null;   // Legacy total per item (kept for compatibility)
   lot_id?: number | null;
@@ -20,6 +23,9 @@ export type Order = {
   customer_id: number;
   customer_name?: string | null;
   applied_discount?: number | null;
+  discount_type?: DiscountType;
+  subtotal?: number;
+  discount_amount?: number;
   status?: 'created' | 'delivered';
   items: OrderItem[];
   total_amount?: number | null;   // Correct total (preferred)

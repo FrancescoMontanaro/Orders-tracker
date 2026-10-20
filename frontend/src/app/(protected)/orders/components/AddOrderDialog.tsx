@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { OrderDiscountField } from '@/components/order-discount-field';
+import { formatDiscount, type DiscountType } from '@/lib/order-pricing';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,6 +45,7 @@ function OrderProductsDialog({
   orderLot,
   onOrderLotChange,
   appliedDiscount,
+  discountType,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -51,8 +54,9 @@ function OrderProductsDialog({
   orderLot: LotOption | null;
   onOrderLotChange: (lot: LotOption | null) => void;
   appliedDiscount: number | '';
+  discountType: DiscountType;
 }) {
-  const totals = usePreviewTotals(items, appliedDiscount);
+  const totals = usePreviewTotals(items, appliedDiscount, discountType);
 
   function updateAt(i: number, patch: Partial<OrderItem>) {
     const next = [...items];
@@ -267,7 +271,7 @@ function OrderProductsDialog({
                 <span className="tabular-nums">{euro(totals.subtotal)}</span>
               </div>
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>Sconto{appliedDiscount ? ` (${appliedDiscount}%)` : ''}</span>
+                <span>Sconto{appliedDiscount ? ` (${formatDiscount(Number(appliedDiscount), discountType)})` : ''}</span>
                 <span className="tabular-nums">−{euro(totals.discountAmount)}</span>
               </div>
               <div className="border-t pt-2 flex items-center justify-between font-medium">
@@ -303,6 +307,7 @@ export function AddOrderDialog({
   const [deliveryDate, setDeliveryDate] = React.useState<string>('');
   const [customer, setCustomer] = React.useState<Option | null>(null);
   const [appliedDiscount, setAppliedDiscount] = React.useState<number | ''>('');
+  const [discountType, setDiscountType] = React.useState<DiscountType>('percentage');
   const [status, setStatus] = React.useState<'created' | 'delivered'>('created');
   const [items, setItems] = React.useState<OrderItem[]>([]);
   const [note, setNote] = React.useState<string>('');
@@ -312,12 +317,13 @@ export function AddOrderDialog({
   const [productsOpen, setProductsOpen] = React.useState(false);
 
   // Preview totals for the summary shown in main dialog
-  const summaryTotals = usePreviewTotals(items, appliedDiscount);
+  const summaryTotals = usePreviewTotals(items, appliedDiscount, discountType);
   React.useEffect(() => {
     if (open) {
       setDeliveryDate('');
       setCustomer(null);
       setAppliedDiscount('');
+      setDiscountType('percentage');
       setStatus('created');
       setNote('');
       setItems([]);
@@ -346,7 +352,10 @@ export function AddOrderDialog({
       return base;
     });
 
+    if (summaryTotals.validationError) return setLocalError(summaryTotals.validationError);
+
     const payload: any = {
+      discount_type: discountType,
       customer_id: Number(customer.id),
       delivery_date: deliveryDate,
       items: itemsPayload,
@@ -416,17 +425,13 @@ export function AddOrderDialog({
             </div>
 
             {/* Discount */}
-            <div className="grid gap-1 min-w-0">
-              <Label>Sconto applicato (%)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="0"
-                value={appliedDiscount === '' ? '' : String(appliedDiscount)}
-                onChange={(e) => setAppliedDiscount(e.target.value === '' ? '' : Number(e.target.value))}
-                className="min-w-0 w-full max-w-full"
-              />
-            </div>
+            <OrderDiscountField
+              value={appliedDiscount}
+              discountType={discountType}
+              onValueChange={setAppliedDiscount}
+              onTypeChange={setDiscountType}
+              error={summaryTotals.validationError}
+            />
 
             {/* Status */}
             <div className="grid gap-1 min-w-0">
@@ -506,7 +511,7 @@ export function AddOrderDialog({
                     </div>
                     {(appliedDiscount !== '' && Number(appliedDiscount) > 0) && (
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Sconto ({appliedDiscount}%)</span>
+                        <span>Sconto ({formatDiscount(Number(appliedDiscount), discountType)})</span>
                         <span className="tabular-nums">−{euro(summaryTotals.discountAmount)}</span>
                       </div>
                     )}
@@ -555,6 +560,7 @@ export function AddOrderDialog({
         orderLot={orderLot}
         onOrderLotChange={setOrderLot}
         appliedDiscount={appliedDiscount}
+        discountType={discountType}
       />
     </>
   );

@@ -9,6 +9,41 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from ..db import BaseORM, engine
 
 
+async def _ensure_orders_discount_type(conn: AsyncConnection) -> None:
+    """Upgrade existing orders without changing their percentage discounts.
+
+    Each schema step is inspected separately so an interrupted MySQL DDL
+    migration can be safely resumed at the next startup.
+    """
+
+    exists = await conn.scalar(text(
+        "SELECT COUNT(*) FROM information_schema.columns "
+        "WHERE table_schema = DATABASE() AND table_name = 'orders' AND column_name = 'discount_type'"
+    ))
+    if not exists:
+        await conn.execute(text(
+            "ALTER TABLE orders ADD COLUMN discount_type VARCHAR(16) NOT NULL DEFAULT 'percentage'"
+        ))
+
+    constraints = set((await conn.execute(text(
+        "SELECT CONSTRAINT_NAME FROM information_schema.table_constraints "
+        "WHERE table_schema = DATABASE() AND table_name = 'orders' AND constraint_type = 'CHECK'"
+    ))).scalars())
+
+    if "check_applied_discount" in constraints:
+        await conn.execute(text("ALTER TABLE orders DROP CHECK check_applied_discount"))
+    if "check_order_discount_value" not in constraints:
+        await conn.execute(text(
+            "ALTER TABLE orders ADD CONSTRAINT check_order_discount_value "
+            "CHECK (applied_discount >= 0 AND (discount_type = 'fixed' OR applied_discount <= 100))"
+        ))
+    if "check_order_discount_type" not in constraints:
+        await conn.execute(text(
+            "ALTER TABLE orders ADD CONSTRAINT check_order_discount_type "
+            "CHECK (discount_type IN ('percentage', 'fixed'))"
+        ))
+
+
 async def _ensure_users_role_column(conn: AsyncConnection) -> None:
     """
     Add the `users.role` column when it is missing.
@@ -78,6 +113,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         # Patch tables created before the roles feature existed
         await _ensure_users_role_column(conn)
+
+        await _ensure_orders_discount_type(conn)
 
     # Start the background watchdog that expires stale export jobs
     watchdog_task = asyncio.create_task(_stale_jobs_watchdog())

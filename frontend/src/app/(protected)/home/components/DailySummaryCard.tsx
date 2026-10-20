@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { calculateOrderPricing, type DiscountType } from '@/lib/order-pricing';
 import { api } from '@/lib/api-client';
 import { formatUnit } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,7 @@ type OrderItemRow = {
   unit?: string | null;
   quantity: number;
   unit_price?: number | null;
+  net_amount?: number | null;
 };
 
 type OrderRow = {
@@ -54,6 +56,7 @@ type OrderRow = {
   status: 'created' | 'delivered';
   total_amount?: number | null;
   applied_discount?: number | null;
+  discount_type?: DiscountType;
   note?: string | null;
   items: OrderItemRow[];
 };
@@ -108,13 +111,7 @@ function extractOrderRows(payload: any): OrderRow[] {
 
 /** Compute order total from items if API total_amount is absent */
 function fallbackTotalAmount(o: OrderRow): number {
-  const sum = (o.items || []).reduce((acc, it) => {
-    const q = Number(it.quantity || 0);
-    const p = Number(it.unit_price ?? 0);
-    return acc + q * p;
-  }, 0);
-  const discount = Number(o.applied_discount ?? 0);
-  return round2(sum * (1 - (discount || 0) / 100));
+  return calculateOrderPricing(o.items || [], o.applied_discount, o.discount_type).total;
 }
 
 /* -------------------------------- Component -------------------------------- */
@@ -249,13 +246,13 @@ export default function DailySummaryCard() {
         orders: [] as CustomerOrderRow[],
       };
 
-      const discountFactor = 1 - (Number(o.applied_discount ?? 0) / 100);
+      const pricing = calculateOrderPricing(o.items || [], o.applied_discount, o.discount_type);
       entry.orders.push({
         id: o.id,
         status: o.status,
         total_amount: Number(total_amount || 0),
         note: o.note ?? null,
-        items: (o.items || []).map((it) => {
+        items: (o.items || []).map((it, itemIndex) => {
           const qty = Number(it.quantity || 0);
           const price = Number(it.unit_price ?? 0);
           return {
@@ -263,7 +260,7 @@ export default function DailySummaryCard() {
             quantity: qty,
             unit: (it.unit ?? undefined) as any,
             unit_price: price,
-            subtotal: round2(qty * price * discountFactor),
+            subtotal: pricing.lineTotals[itemIndex],
           };
         }),
       });

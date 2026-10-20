@@ -2,6 +2,7 @@ from typing import List
 from sqlalchemy import select, func, and_
 
 from ....db.session import db_session
+from ..orders.pricing_sql import priced_order_items
 from ....db.orm import (
     ProductORM,
     ExpenseORM,
@@ -40,6 +41,8 @@ async def report_product_sales(payload: ProductSalesRequest) -> List[ProductSale
 
     # Querying the database
     async with db_session() as session:
+        priced_items = priced_order_items(payload.start_date, payload.end_date)
+
         # Create the statement to compute product sales
         stmt = (
             select(
@@ -47,10 +50,11 @@ async def report_product_sales(payload: ProductSalesRequest) -> List[ProductSale
                 ProductORM.name.label("product_name"),
                 ProductORM.unit.label("unit"),
                 func.sum(OrderItemORM.quantity).label("total_qty"),
-                func.sum(OrderItemORM.quantity * OrderItemORM.unit_price * (1 - (func.coalesce(OrderORM.applied_discount, 0) / 100.0))).label("revenue"),
+                func.sum(priced_items.c.net_amount).label("revenue"),
             )
             .join(OrderItemORM, OrderItemORM.product_id == ProductORM.id)
             .join(OrderORM, OrderORM.id == OrderItemORM.order_id)
+            .join(priced_items, priced_items.c.item_id == OrderItemORM.id)
             .where(OrderORM.delivery_date.between(payload.start_date, payload.end_date))
             .group_by(ProductORM.id, ProductORM.name)
             .order_by(ProductORM.name.asc())
@@ -221,18 +225,21 @@ async def report_customer_sales(payload: CustomerSalesRequest) -> CustomerSalesR
 
     # Creating the database session
     async with db_session() as session:
+        priced_items = priced_order_items(payload.start_date, payload.end_date, payload.customer_id)
+
         # Create the statement for per-product sales
         per_product_stmt = (
             select(
                 ProductORM.id.label("product_id"),
                 ProductORM.name.label("product_name"),
                 ProductORM.unit.label("unit"),
-                func.avg(OrderORM.applied_discount).label("avg_discount"),
+                func.avg(priced_items.c.effective_discount).label("avg_discount"),
                 func.sum(OrderItemORM.quantity).label("total_qty"),
-                func.sum(OrderItemORM.quantity * OrderItemORM.unit_price * (1 - (func.coalesce(OrderORM.applied_discount, 0) / 100.0))).label("revenue"),
+                func.sum(priced_items.c.net_amount).label("revenue"),
             )
             .join(OrderItemORM, OrderItemORM.product_id == ProductORM.id)
             .join(OrderORM, OrderORM.id == OrderItemORM.order_id)
+            .join(priced_items, priced_items.c.item_id == OrderItemORM.id)
             .where(
                 OrderORM.customer_id == payload.customer_id,
                 OrderORM.delivery_date.between(payload.start_date, payload.end_date),
@@ -249,12 +256,12 @@ async def report_customer_sales(payload: CustomerSalesRequest) -> CustomerSalesR
         total_stmt = (
             select(
                 func.sum(
-                    OrderItemORM.quantity * OrderItemORM.unit_price *
-                    (1 - (func.coalesce(OrderORM.applied_discount, 0) / 100.0))
+                    priced_items.c.net_amount
                 )
             )
             .select_from(OrderORM)
             .join(OrderItemORM, OrderItemORM.order_id == OrderORM.id)
+            .join(priced_items, priced_items.c.item_id == OrderItemORM.id)
             .where(
                 OrderORM.customer_id == payload.customer_id,
                 OrderORM.delivery_date.between(payload.start_date, payload.end_date),
@@ -304,6 +311,8 @@ async def report_cashflow(payload: CashflowRequest) -> CashflowResponse:
 
     # Creating the database session
     async with db_session() as session:
+        priced_items = priced_order_items(payload.start_date, payload.end_date)
+
         # Create the statement for cash flow entries
         entries_stmt = (
             select(
@@ -311,11 +320,12 @@ async def report_cashflow(payload: CashflowRequest) -> CashflowResponse:
                 OrderORM.delivery_date.label("date"),
                 (
                     func.sum(
-                        OrderItemORM.quantity * OrderItemORM.unit_price * (1 - (func.coalesce(OrderORM.applied_discount, 0) / 100.0))
+                        priced_items.c.net_amount
                     ).label("amount")
                 )
             )
             .join(OrderItemORM, OrderItemORM.order_id == OrderORM.id)
+            .join(priced_items, priced_items.c.item_id == OrderItemORM.id)
             .group_by(OrderORM.id, OrderORM.delivery_date)
             .where(OrderORM.delivery_date.between(payload.start_date, payload.end_date))
             .where(OrderORM.status == "delivered")

@@ -117,6 +117,7 @@ async def iter_orders(
                 r.OrderORM.delivery_date,
                 r.OrderORM.created_at,
                 r.OrderORM.applied_discount,
+                "€" if r.OrderORM.discount_type == "fixed" else "%",
                 r.OrderORM.status,
                 r.OrderORM.note
             ]

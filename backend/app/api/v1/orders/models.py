@@ -2,6 +2,8 @@ from typing import List, Optional
 from datetime import date, datetime
 from pydantic import BaseModel, Field
 
+from .pricing import MAX_DISCOUNT, DiscountType, calculate_order_pricing
+
 
 class OrderItem(BaseModel):
     """
@@ -14,6 +16,7 @@ class OrderItem(BaseModel):
     unit: str
     quantity: float
     unit_price: float
+    net_amount: float = 0
     lot_id: Optional[int] = None
     lot_name: Optional[str] = None
     lot_date: Optional[date] = None
@@ -35,6 +38,9 @@ class Order(BaseModel):
     created_at: datetime
     total_amount: float
     applied_discount: float
+    discount_type: DiscountType = "percentage"
+    subtotal: float = 0
+    discount_amount: float = 0
     status: str
     note: Optional[str] = None
     items: List[OrderItem] = []
@@ -51,11 +57,12 @@ class Order(BaseModel):
         Compute the total amount of the order, applying the discount.
         """
 
-        # Compute the subtotal as the sum of (quantity * unit_price) for all items
-        subtotal = sum(it.quantity * it.unit_price for it in self.items)
-
-        # Apply the discount to the subtotal and round to 2 decimal places
-        return subtotal * (1 - (self.applied_discount or 0) / 100)
+        pricing = calculate_order_pricing(
+            lines = [(item.quantity, item.unit_price) for item in self.items],
+            applied_discount = self.applied_discount,
+            discount_type = self.discount_type,
+        )
+        return float(pricing.total)
 
 
 class OrderItemCreate(BaseModel):
@@ -76,7 +83,8 @@ class OrderCreate(BaseModel):
     
     customer_id: int
     delivery_date: date
-    applied_discount: float = Field(default=0, ge=0, le=100)
+    applied_discount: float = Field(default=0, ge=0, le=MAX_DISCOUNT, allow_inf_nan=False, multiple_of=0.01)
+    discount_type: DiscountType = "percentage"
     note: Optional[str] = None
     items: List[OrderItemCreate]
 
@@ -100,6 +108,7 @@ class OrderUpdate(BaseModel):
     delivery_date: Optional[date] = None
     items: Optional[List[OrderItemCreate]] = None
     customer_id: Optional[int] = None
-    applied_discount: Optional[float] = Field(default=None, ge=0, le=100)
+    applied_discount: Optional[float] = Field(default=None, ge=0, le=MAX_DISCOUNT, allow_inf_nan=False, multiple_of=0.01)
+    discount_type: Optional[DiscountType] = None
     status: Optional[str] = None
     note: Optional[str] = None

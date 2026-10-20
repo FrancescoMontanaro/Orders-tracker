@@ -54,7 +54,7 @@ ENTITY_SHEET_NAMES: dict[ExportEntityEnum, str] = {
 ENTITY_HEADERS: dict[ExportEntityEnum, list[str]] = {
     ExportEntityEnum.CUSTOMERS: ["ID", "Nome", "Attivo"],
     ExportEntityEnum.PRODUCTS: ["ID", "Nome", "Prezzo unitario", "Unità di misura", "Attivo"],
-    ExportEntityEnum.ORDERS: ["ID", "Cliente", "Data consegna", "Data creazione", "Sconto applicato (%)", "Stato", "Note"],
+    ExportEntityEnum.ORDERS: ["ID", "Cliente", "Data consegna", "Data creazione", "Sconto applicato", "Tipo sconto", "Stato", "Note"],
     ExportEntityEnum.ORDER_ITEMS: ["ID", "ID ordine", "Prodotto", "Quantità", "Prezzo unitario", "ID lotto"],
     ExportEntityEnum.EXPENSES: ["ID", "Categoria", "Data", "Importo", "Note"],
     ExportEntityEnum.INCOMES: ["ID", "Categoria", "Data", "Importo", "Note"],

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { calculateOrderPricing, type DiscountType } from '@/lib/order-pricing';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -39,6 +40,7 @@ type OrderItemRow = {
   unit?: string | null;
   quantity: number;
   unit_price?: number | null;
+  net_amount?: number | null;
 };
 type OrderRow = {
   id: number;
@@ -47,6 +49,7 @@ type OrderRow = {
   delivery_date: string; // YYYY-MM-DD
   status: 'created' | 'delivered';
   applied_discount?: number | null;
+  discount_type?: DiscountType;
   note?: string | null;
   items: OrderItemRow[];
 };
@@ -81,7 +84,8 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
     // Initialize map from existing products to keep push O(1)
     day.products.forEach((p, idx) => productIndex.set(p.product_id, idx));
 
-    for (const it of o.items || []) {
+    const pricing = calculateOrderPricing(o.items || [], o.applied_discount, o.discount_type);
+    for (const [itemIndex, it] of (o.items || []).entries()) {
       const pid = Number(it.product_id);
       let pIdx = productIndex.get(pid);
 
@@ -105,7 +109,6 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
       // Append a customer row for this order item (carry unit_price + amount for totals)
       const unitPrice = Number(it.unit_price ?? 0);
       const qty = Number(it.quantity || 0);
-      const discountFactor = 1 - (Number(o.applied_discount ?? 0) / 100);
       p.customers.push({
         order_id: o.id,
         customer_id: o.customer_id,
@@ -113,7 +116,7 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
         quantity: qty,
         order_status: o.status,
         unit_price: unitPrice,
-        amount: unitPrice * qty * discountFactor,
+        amount: pricing.lineTotals[itemIndex],
         order_note: o.note ?? null,
       } as any);
     }

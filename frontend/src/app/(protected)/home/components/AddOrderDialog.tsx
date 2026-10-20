@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { OrderDiscountField } from '@/components/order-discount-field';
+import { formatDiscount, type DiscountType } from '@/lib/order-pricing';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +45,7 @@ function OrderProductsDialog({
   orderLot,
   onOrderLotChange,
   appliedDiscount,
+  discountType,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -51,6 +54,7 @@ function OrderProductsDialog({
   orderLot: LotOption | null;
   onOrderLotChange: (lot: LotOption | null) => void;
   appliedDiscount: number | '';
+  discountType: DiscountType;
 }) {
   const normalizedItems = React.useMemo(
     () =>
@@ -61,7 +65,7 @@ function OrderProductsDialog({
       })),
     [items]
   );
-  const totals = usePreviewTotals(normalizedItems as any, appliedDiscount);
+  const totals = usePreviewTotals(normalizedItems as any, appliedDiscount, discountType);
 
   function updateAt(i: number, patch: Partial<OrderItem>) {
     const next = [...items];
@@ -275,7 +279,7 @@ function OrderProductsDialog({
                 <span className="tabular-nums">{euro(totals.subtotal)}</span>
               </div>
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>Sconto{appliedDiscount ? ` (${appliedDiscount}%)` : ''}</span>
+                <span>Sconto{appliedDiscount ? ` (${formatDiscount(Number(appliedDiscount), discountType)})` : ''}</span>
                 <span className="tabular-nums">−{euro(totals.discountAmount)}</span>
               </div>
               <div className="border-t pt-2 flex items-center justify-between font-medium">
@@ -305,6 +309,7 @@ export default function AddOrderDialog({
   const [deliveryDate, setDeliveryDate] = React.useState<string>(defaultDate || '');
   const [customer, setCustomer] = React.useState<Option | null>(null);
   const [appliedDiscount, setAppliedDiscount] = React.useState<number | ''>('');
+  const [discountType, setDiscountType] = React.useState<DiscountType>('percentage');
   const [status, setStatus] = React.useState<'created' | 'delivered'>('created');
   const [note, setNote] = React.useState<string>('');
   const [items, setItems] = React.useState<OrderItem[]>([]);
@@ -322,7 +327,7 @@ export default function AddOrderDialog({
       })),
     [items]
   );
-  const summaryTotals = usePreviewTotals(normalizedItemsForPreview as any, appliedDiscount);
+  const summaryTotals = usePreviewTotals(normalizedItemsForPreview as any, appliedDiscount, discountType);
 
   // Reset form state when the dialog opens (keep defaultDate pre-filled)
   React.useEffect(() => {
@@ -330,6 +335,7 @@ export default function AddOrderDialog({
       setDeliveryDate(defaultDate || '');
       setCustomer(null);
       setAppliedDiscount('');
+      setDiscountType('percentage');
       setStatus('created');
       setNote('');
       setItems([]);
@@ -365,7 +371,10 @@ export default function AddOrderDialog({
       return setLocalError('Sconto non valido. Usa numeri (es. 12,5).');
     }
 
+    if (summaryTotals.validationError) return setLocalError(summaryTotals.validationError);
+
     const payload: any = {
+      discount_type: discountType,
       customer_id: Number(customer.id),
       delivery_date: deliveryDate,
       items: itemsPayload.map(({ product_id, quantity, unit_price, lot_id }) => ({
@@ -426,23 +435,13 @@ export default function AddOrderDialog({
             </div>
 
             {/* Discount */}
-            <div className="grid gap-1 min-w-0">
-              <Label>Sconto applicato (%)</Label>
-              <input
-                type="number"
-                inputMode="decimal"
-                pattern="[0-9]*[.,]?[0-9]*"
-                placeholder="0"
-                value={appliedDiscount === '' ? '' : String(appliedDiscount)}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw === '') return setAppliedDiscount('');
-                  const n = parseLocaleNumber(raw);
-                  setAppliedDiscount(n == null ? '' : n);
-                }}
-                className="min-w-0 w-full max-w-full h-9 rounded-md border bg-background px-3 py-1 text-sm"
-              />
-            </div>
+            <OrderDiscountField
+              value={appliedDiscount}
+              discountType={discountType}
+              onValueChange={setAppliedDiscount}
+              onTypeChange={setDiscountType}
+              error={summaryTotals.validationError}
+            />
 
             {/* Status */}
             <div className="grid gap-1 min-w-0">
@@ -523,7 +522,7 @@ export default function AddOrderDialog({
                     </div>
                     {(appliedDiscount !== '' && Number(appliedDiscount) > 0) && (
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Sconto ({appliedDiscount}%)</span>
+                        <span>Sconto ({formatDiscount(Number(appliedDiscount), discountType)})</span>
                         <span className="tabular-nums">−{euro(summaryTotals.discountAmount)}</span>
                       </div>
                     )}
@@ -572,6 +571,7 @@ export default function AddOrderDialog({
         orderLot={orderLot}
         onOrderLotChange={setOrderLot}
         appliedDiscount={appliedDiscount}
+        discountType={discountType}
       />
     </>
   );

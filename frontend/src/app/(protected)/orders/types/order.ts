@@ -9,6 +9,7 @@ export type OrderItem = {
   unit?: string | null;          // Unit of measure (e.g., Kg, Px)
   quantity: number;
   net_amount?: number | null;
+  gross_amount?: number | null;
   unit_price?: number | null;    // Provided by API in GET /orders/:id
   total_price?: number | null;   // Legacy total per item (kept for compatibility)
   lot_id?: number | null;

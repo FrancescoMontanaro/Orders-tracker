@@ -22,7 +22,7 @@ from ....db.orm import OrderORM, OrderItemORM, CustomerPreferencesORM
 # ======================================== #
 
 def _apply_pricing(order: Order) -> None:
-    """Populate the API amounts from the same allocation used by documents."""
+    """Expose full line amounts for customers and net allocation for reporting."""
 
     pricing = calculate_order_pricing(
         lines = [(item.quantity, item.unit_price) for item in order.items],
@@ -32,8 +32,9 @@ def _apply_pricing(order: Order) -> None:
     order.subtotal = float(pricing.subtotal)
     order.discount_amount = float(pricing.discount_amount)
     order.total_amount = float(pricing.total)
-    for item, amount in zip(order.items, pricing.line_totals):
+    for item, amount, gross in zip(order.items, pricing.line_totals, pricing.gross_line_totals):
         item.net_amount = float(amount)
+        item.gross_amount = float(gross)
 
 
 async def _get_customer_preferences(session, customer_id: int) -> Optional[CustomerPreferencesORM]:
@@ -613,11 +614,17 @@ async def generate_ddt_pdf(order_id: int, output_file: str) -> None:
         "Text8": order.delivery_date.strftime("%d/%m/%Y"),
         "Text64": f"Totale (€): {format_it_number(order.total_amount)}",
     }
+    if order.discount_amount:
+        fields["Text64"] = (
+            f"Subtotale (€): {format_it_number(order.subtotal)}\n"
+            f"Sconto sull'ordine (€): -{format_it_number(order.discount_amount)}\n"
+            f"Totale (€): {format_it_number(order.total_amount)}"
+        )
 
     # Fill item fields (up to max_allowed_items)
     for idx, item in enumerate(order.items):
         fields[f"Text{9 + idx * 3 + 0}"] = format_it_number(item.quantity) if ddt_include_quantity else ""
-        fields[f"Text{9 + idx * 3 + 1}"] = format_it_number(item.net_amount)
+        fields[f"Text{9 + idx * 3 + 1}"] = format_it_number(item.gross_amount)
         fields[f"Text{9 + idx * 3 + 2}"] = item.product_name + (f" (Lotto: {item.lot_date.strftime('%d/%m/%Y')})" if item.lot_date else "") if ddt_include_quantity else ""
 
     # Open the PDF template using PyMuPDF
@@ -635,6 +642,8 @@ async def generate_ddt_pdf(order_id: int, output_file: str) -> None:
 
         # Update the field value if there is a corresponding value in the mapping
         if value is not None:
+            if widget.field_name == "Text64":
+                widget.field_flags |= fitz.PDF_TX_FIELD_IS_MULTILINE
             widget.field_value = value  # type: ignore[assignment]
             widget.update()
 

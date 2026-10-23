@@ -10,6 +10,7 @@ from typing import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import fitz
 from fastapi import FastAPI
 from pydantic import ValidationError
 from sqlalchemy import create_engine, select
@@ -66,6 +67,14 @@ class PricingTests(unittest.TestCase):
             OrderUpdate(applied_discount=1.001)
         with self.assertRaises(ValidationError):
             OrderUpdate(applied_discount=1e100)
+
+    def test_full_price_cents_are_independent_of_the_discount(self) -> None:
+        lines = [(.25, 3.50), (.25, 3.50)]
+        regular = calculate_order_pricing(lines)
+        discounted = calculate_order_pricing(lines, .05, 'fixed')
+        self.assertEqual(sum(discounted.gross_line_totals), discounted.subtotal)
+        self.assertEqual(discounted.gross_line_totals, regular.gross_line_totals)
+        self.assertEqual(discounted.total, Decimal('1.70'))
 
 
 class DiscountServiceTests(unittest.IsolatedAsyncioTestCase):
@@ -133,6 +142,8 @@ class DiscountServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response['data']['discount_type'], 'fixed')
         self.assertEqual(response['data']['discount_amount'], 20)
         self.assertEqual(response['data']['items'][0]['net_amount'], 90)
+        self.assertEqual(response['data']['items'][0]['gross_amount'], 100)
+        self.assertEqual(response['data']['items'][0]['unit_price'], 100)
         for body, expected_status in [
             ('{"applied_discount": 201}', 400),
             ('{"discount_type": "percentage", "applied_discount": 101}', 400),
@@ -235,16 +246,43 @@ class DiscountServiceTests(unittest.IsolatedAsyncioTestCase):
             batches = [batch async for batch in iter_orders(session, None, None)]
         self.assertEqual(batches[0][0][4:6], [Decimal('1.00'), '€'])
 
-    async def test_ddt_uses_allocated_amounts(self) -> None:
+    async def test_ddt_keeps_full_line_amounts_and_separates_discount(self) -> None:
         order = await self.create()
         with TemporaryDirectory() as folder:
             target = Path(folder) / 'order.pdf'
             with patch.object(orders, 'format_it_number', wraps=orders.format_it_number) as formatter:
                 await orders.generate_ddt_pdf(order.id, str(target))
                 amounts = [call.args[0] for call in formatter.call_args_list]
-                self.assertEqual(amounts.count(90), 2)
+                self.assertEqual(amounts.count(100), 2)
+                self.assertNotIn(90, amounts)
+                self.assertIn(200, amounts)
+                self.assertIn(20, amounts)
                 self.assertIn(180, amounts)
             self.assertTrue(target.read_bytes().startswith(b'%PDF'))
+
+    async def test_ddt_summary_for_euro_percent_and_no_discount(self) -> None:
+        original_update = fitz.Widget.update
+        fields: dict[str, str] = {}
+
+        def capture_field(widget: fitz.Widget) -> None:
+            if widget.field_name:
+                fields[widget.field_name] = widget.field_value
+            original_update(widget)
+
+        for mode, discount, expected_total in [('fixed', 5.95, '194,05'), ('percentage', 10, '180,00'), ('fixed', 0, '200,00')]:
+            with self.subTest(mode=mode, discount=discount), TemporaryDirectory() as folder:
+                order = await self.create(discount, mode)
+                fields.clear()
+                with patch.object(fitz.Widget, 'update', capture_field):
+                    await orders.generate_ddt_pdf(order.id, str(Path(folder) / 'order.pdf'))
+                self.assertEqual(fields['Text10'], '100,00')
+                self.assertEqual(fields['Text13'], '100,00')
+                self.assertIn(f'Totale (€): {expected_total}', fields['Text64'])
+                if discount:
+                    self.assertIn('Subtotale (€): 200,00', fields['Text64'])
+                    self.assertIn("Sconto sull'ordine (€): -", fields['Text64'])
+                else:
+                    self.assertEqual(fields['Text64'], 'Totale (€): 200,00')
 
     async def test_fractional_quantities_match_report_rounding(self) -> None:
         for mode, discount in [('percentage', 10), ('fixed', .01)]:

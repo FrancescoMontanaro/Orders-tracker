@@ -1,10 +1,14 @@
 /** Discount modes supported by the orders API. */
 export type DiscountType = 'percentage' | 'fixed';
 
+/** Order-level amounts shown separately from full product prices. */
+export type OrderAmounts = { subtotal: number; discountAmount: number; total: number };
+
 type PricedItem = {
   quantity: number;
   unit_price?: number | null;
   net_amount?: number | null;
+  gross_amount?: number | null;
 };
 
 // Scale the tolerance with the amount so binary ties such as 80.35 × 0.9 round up.
@@ -36,15 +40,20 @@ export function calculateOrderPricing(
   const total = roundMoney(Math.max(0, Number.isFinite(rawTotal) ? rawTotal : 0));
   let cumulative = 0;
   let allocated = 0;
+  let grossAllocated = 0;
+  const grossLineTotals: number[] = [];
   const lineTotals = amounts.map((amount, index) => {
     cumulative += amount;
+    const grossTarget = roundMoney(cumulative);
+    grossLineTotals.push(items[index].gross_amount ?? roundMoney(grossTarget - grossAllocated));
+    grossAllocated = grossTarget;
     const target = rawSubtotal ? roundMoney(cumulative * total / rawSubtotal) : 0;
     const net = roundMoney(target - allocated);
     allocated = target;
     return items[index].net_amount ?? net;
   });
 
-  return { subtotal, discountAmount: roundMoney(subtotal - total), total, lineTotals, hasMissingPrices, validationError };
+  return { subtotal, discountAmount: roundMoney(subtotal - total), total, lineTotals, grossLineTotals, hasMissingPrices, validationError };
 }
 
 /** Show the stored discount in its original unit. */

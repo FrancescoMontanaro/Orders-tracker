@@ -12,12 +12,13 @@ MAX_DISCOUNT = Decimal("9999999999.99")
 
 @dataclass(frozen=True)
 class OrderPricing:
-    """Rounded order amounts and net line amounts in their original order."""
+    """Order totals, full-price lines, and net allocations for revenue reports."""
 
     subtotal: Decimal
     discount_amount: Decimal
     total: Decimal
     line_totals: tuple[Decimal, ...]
+    gross_line_totals: tuple[Decimal, ...]
 
 
 def calculate_order_pricing(
@@ -71,9 +72,15 @@ def calculate_order_pricing(
     # This ensures that the sum of line totals equals the rounded total.
     cumulative = Decimal(0)
     allocated = Decimal(0)
+    gross_allocated = Decimal(0)
     line_totals: list[Decimal] = []
+    gross_line_totals: list[Decimal] = []
     for amount in amounts:
         cumulative += amount
+        # Reconcile full-price cents independently of the order discount.
+        gross_target = cumulative.quantize(CENT, rounding = ROUND_HALF_UP)
+        gross_line_totals.append(gross_target - gross_allocated)
+        gross_allocated = gross_target
         target = (
             (cumulative * total / subtotal).quantize(CENT, rounding = ROUND_HALF_UP)
             if subtotal else Decimal(0)
@@ -87,4 +94,5 @@ def calculate_order_pricing(
         discount_amount = rounded_subtotal - total,
         total = total,
         line_totals = tuple(line_totals),
+        gross_line_totals = tuple(gross_line_totals),
     )

@@ -1,3 +1,5 @@
+import type { OrderAmounts } from '@/lib/order-pricing';
+
 // Types returned by /widgets/daily-summary
 
 export type DailySummaryCustomer = {
@@ -5,6 +7,12 @@ export type DailySummaryCustomer = {
   customer_name: string;
   quantity: number;
   order_status: 'created' | 'delivered' | string;
+  order_id?: number;
+  unit_price?: number;
+  gross_amount?: number;
+  amount?: number;
+  order_note?: string | null;
+  order_amounts?: OrderAmounts;
 };
 
 export type DailySummaryProduct = {

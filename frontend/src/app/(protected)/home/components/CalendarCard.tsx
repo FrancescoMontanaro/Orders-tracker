@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 import { Loader2 } from 'lucide-react';
 import AddOrderDialog from './AddOrderDialog';
-import DayOrdersDialog, { type DayOrdersGrouped } from './DayOrdersDialog';
+import DayOrdersDialog, { type CustomerOrder, type DayOrdersGrouped } from './DayOrdersDialog';
 import { EditOrderDialog } from '../../orders/components/EditOrderDialog';
 import type { Order } from '../../orders/types/order';
 
@@ -41,6 +41,7 @@ type OrderItemRow = {
   quantity: number;
   unit_price?: number | null;
   net_amount?: number | null;
+  gross_amount?: number | null;
 };
 type OrderRow = {
   id: number;
@@ -50,6 +51,9 @@ type OrderRow = {
   status: 'created' | 'delivered';
   applied_discount?: number | null;
   discount_type?: DiscountType;
+  total_amount?: number;
+  subtotal?: number;
+  discount_amount?: number;
   note?: string | null;
   items: OrderItemRow[];
 };
@@ -116,8 +120,14 @@ function buildDailyMapFromOrders(rows: OrderRow[]): Record<string, DailySummaryD
         quantity: qty,
         order_status: o.status,
         unit_price: unitPrice,
+        gross_amount: pricing.grossLineTotals[itemIndex],
         amount: pricing.lineTotals[itemIndex],
         order_note: o.note ?? null,
+        order_amounts: {
+          subtotal: o.subtotal ?? pricing.subtotal,
+          discountAmount: o.discount_amount ?? pricing.discountAmount,
+          total: o.total_amount ?? pricing.total,
+        },
       } as any);
     }
   }
@@ -137,22 +147,13 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
     {
       customer_id: number;
       customer_name: string;
-      orderMap: Map<
-        number,
-        {
-          order_id: number;
-          delivered: boolean;
-          total_amount: number;
-          note: string | null;
-          items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
-        }
-      >;
+      orderMap: Map<number, CustomerOrder>;
     }
   >();
 
   for (const p of day.products || []) {
     for (const c of p.customers || []) {
-      const orderId: number | null = (c as any).order_id ?? null;
+      const orderId: number | null = c.order_id ?? null;
       if (orderId == null) continue; // skip rows without an order_id
 
       // Ensure customer entry exists
@@ -171,7 +172,8 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
           order_id: orderId,
           delivered: isDelivered(c.order_status),
           total_amount: 0,
-          note: (c as any).order_note ?? null,
+          note: c.order_note ?? null,
+          amounts: c.order_amounts ?? { subtotal: 0, discountAmount: 0, total: 0 },
           items: [],
         });
       }
@@ -180,12 +182,17 @@ function groupByCustomer(day?: DailySummaryDay): DayOrdersGrouped {
       // Update delivered status (mark as pending if even one item is pending)
       if (!isDelivered(c.order_status)) order.delivered = false;
 
-      order.total_amount += Number((c as any).amount ?? 0);
+      order.total_amount = c.order_amounts?.total ?? order.total_amount + Number(c.amount ?? 0);
+      if (!c.order_amounts) {
+        order.amounts = { subtotal: order.total_amount, discountAmount: 0, total: order.total_amount };
+      }
       order.items.push({
         product_id: p.product_id,
         product_name: p.product_name,
         quantity: Number(c.quantity || 0),
-        unit: (p as any).product_unit ?? '',
+        unit: p.product_unit ?? '',
+        unit_price: Number(c.unit_price ?? 0),
+        amount: c.gross_amount ?? Number(c.unit_price ?? 0) * Number(c.quantity || 0),
       });
     }
   }

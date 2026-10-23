@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { OrderTotals } from '@/components/order-totals';
+import type { OrderAmounts } from '@/lib/order-pricing';
 import { FileDown, Loader2, Pencil } from 'lucide-react';
 import { downloadDdt } from '../../orders/utils/downloadDdt';
 import { cn } from '@/lib/utils';
@@ -22,8 +24,9 @@ export type CustomerOrder = {
   order_id: number;
   delivered: boolean;
   total_amount: number;
+  amounts: OrderAmounts;
   note?: string | null;
-  items: Array<{ product_id: number; product_name: string; quantity: number; unit: string }>;
+  items: Array<{ product_id: number; product_name: string; quantity: number; unit: string; unit_price: number; amount: number }>;
 };
 
 /** One row per customer; each customer may have multiple orders */
@@ -177,11 +180,16 @@ export default function DayOrdersDialog({
                     </div>
 
                     {/* Items */}
-                    <ul className="text-xs text-muted-foreground leading-snug list-disc pl-4 space-y-0.5">
+                    <ul className="divide-y text-xs">
                       {ord.items.map((it, i) => (
-                        <li key={i} className="break-words">
-                          {it.product_name} × {it.quantity}
-                          {it.unit ? ` ${it.unit}` : ''}
+                        <li key={i} className="flex justify-between gap-2 py-1">
+                          <div className="min-w-0 break-words">
+                            <div>{it.product_name}</div>
+                            <div className="text-muted-foreground">
+                              {it.quantity}{it.unit ? ` ${it.unit}` : ''} × {euro(it.unit_price)}
+                            </div>
+                          </div>
+                          <span className="shrink-0 tabular-nums">{euro(it.amount)}</span>
                         </li>
                       ))}
                     </ul>
@@ -193,14 +201,8 @@ export default function DayOrdersDialog({
                       </p>
                     )}
 
-                    {/* Order total */}
-                    <div className="mt-2 flex justify-end">
-                      <span className="text-xs text-muted-foreground">
-                        Totale:{' '}
-                        <span className="font-semibold text-foreground tabular-nums">
-                          {euro(Number(ord.total_amount ?? 0))}
-                        </span>
-                      </span>
+                    <div className="mt-2">
+                      <OrderTotals {...ord.amounts} />
                     </div>
                   </div>
                 ))}

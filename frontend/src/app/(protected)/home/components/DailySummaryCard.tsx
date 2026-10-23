@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { OrderTotals } from '@/components/order-totals';
 import { calculateOrderPricing, type DiscountType } from '@/lib/order-pricing';
 import { api } from '@/lib/api-client';
 import { formatUnit } from '@/lib/utils';
@@ -46,6 +47,7 @@ type OrderItemRow = {
   quantity: number;
   unit_price?: number | null;
   net_amount?: number | null;
+  gross_amount?: number | null;
 };
 
 type OrderRow = {
@@ -55,6 +57,8 @@ type OrderRow = {
   delivery_date: string;
   status: 'created' | 'delivered';
   total_amount?: number | null;
+  subtotal?: number;
+  discount_amount?: number;
   applied_discount?: number | null;
   discount_type?: DiscountType;
   note?: string | null;
@@ -84,6 +88,8 @@ type CustomerOrderRow = {
   id: number;
   status: 'created' | 'delivered';
   total_amount: number; // from API (fallback to computed if missing)
+  subtotal: number;
+  discount_amount: number;
   note?: string | null;
   items: Array<{ product_name: string; quantity: number; unit?: string; unit_price: number; subtotal: number }>;
 };
@@ -251,6 +257,8 @@ export default function DailySummaryCard() {
         id: o.id,
         status: o.status,
         total_amount: Number(total_amount || 0),
+        subtotal: o.subtotal ?? pricing.subtotal,
+        discount_amount: o.discount_amount ?? pricing.discountAmount,
         note: o.note ?? null,
         items: (o.items || []).map((it, itemIndex) => {
           const qty = Number(it.quantity || 0);
@@ -260,7 +268,7 @@ export default function DailySummaryCard() {
             quantity: qty,
             unit: (it.unit ?? undefined) as any,
             unit_price: price,
-            subtotal: pricing.lineTotals[itemIndex],
+            subtotal: pricing.grossLineTotals[itemIndex],
           };
         }),
       });
@@ -398,7 +406,7 @@ export default function DailySummaryCard() {
               /* ------------------------ Customer grouping view ------------------------ */
               <div className="space-y-6">
                 {/* Totale complessivo giornata */}
-                <div className="flex items-center justify-end px-1 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center justify-end gap-x-1 px-1 text-sm text-muted-foreground">
                   <span>Totale complessivo giornata:&nbsp;</span>
                   <span className="font-semibold">
                     {euro(customerGroups.reduce((acc, g) => acc + Number(g.total_amount_sum || 0), 0))}
@@ -458,7 +466,6 @@ export default function DailySummaryCard() {
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
                                 </Button>
-                                <div className="font-semibold whitespace-nowrap">Totale: {euro(ord.total_amount)}</div>
                               </div>
                             </div>
 
@@ -482,7 +489,7 @@ export default function DailySummaryCard() {
                                         <div className="flex flex-col gap-1">
                                           {/* Product name row */}
                                           <div className="flex items-center justify-between gap-2">
-                                            <span className="font-medium text-sm truncate">{it.product_name}</span>
+                                            <span className="min-w-0 break-words font-medium text-sm">{it.product_name}</span>
                                             <span className="text-sm font-semibold text-primary whitespace-nowrap">
                                               {euro(it.subtotal)}
                                             </span>
@@ -532,6 +539,11 @@ export default function DailySummaryCard() {
                                 </Select>
                               </div>
                             </div>
+                            <OrderTotals
+                              subtotal={ord.subtotal}
+                              discountAmount={ord.discount_amount}
+                              total={ord.total_amount}
+                            />
                           </li>
                         ))}
                       </ul>

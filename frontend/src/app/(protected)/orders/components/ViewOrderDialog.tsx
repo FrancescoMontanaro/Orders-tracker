@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { calculateOrderPricing, formatDiscount } from '@/lib/order-pricing';
+import { OrderTotals } from '@/components/order-totals';
+import { calculateOrderPricing } from '@/lib/order-pricing';
 import type { Order } from '../types/order';
 import { euro } from '../utils/currency';
 import { fmtDate } from '../utils/date';
@@ -50,15 +51,11 @@ export function ViewOrderDialog({
     onRequestEdit(order);
   }, [order, onOpenChange, onRequestEdit]);
 
-  const totalAmount = React.useMemo(() => {
-    if (!order) return 0;
-    if (order.total_amount != null) return order.total_amount;
-    if (order.total_price != null) return order.total_price;
-    if (order.items?.length) {
-      return calculateOrderPricing(order.items, order.applied_discount, order.discount_type).total;
-    }
-    return 0;
-  }, [order]);
+  const pricing = React.useMemo(
+    () => calculateOrderPricing(order?.items ?? [], order?.applied_discount, order?.discount_type),
+    [order],
+  );
+  const totalAmount = order?.total_amount ?? order?.total_price ?? pricing.total;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,11 +83,6 @@ export function ViewOrderDialog({
                 <Field label="Cliente" value={order.customer_name ?? `#${order.customer_id}`} />
                 <Field label="Consegna" value={<span className="tabular-nums">{fmtDate(order.delivery_date)}</span>} />
                 <Field label="Stato" value={mapStatus(order.status)} />
-                <Field
-                  label="Sconto applicato"
-                  value={order.applied_discount != null ? formatDiscount(order.applied_discount, order.discount_type) : '—'}
-                />
-                <Field label="Totale" value={<span className="font-semibold tabular-nums">{euro(totalAmount)}</span>} />
               </section>
 
               {/* Note (shown only when present) */}
@@ -112,6 +104,7 @@ export function ViewOrderDialog({
                             <TableHead>Prodotto</TableHead>
                             <TableHead className="text-right">Qtà</TableHead>
                             <TableHead className="text-right">Prezzo</TableHead>
+                            <TableHead className="text-right">Importo</TableHead>
                             <TableHead>Lotto</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -129,6 +122,9 @@ export function ViewOrderDialog({
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-sm">
                                 {item.unit_price != null ? euro(item.unit_price) : '—'}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-sm">
+                                {euro(pricing.grossLineTotals[idx])}
                               </TableCell>
                               <TableCell className="text-sm">
                                 {item.lot_name ? (
@@ -150,6 +146,11 @@ export function ViewOrderDialog({
                   <p className="text-sm text-muted-foreground">Nessun prodotto associato.</p>
                 )}
               </section>
+              <OrderTotals
+                subtotal={order.subtotal ?? pricing.subtotal}
+                discountAmount={order.discount_amount ?? pricing.discountAmount}
+                total={totalAmount}
+              />
             </>
           )}
         </div>

@@ -9,8 +9,10 @@ the subtotal calculated from the order's snapshot prices.
 
 Pricing uses decimal arithmetic and rounds half up to cents. Net line amounts
 (`items[].net_amount`) are allocated proportionally using cumulative rounding,
-so their sum matches `total_amount`. Reports and DDTs use the same allocation;
-the customer report expresses fixed discounts as equivalent percentages.
+so their sum matches `total_amount` for revenue reporting. Customer summaries
+and DDTs use full product line amounts (`items[].gross_amount`) and show the
+subtotal, order discount, and final total separately. The customer sales report
+expresses fixed discounts as equivalent percentages.
 Order exports include separate discount value and unit columns.
 
 The startup schema patch adds the discount type and replaces the old percentage

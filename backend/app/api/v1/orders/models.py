@@ -17,6 +17,7 @@ class OrderItem(BaseModel):
     quantity: float
     unit_price: float
     net_amount: float = 0
+    gross_amount: float = 0
     lot_id: Optional[int] = None
     lot_name: Optional[str] = None
     lot_date: Optional[date] = None

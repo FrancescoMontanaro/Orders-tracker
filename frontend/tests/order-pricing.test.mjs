@@ -33,3 +33,19 @@ test('format discount labels with the correct unit', () => {
   assert.equal(formatDiscount(12.5), '12,5%');
   assert.match(formatDiscount(20, 'fixed'), /20,00\s*€/);
 });
+
+test('customer line amounts stay at full price while the order discount is separate', () => {
+  const pricing = calculateOrderPricing([
+    { quantity: 2, unit_price: 30, net_amount: 56.43 },
+    { quantity: 1, unit_price: 40, net_amount: 37.62 },
+  ], 5.95, 'fixed');
+  assert.deepEqual(pricing.grossLineTotals, [60, 40]);
+  assert.equal(pricing.subtotal, 100);
+  assert.equal(pricing.discountAmount, 5.95);
+  assert.equal(pricing.total, 94.05);
+  const fractional = [{ quantity: .25, unit_price: 3.50 }, { quantity: .25, unit_price: 3.50 }];
+  const original = calculateOrderPricing(fractional);
+  const discounted = calculateOrderPricing(fractional, .05, 'fixed');
+  assert.deepEqual(discounted.grossLineTotals, original.grossLineTotals);
+  assert.equal(discounted.grossLineTotals.reduce((sum, amount) => sum + amount, 0), discounted.subtotal);
+});
